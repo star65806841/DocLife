@@ -19,6 +19,14 @@ project/
 │   └── Common/
 │       ├── CMakeLists.txt
 │       └── ...
+├── style/                        # 样式模块
+│   ├── CMakeLists.txt
+│   ├── Colorsource.qml
+│   ├── Fontsource.qml
+│   └── Sizesource.qml
+├── main/                         # 主业务模块
+│   ├── CMakeLists.txt
+│   └── Main.qml
 ├── app/
 │   ├── main.qml
 │   └── App.qml

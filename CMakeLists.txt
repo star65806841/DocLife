@@ -13,13 +13,34 @@ find_package(Qt6 REQUIRED COMPONENTS Quick)
 qt_standard_project_setup(REQUIRES 6.10)
 
 qt_add_executable(appDocLife
-    DocLife/main.cpp
+    main.cpp
 )
+
+add_subdirectory(Styles)
+
+file(GLOB_RECURSE IMAGE_FILES
+    CONFIGURE_DEPENDS
+    RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+    "resources/*.png"
+    "resources/*.svg"
+    "resources/*.jpg"
+)
+
+# file(GLOB_RECURSE QML_FILES
+#     CONFIGURE_DEPENDS
+#     RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+#     "app/*.qml"
+# )
 
 qt_add_qml_module(appDocLife
     URI DocLife
     QML_FILES
-        DocLife/Main.qml
+        "app/Main.qml"
+        #${QML_FILES}
+    RESOURCES
+        ${IMAGE_FILES}
+    DEPENDENCIES
+        TARGET DocLife_Style
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
@@ -33,8 +54,9 @@ set_target_properties(appDocLife PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 
-target_link_libraries(appDocLife
-    PRIVATE Qt6::Quick
+target_link_libraries(appDocLife PUBLIC
+        Qt6::Quick
+        DocLife_Styleplugin
 )
 
 install(TARGETS appDocLife

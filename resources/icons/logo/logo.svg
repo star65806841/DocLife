@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2F80ED"/>
+      <stop offset="1" stop-color="#0B3D91"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EAF2FF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 只保留一圈蓝色边框 -->
+  <rect x="28" y="28" width="456" height="456" rx="96"
+        fill="#FFFFFF"
+        stroke="url(#blue)"
+        stroke-width="14"/>
+
+  <!-- 内侧细线，增加“边框感” -->
+  <rect x="52" y="52" width="408" height="408" rx="76"
+        fill="none"
+        stroke="#2F80ED"
+        stroke-opacity="0.18"
+        stroke-width="4"/>
+
+  <!-- 主图放大：工程文档 -->
+  <g>
+    <!-- 文档主体 -->
+    <path d="M150 96h156l76 76v220a28 28 0 0 1-28 28H150a28 28 0 0 1-28-28V124a28 28 0 0 1 28-28Z"
+          fill="url(#paper)"
+          stroke="#0B3D91"
+          stroke-width="12"
+          stroke-linejoin="round"/>
+
+    <!-- 折角 -->
+    <path d="M306 96v76h76" fill="#D6E6FF"/>
+    <path d="M306 96v76h76"
+          fill="none"
+          stroke="#0B3D91"
+          stroke-width="12"
+          stroke-linejoin="round"/>
+
+    <!-- 蓝图网格 -->
+    <g stroke="#2F80ED" stroke-opacity="0.28" stroke-width="6">
+      <path d="M158 210h216"/>
+      <path d="M158 254h216"/>
+      <path d="M158 298h216"/>
+      <path d="M200 178v164"/>
+      <path d="M256 178v164"/>
+      <path d="M312 178v164"/>
+    </g>
+
+    <!-- 文档上的工程线条 -->
+    <path d="M176 226h120" stroke="#2F80ED" stroke-width="14" stroke-linecap="round"/>
+    <path d="M176 270h80"  stroke="#2F80ED" stroke-width="14" stroke-linecap="round" opacity="0.75"/>
+    <path d="M176 314h104" stroke="#2F80ED" stroke-width="14" stroke-linecap="round" opacity="0.55"/>
+
+    <!-- 尺子 -->
+    <g transform="rotate(-18 256 360)">
+      <rect x="176" y="342" width="184" height="40" rx="8"
+            fill="#FFB020"
+            stroke="#B26A00"
+            stroke-width="8"/>
+      <g stroke="#B26A00" stroke-width="6" stroke-linecap="round">
+        <path d="M200 342v14"/>
+        <path d="M224 342v20"/>
+        <path d="M248 342v14"/>
+        <path d="M272 342v20"/>
+        <path d="M296 342v14"/>
+        <path d="M320 342v20"/>
+        <path d="M344 342v14"/>
+      </g>
+    </g>
+
+    <!-- 齿轮 -->
+    <g transform="translate(360 372)">
+      <circle r="60" fill="#FFFFFF" stroke="#0B3D91" stroke-width="12"/>
+      <circle r="22" fill="none" stroke="#0B3D91" stroke-width="12"/>
+      <g stroke="#0B3D91" stroke-width="14" stroke-linecap="round">
+        <path d="M0 -78v-22"/>
+        <path d="M0 78v22"/>
+        <path d="M-78 0h-22"/>
+        <path d="M78 0h22"/>
+        <path d="M-55 -55l-16 -16"/>
+        <path d="M55 55l16 16"/>
+        <path d="M55 -55l16 -16"/>
+        <path d="M-55 55l-16 16"/>
+      </g>
+    </g>
+  </g>
+</svg>
