@@ -1,20 +1,23 @@
-#include <QGuiApplication>
-#include <QQmlApplicationEngine>
-#include <QIcon>
+﻿#include "mainwindow.h"
+
+#include <QApplication>
+#include <QLocale>
+#include <QTranslator>
 
 int main(int argc, char *argv[])
 {
-    QGuiApplication app(argc, argv);
-    app.setWindowIcon(QIcon(":/qt/qml/DocLife/resources/icons/logo/logo.svg"));
+    QApplication a(argc, argv);
 
-    QQmlApplicationEngine engine;
-    QObject::connect(
-        &engine,
-        &QQmlApplicationEngine::objectCreationFailed,
-        &app,
-        []() { QCoreApplication::exit(-1); },
-        Qt::QueuedConnection);
-    engine.loadFromModule("DocLife", "Main");
-
-    return QGuiApplication::exec();
+    QTranslator translator;
+    const QStringList uiLanguages = QLocale::system().uiLanguages();
+    for (const QString &locale : uiLanguages) {
+        const QString baseName = "DocLife_" + QLocale(locale).name();
+        if (translator.load(":/i18n/" + baseName)) {
+            a.installTranslator(&translator);
+            break;
+        }
+    }
+    MainWindow w;
+    w.show();
+    return QApplication::exec();
 }

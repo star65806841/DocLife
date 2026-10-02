@@ -1,66 +1,56 @@
-# Copyright (C) 2026 The DSpace Company Ltd.
-# SPDX-License-Identifier: LicenseRef-DSpace-Commercial
+﻿cmake_minimum_required(VERSION 3.19)
+project(DocLife LANGUAGES CXX)
 
-cmake_minimum_required(VERSION 3.22)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools Svg)
 
-project(DocLife VERSION 0.0.0001 LANGUAGES CXX)
+qt_standard_project_setup()
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_subdirectory(
+    ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/QXlsx/QXlsx/
+    ${CMAKE_CURRENT_BINARY_DIR}/QXlsx_build
+)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick)
-
-qt_standard_project_setup(REQUIRES 6.10)
-
-qt_add_executable(appDocLife
+set(DOCLIFE_SRC
     main.cpp
+    mainwindow.cpp
+    main.cpp
+    mainwindow.cpp
+    mainwindow.h
+    mainwindow.ui
+    excelfile.h excelfile.cpp
+    mainContent.h mainContent.cpp
+    excelsheet.h excelsheet.cpp
+    utils.h utils.cpp
+    uisignalmanager.h uisignalmanager.cpp
+    exceltreewidget.h exceltreewidget.cpp
 )
 
-add_subdirectory(Styles)
-
-file(GLOB_RECURSE IMAGE_FILES
-    CONFIGURE_DEPENDS
-    RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-    "resources/*.png"
-    "resources/*.svg"
-    "resources/*.jpg"
+qt_add_resources(DOCLIFE_SRC
+    ./resources/resource.qrc
 )
 
-# file(GLOB_RECURSE QML_FILES
-#     CONFIGURE_DEPENDS
-#     RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-#     "app/*.qml"
-# )
-
-qt_add_qml_module(appDocLife
-    URI DocLife
-    QML_FILES
-        "app/Main.qml"
-        #${QML_FILES}
-    RESOURCES
-        ${IMAGE_FILES}
-    DEPENDENCIES
-        TARGET DocLife_Style
+qt_add_executable(DocLife
+    WIN32 MACOSX_BUNDLE
+    ${DOCLIFE_SRC}
 )
 
-# Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
-# If you are developing for iOS or macOS you should consider setting an
-# explicit, fixed bundle identifier manually though.
-set_target_properties(appDocLife PROPERTIES
-#    MACOSX_BUNDLE_GUI_IDENTIFIER com.example.appDocLife
-    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-    MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
-    MACOSX_BUNDLE TRUE
-    WIN32_EXECUTABLE TRUE
+target_link_libraries(DocLife
+    PRIVATE
+        Qt::Core
+        Qt::Widgets
+        Qt::Svg
+        QXlsx::QXlsx
 )
 
-target_link_libraries(appDocLife PUBLIC
-        Qt6::Quick
-        DocLife_Styleplugin
-)
-
-install(TARGETS appDocLife
-    BUNDLE DESTINATION .
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+install(TARGETS DocLife
+    BUNDLE  DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
+
+qt_generate_deploy_app_script(
+    TARGET DocLife
+    OUTPUT_SCRIPT deploy_script
+    NO_UNSUPPORTED_PLATFORM_ERROR
+)
+install(SCRIPT ${deploy_script})
