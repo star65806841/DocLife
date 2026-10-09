@@ -1,4 +1,4 @@
-﻿#include "projiectitem.h"
+﻿#include "projectitem.h"
 
 #include <QBoxLayout>
 #include <QMouseEvent>

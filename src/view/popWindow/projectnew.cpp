@@ -43,7 +43,6 @@ void ProjiectNew::init()
 
     m_dialog = new fluent::dialogs_flyouts::ContentDialog();
     m_dialog->setFixedSize(QSize(470,300));
-    // m_dialog->setContentsMargins(5,10,5,5);
     m_dialog->setTitle("新建工程");
     m_dialog->setContent(contentWid);
     m_dialog->setPrimaryButtonText("确定");

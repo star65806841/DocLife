@@ -23,18 +23,21 @@ set(DOCLIFE_SRC
     src/view/mainwindow.cpp
     src/view/mainwindow.h
     src/view/mainwindow.ui
+
+    src/helper/uisignalmanager.h src/helper/uisignalmanager.cpp
+    src/view/fluentqt/application.h src/view/fluentqt/application.cpp
+    src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp
+
+    src/view/popWindow/projectsetting.h src/view/popWindow/projectsetting.cpp
+    src/view/popWindow/infoItem/projectitem.h src/view/popWindow/infoItem/projectitem.cpp
+    src/view/popWindow/projiectnew.h src/view/popWindow/projiectnew.cpp
+    src/view/popWindow/infoItem/projectinfopage.h src/view/popWindow/infoItem/projectinfopage.cpp
+
     excelfile.h excelfile.cpp
     mainContent.h mainContent.cpp
     excelsheet.h excelsheet.cpp
     utils.h utils.cpp
-    src/helper/uisignalmanager.h src/helper/uisignalmanager.cpp
     exceltreewidget.h exceltreewidget.cpp
-    src/view/fluentqt/application.h src/view/fluentqt/application.cpp
-    src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp
-    src/view/popWindow/projectsetting.h src/view/popWindow/projectsetting.cpp
-    src/view/popWindow/infoItem/projiectitem.h src/view/popWindow/infoItem/projiectitem.cpp
-    src/view/popWindow/projiectnew.h src/view/popWindow/projiectnew.cpp
-
 )
 
 qt_add_resources(DOCLIFE_SRC
@@ -44,8 +47,6 @@ qt_add_resources(DOCLIFE_SRC
 qt_add_executable(DocLife
     WIN32 MACOSX_BUNDLE
     ${DOCLIFE_SRC}
-    src/view/popWindow/infoItem/projectinfopage.h src/view/popWindow/infoItem/projectinfopage.cpp
-
 )
 
 target_include_directories(DocLife

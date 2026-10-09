@@ -1,5 +1,5 @@
-﻿#ifndef PROJIECTNEW_H
-#define PROJIECTNEW_H
+#ifndef PROJECTNEW_H
+#define PROJECTNEW_H
 
 #include <QWidget>
 
@@ -22,4 +22,4 @@ private:
 };
 }
 
-#endif // PROJIECTNEW_H
+#endif // PROJECTNEW_H

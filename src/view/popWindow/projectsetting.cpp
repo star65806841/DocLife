@@ -6,7 +6,7 @@
 #include <components/navigation/NavigationView.h>
 #include <components/navigation/StackContentHost.h>
 
-#include "infoItem/projiectitem.h"
+#include "infoItem/projectitem.h"
 
 using namespace doclife::ui;
 
