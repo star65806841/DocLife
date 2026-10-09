@@ -3,11 +3,11 @@
 
 #include <QHBoxLayout>
 #include <QPushButton>
-#include <QSplitter>
-#include <projiectnew.h>
+
 #include <FluentQt/FluentQt.h>
 
 #include "topmenu.h"
+#include "projiectnew.h"
 #include "projectsetting.h"
 #include "uisignalmanager.h"
 
@@ -25,9 +25,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     auto *splitter = new fluent::collections::SplitView(this);
     auto *left   = new QWidget();
-    left->setStyleSheet("background:#eAf;");
+    // left->setStyleSheet("background:#eAf;");
     auto *m_mainContent = new QWidget();
-    m_mainContent->setStyleSheet("background:#ef1;");
+    // m_mainContent->setStyleSheet("background:#ef1;");
     // auto *right  = new QWidget();
 
     splitter->addPane(left,{15,200,550,false});

@@ -6,7 +6,7 @@
 #include <components/navigation/NavigationView.h>
 #include <components/navigation/StackContentHost.h>
 
-#include "projiectitem.h"
+#include "infoItem/projiectitem.h"
 
 using namespace doclife::ui;
 
@@ -66,40 +66,32 @@ void ProjectSetting::init()
     host->insertPage(
         0,
         createDemoPage(QStringLiteral("工程名称"),
-                       QStringLiteral("Welcome to the FluentQt "
-                                      "NavigationView demo.")),
+                       QStringLiteral("xx*xx高速公路项目G2标段")
+                       ),
         fluent::WidgetOwnership::Reparented);
 
     host->insertPage(
         1,
-        createDemoPage(QStringLiteral("Library"),
-                       QStringLiteral("Browse your media library here.")),
+        createDemoPage(QStringLiteral("施工单位"),
+                       QStringLiteral("江南皮革公路工程有限公司")),
         fluent::WidgetOwnership::Reparented);
 
     host->insertPage(
         2,
-        createDemoPage(QStringLiteral("Settings"),
-                       QStringLiteral("Adjust application preferences.")),
+        createDemoPage(QStringLiteral("监理单位"),
+                       QStringLiteral("中交建设监理有限公司")),
         fluent::WidgetOwnership::Reparented);
 
     host->insertPage(
         3,
-        createDemoPage(QStringLiteral("About"),
-                       QStringLiteral("FluentQt NavigationView sample.")),
+        createDemoPage(QStringLiteral("设计单位"),
+                       QStringLiteral("中国公路织女星设计研究院")),
         fluent::WidgetOwnership::Reparented);
 
     host->insertPage(
         4,
-        createDemoPage(QStringLiteral("工程名称"),
-                       QStringLiteral("Welcome to the FluentQt "
-                                      "NavigationView demo.")),
-        fluent::WidgetOwnership::Reparented);
-
-    host->insertPage(
-        5,
-        createDemoPage(QStringLiteral("工程名称"),
-                       QStringLiteral("Welcome to the FluentQt "
-                                      "NavigationView demo.")),
+        createDemoPage(QStringLiteral("建设单位"),
+                       QStringLiteral("中国火星开拓局第三建设有限公司")),
         fluent::WidgetOwnership::Reparented);
 
     host->setTransitionEffect(fluent::navigation::StackContentHost::TransitionEffect::SlideFromBottom);
@@ -107,12 +99,11 @@ void ProjectSetting::init()
     // ---- 导航项列表作为 main chrome 接入 ----
     QVector<MainSection::Entry> entries =
         {
-          {Typography::Icons::glyph(QStringLiteral("ic_fluent_vote_24_regular")), QStringLiteral("工程类型"), true},
-          {Typography::Icons::glyph(QStringLiteral("ic_fluent_card_ui_portrait_flip_24_regular")), QStringLiteral("工程项目名称"), false},
+          {Typography::Icons::glyph(QStringLiteral("ic_fluent_vote_24_regular")), QStringLiteral("工程项目名称"), true},
           {Typography::Icons::glyph(QStringLiteral("ic_fluent_vehicle_tractor_24_regular")), QStringLiteral("施工单位"), false},
           {Typography::Icons::glyph(QStringLiteral("ic_fluent_receipt_cube_24_regular")), QStringLiteral("监理单位"), false},
           {Typography::Icons::glyph(QStringLiteral("ic_fluent_quiz_24_regular")), QStringLiteral("设计单位"), false},
-          {Typography::Icons::glyph(QStringLiteral("ic_fluent_window_text_24_regular")), QStringLiteral("建设单位"), false},
+          {Typography::Icons::glyph(QStringLiteral("ic_fluent_card_ui_portrait_flip_24_regular")), QStringLiteral("建设单位"), false},
           };
 
     auto* mainSection = new MainSection(entries, navView);
@@ -132,9 +123,13 @@ void ProjectSetting::init()
     // mainSection->setStyleSheet("background-color: #FF00FF;");
 
     // 底部命令按钮
-    auto* completeButton  = new fluent::basicinput::Button(QStringLiteral("完成"));
-    auto* cancelButton = new fluent::basicinput::Button(QStringLiteral("取消"));
-    completeButton->setFluentStyle(fluent::basicinput::Button::Accent);
+    auto* editButton  = new fluent::basicinput::Button(QStringLiteral("确 认"));
+    editButton->setMinimumWidth(120);
+
+    auto* cancelButton = new fluent::basicinput::Button(QStringLiteral("取 消"));
+    cancelButton->setMinimumWidth(120);
+
+    editButton->setFluentStyle(fluent::basicinput::Button::Accent);
     cancelButton->setFluentStyle(fluent::basicinput::Button::Standard);
 
     // 底部按钮行
@@ -142,8 +137,8 @@ void ProjectSetting::init()
     commandRow->setContentsMargins(0, 0, 0, 0);
     commandRow->setSpacing(8);
     commandRow->addStretch(1);
+    commandRow->addWidget(editButton);
     commandRow->addWidget(cancelButton);
-    commandRow->addWidget(completeButton);
 
     layout->addWidget(titleLabel);
     // layout->addWidget(nameEdit);
@@ -151,7 +146,7 @@ void ProjectSetting::init()
     layout->addStretch(1);
     layout->addLayout(commandRow);
 
-    connect(completeButton, &fluent::basicinput::Button::clicked, m_dialog,&QDialog::close);
+    connect(editButton, &fluent::basicinput::Button::clicked, m_dialog,&QDialog::close);
     connect(cancelButton, &fluent::basicinput::Button::clicked, m_dialog,&QDialog::close);
     connect(m_dialog, &QDialog::finished, m_dialog,&QObject::deleteLater);
     connect(m_dialog, &QDialog::destroyed, [](){qDebug()<<"m_dialog destroyed";});
@@ -174,6 +169,28 @@ QWidget* ProjectSetting::createDemoPage(const QString& title,
     titleLabel->setFont(titleFont);
 
     auto* descLabel = new QLabel(description, page);
+    descLabel->setWordWrap(true);
+
+    layout->addWidget(titleLabel);
+    layout->addWidget(descLabel);
+    layout->addStretch();
+    return page;
+}
+
+QWidget *ProjectSetting::createPage2(const QString &title1, const QString &description1, const QString &title2, const QString &description2, QWidget *parent)
+{
+    auto* page = new QWidget(parent);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(32, 32, 32, 32);
+    layout->setSpacing(12);
+
+    auto* titleLabel = new QLabel(title1, page);
+    QFont titleFont = titleLabel->font();
+    titleFont.setPointSizeF(qMax(titleFont.pointSizeF() * 1.5, 15.0));
+    titleFont.setBold(true);
+    titleLabel->setFont(titleFont);
+
+    auto* descLabel = new QLabel(description1, page);
     descLabel->setWordWrap(true);
 
     layout->addWidget(titleLabel);

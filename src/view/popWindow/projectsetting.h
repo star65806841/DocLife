@@ -23,6 +23,7 @@ private:
     void populateNavigationPages(fluent::navigation::StackContentHost *host);
     QWidget *buildNavigationDemo(QWidget *parent);
     QWidget *createDemoPage(const QString &title, const QString &description, QWidget *parent = nullptr);
+    QWidget *createPage2(const QString &title1, const QString &description1,const QString &title2, const QString &description2, QWidget *parent = nullptr);
 
 private:
     fluent::dialogs_flyouts::Dialog* m_dialog = nullptr;

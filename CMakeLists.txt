@@ -32,7 +32,7 @@ set(DOCLIFE_SRC
     src/view/fluentqt/application.h src/view/fluentqt/application.cpp
     src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp
     src/view/popWindow/projectsetting.h src/view/popWindow/projectsetting.cpp
-    src/view/popWindow/projiectitem.h src/view/popWindow/projiectitem.cpp
+    src/view/popWindow/infoItem/projiectitem.h src/view/popWindow/infoItem/projiectitem.cpp
     src/view/popWindow/projiectnew.h src/view/popWindow/projiectnew.cpp
 
 )
@@ -44,6 +44,7 @@ qt_add_resources(DOCLIFE_SRC
 qt_add_executable(DocLife
     WIN32 MACOSX_BUNDLE
     ${DOCLIFE_SRC}
+    src/view/popWindow/infoItem/projectinfopage.h src/view/popWindow/infoItem/projectinfopage.cpp
 
 )
 
