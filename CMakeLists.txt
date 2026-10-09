@@ -1,11 +1,11 @@
 ﻿cmake_minimum_required(VERSION 3.17)
 project(DocLife LANGUAGES CXX)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools Svg )
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools Svg GuiPrivate)
 
 qt_standard_project_setup()
 
-set(QT_NO_PRIVATE_MODULE_WARNING ON)
+# set(QT_NO_PRIVATE_MODULE_WARNING ON)
 add_subdirectory(
     ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/QXlsx/QXlsx
     ${CMAKE_CURRENT_BINARY_DIR}/QXlsx_build
@@ -28,9 +28,10 @@ set(DOCLIFE_SRC
     src/view/fluentqt/application.h src/view/fluentqt/application.cpp
     src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp
 
+    src/view/popWindow/projectnew.h src/view/popWindow/projectnew.cpp
     src/view/popWindow/projectsetting.h src/view/popWindow/projectsetting.cpp
+
     src/view/popWindow/infoItem/projectitem.h src/view/popWindow/infoItem/projectitem.cpp
-    src/view/popWindow/projiectnew.h src/view/popWindow/projiectnew.cpp
     src/view/popWindow/infoItem/projectinfopage.h src/view/popWindow/infoItem/projectinfopage.cpp
 
     excelfile.h excelfile.cpp
@@ -54,8 +55,7 @@ target_include_directories(DocLife
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/src/view
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/view/topMenu
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/view/popWindow
+
         ${CMAKE_CURRENT_SOURCE_DIR}/src/helper
 )
 

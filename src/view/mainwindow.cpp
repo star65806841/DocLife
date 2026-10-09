@@ -6,9 +6,9 @@
 
 #include <FluentQt/FluentQt.h>
 
-#include "topmenu.h"
-#include "projiectnew.h"
-#include "projectsetting.h"
+#include "view/topMenu/topmenu.h"
+#include "view/popWindow/projectnew.h"
+#include "view/popWindow/projectsetting.h"
 #include "uisignalmanager.h"
 
 using namespace doclife::ui;
