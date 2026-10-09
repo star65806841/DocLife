@@ -1,28 +1,40 @@
-﻿cmake_minimum_required(VERSION 3.19)
+﻿cmake_minimum_required(VERSION 3.17)
 project(DocLife LANGUAGES CXX)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools Svg)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools Svg )
 
 qt_standard_project_setup()
 
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
 add_subdirectory(
-    ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/QXlsx/QXlsx/
+    ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/QXlsx/QXlsx
     ${CMAKE_CURRENT_BINARY_DIR}/QXlsx_build
 )
-
+add_subdirectory(
+    ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/Fluent-Qt
+    ${CMAKE_CURRENT_BINARY_DIR}/fluent_build
+)
+# add_subdirectory(
+#     ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/glog
+#     ${CMAKE_CURRENT_BINARY_DIR}/glog_build
+# )
 set(DOCLIFE_SRC
-    main.cpp
-    mainwindow.cpp
-    main.cpp
-    mainwindow.cpp
-    mainwindow.h
-    mainwindow.ui
+    src/main.cpp
+    src/view/mainwindow.cpp
+    src/view/mainwindow.h
+    src/view/mainwindow.ui
     excelfile.h excelfile.cpp
     mainContent.h mainContent.cpp
     excelsheet.h excelsheet.cpp
     utils.h utils.cpp
-    uisignalmanager.h uisignalmanager.cpp
+    src/helper/uisignalmanager.h src/helper/uisignalmanager.cpp
     exceltreewidget.h exceltreewidget.cpp
+    src/view/fluentqt/application.h src/view/fluentqt/application.cpp
+    src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp
+    src/view/popWindow/projectsetting.h src/view/popWindow/projectsetting.cpp
+    src/view/popWindow/projiectitem.h src/view/popWindow/projiectitem.cpp
+    src/view/popWindow/projiectnew.h src/view/popWindow/projiectnew.cpp
+
 )
 
 qt_add_resources(DOCLIFE_SRC
@@ -32,6 +44,17 @@ qt_add_resources(DOCLIFE_SRC
 qt_add_executable(DocLife
     WIN32 MACOSX_BUNDLE
     ${DOCLIFE_SRC}
+
+)
+
+target_include_directories(DocLife
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/view
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/view/topMenu
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/view/popWindow
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/helper
 )
 
 target_link_libraries(DocLife
@@ -40,6 +63,7 @@ target_link_libraries(DocLife
         Qt::Widgets
         Qt::Svg
         QXlsx::QXlsx
+        FluentQt::FluentQt
 )
 
 install(TARGETS DocLife

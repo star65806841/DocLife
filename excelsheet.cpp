@@ -27,7 +27,7 @@ int ExcelSheet::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid())
         return 0;
-
+    return 20;
     // FIXME: Implement me!
 }
 
@@ -35,7 +35,7 @@ int ExcelSheet::columnCount(const QModelIndex &parent) const
 {
     if (parent.isValid())
         return 0;
-
+    return 12;
     // FIXME: Implement me!
 }
 

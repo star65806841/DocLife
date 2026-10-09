@@ -4,6 +4,8 @@
 #include <QObject>
 #include <QString>
 
+namespace doclife::ui{
+
 class UISignalManager : public QObject
 {
     Q_OBJECT
@@ -17,7 +19,12 @@ public:
     UISignalManager &operator=(const UISignalManager &) = delete;
 
 Q_SIGNALS:
-    // ============ 示例信号：按需增删 ============
+    // ============---============
+
+    // 新建项目
+    void popProjectNew();
+    // 项目设置
+    void popProjectsetting();
 
     // 日志
     void logMessage(const QString &msg);
@@ -47,5 +54,5 @@ private:
 
     // 禁止外部 new
 };
-
+}
 #endif // UISIGNALMANAGER_H

@@ -21,14 +21,14 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
 
+private slots:
+    void showProjectsetting();
+    void showProjectNew();
+private:
+    Ui::MainWindow *ui;
+    // MainContent *m_mainContent = nullptr;
 private:
     void initConnect();
 
-private:
-    Ui::MainWindow *ui;
-
-    QWidget *m_topBar = nullptr;
-    MainContent *m_mainContent = nullptr;
-    QPushButton *m_mainOpenBtn = nullptr;
 };
 #endif // MAINWINDOW_H

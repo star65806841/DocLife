@@ -1,0 +1,6 @@
+[submodule "3rdparty/Fluent-Qt"]
+	path = 3rdparty/Fluent-Qt
+	url = git@github.com:calvinhxx/Fluent-Qt.git
+[submodule "3rdparty/glog"]
+	path = 3rdparty/glog
+	url = https://github.com/google/glog.git

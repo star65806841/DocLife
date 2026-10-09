@@ -14,7 +14,7 @@
 #include <QDebug>
 
 #include "utils.h"
-#include "uisignalmanager.h"
+#include "src/helper/uisignalmanager.h"
 #include "excelfile.h"
 
 MainContent::MainContent(QWidget *parent)
@@ -37,7 +37,7 @@ void MainContent::onGetExcelFilePath()
         qDebug()<<"didn't get empty file path";
         return;
     }
-    emit UISignalManager::instance()->fileOpened(m_filePath);
+    // emit UISignalManager::instance()->fileOpened(m_filePath);
     qDebug()<<"get the filepath:"<<m_filePath;
     if(!m_excelFile)
     {
@@ -135,5 +135,5 @@ void MainContent::setupUi()
     connect(m_btnRemove,  &QPushButton::clicked,   this, &MainContent::removeRequested);
     connect(m_btnEdit,    &QPushButton::clicked,   this, &MainContent::editRequested);
     connect(m_searchEdit, &QLineEdit::textChanged, this, &MainContent::searchChanged);
-    connect(UISignalManager::instance(),&UISignalManager::openExcelRequested, this, &MainContent::onGetExcelFilePath);
+    // connect(UISignalManager::instance(),&UISignalManager::openExcelRequested, this, &MainContent::onGetExcelFilePath);
 }

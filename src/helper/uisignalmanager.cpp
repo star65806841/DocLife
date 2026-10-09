@@ -2,6 +2,8 @@
 
 #include <QDebug>
 
+using namespace doclife::ui;
+
 UISignalManager::UISignalManager(QObject *parent)
     : QObject{parent}
 {
