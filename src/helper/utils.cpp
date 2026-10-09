@@ -4,6 +4,8 @@
 #include <QFileDialog>
 #include <QMessageBox>
 
+using namespace doclife::model;
+
 int Utils::add(int a, int b) {
     return a + b;
 }

@@ -13,7 +13,6 @@
 #include <QTableView>
 #include <QDebug>
 
-#include "utils.h"
 #include "src/helper/uisignalmanager.h"
 #include "excelfile.h"
 
@@ -31,7 +30,7 @@ MainContent::~MainContent()
 
 void MainContent::onGetExcelFilePath()
 {
-    m_filePath = Utils::openExcelFile(this);
+    // m_filePath = Utils::openExcelFile(this);
     if(m_filePath.isEmpty())
     {
         qDebug()<<"didn't get empty file path";

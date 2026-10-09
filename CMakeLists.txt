@@ -24,7 +24,6 @@ set(DOCLIFE_SRC
     src/view/mainwindow.h
     src/view/mainwindow.ui
 
-    src/helper/uisignalmanager.h src/helper/uisignalmanager.cpp
     src/view/fluentqt/application.h src/view/fluentqt/application.cpp
     src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp
 
@@ -37,8 +36,14 @@ set(DOCLIFE_SRC
     excelfile.h excelfile.cpp
     mainContent.h mainContent.cpp
     excelsheet.h excelsheet.cpp
-    utils.h utils.cpp
     exceltreewidget.h exceltreewidget.cpp
+)
+
+set(MODEL_SRC
+    src/helper/uisignalmanager.h src/helper/uisignalmanager.cpp
+    src/helper/utils.h src/helper/utils.cpp
+
+    src/model/projecthead.h
 )
 
 qt_add_resources(DOCLIFE_SRC
@@ -48,6 +53,7 @@ qt_add_resources(DOCLIFE_SRC
 qt_add_executable(DocLife
     WIN32 MACOSX_BUNDLE
     ${DOCLIFE_SRC}
+    ${MODEL_SRC}
 )
 
 target_include_directories(DocLife
@@ -55,7 +61,7 @@ target_include_directories(DocLife
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/src/view
-
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/model
         ${CMAKE_CURRENT_SOURCE_DIR}/src/helper
 )
 

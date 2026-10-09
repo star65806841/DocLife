@@ -71,7 +71,7 @@ void ProjectSetting::init()
     host->insertPage(4,new ProjectInfoPage("建设单位",this),fluent::WidgetOwnership::Reparented);
 
     // 切换动画
-    host->setTransitionEffect(fluent::navigation::StackContentHost::TransitionEffect::SlideFromLeft);
+    host->setTransitionEffect(fluent::navigation::StackContentHost::TransitionEffect::SlideFromBottom);
 
     // ---- 导航项列表作为 main chrome 接入 ----
     QVector<MainSection::Entry> entries =
