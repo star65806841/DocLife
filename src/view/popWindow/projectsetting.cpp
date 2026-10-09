@@ -6,6 +6,7 @@
 #include <components/navigation/NavigationView.h>
 #include <components/navigation/StackContentHost.h>
 
+#include "popWindow/infoItem/projectinfopage.h"
 #include "infoItem/projectitem.h"
 
 using namespace doclife::ui;
@@ -63,38 +64,14 @@ void ProjectSetting::init()
     // ---- 内容宿主：插入页面 ----
     fluent::navigation::StackContentHost* host = navView->contentHost();
 
-    host->insertPage(
-        0,
-        createDemoPage(QStringLiteral("工程名称"),
-                       QStringLiteral("xx*xx高速公路项目G2标段")
-                       ),
-        fluent::WidgetOwnership::Reparented);
+    host->insertPage(0,new ProjectInfoPage("工程名称",this),fluent::WidgetOwnership::Reparented);
+    host->insertPage(1,new ProjectInfoPage("施工单位",this),fluent::WidgetOwnership::Reparented);
+    host->insertPage(2,new ProjectInfoPage("监理单位",this),fluent::WidgetOwnership::Reparented);
+    host->insertPage(3,new ProjectInfoPage("设计单位",this),fluent::WidgetOwnership::Reparented);
+    host->insertPage(4,new ProjectInfoPage("建设单位",this),fluent::WidgetOwnership::Reparented);
 
-    host->insertPage(
-        1,
-        createDemoPage(QStringLiteral("施工单位"),
-                       QStringLiteral("江南皮革公路工程有限公司")),
-        fluent::WidgetOwnership::Reparented);
-
-    host->insertPage(
-        2,
-        createDemoPage(QStringLiteral("监理单位"),
-                       QStringLiteral("中交建设监理有限公司")),
-        fluent::WidgetOwnership::Reparented);
-
-    host->insertPage(
-        3,
-        createDemoPage(QStringLiteral("设计单位"),
-                       QStringLiteral("中国公路织女星设计研究院")),
-        fluent::WidgetOwnership::Reparented);
-
-    host->insertPage(
-        4,
-        createDemoPage(QStringLiteral("建设单位"),
-                       QStringLiteral("中国火星开拓局第三建设有限公司")),
-        fluent::WidgetOwnership::Reparented);
-
-    host->setTransitionEffect(fluent::navigation::StackContentHost::TransitionEffect::SlideFromBottom);
+    // 切换动画
+    host->setTransitionEffect(fluent::navigation::StackContentHost::TransitionEffect::SlideFromLeft);
 
     // ---- 导航项列表作为 main chrome 接入 ----
     QVector<MainSection::Entry> entries =

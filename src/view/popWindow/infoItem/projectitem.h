@@ -76,5 +76,4 @@ private:
     QVector<NavigationItemRow*> m_rows;
     bool m_compact = false;
 };
-
 #endif // MAINSECTION_H
