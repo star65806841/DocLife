@@ -44,14 +44,14 @@ void NavigationItemRow::setSelected(bool selected)
     update();
 }
 
-// void NavigationItemRow::setCompact(bool compact)
-// {
-//     if (m_compact == compact)
-//         return;
-//     m_compact = compact;
-//     updateGeometry();
-//     update();
-// }
+void NavigationItemRow::setCompact(bool compact)
+{
+    if (m_compact == compact)
+        return;
+    m_compact = compact;
+    updateGeometry();
+    update();
+}
 
 void NavigationItemRow::paintEvent(QPaintEvent*)
 {
@@ -169,23 +169,23 @@ MainSection::MainSection(const QVector<Entry>& entries, QWidget* parent)
     m_layout->addStretch();
 }
 
-// QSize MainSection::sizeHint() const
-// {
-//     return QSize(280, 16 + m_rows.size() * 44);
-// }
+QSize MainSection::sizeHint() const
+{
+    return QSize(280, 16 + m_rows.size() * 44);
+}
 
-// QSize MainSection::minimumSizeHint() const
-// {
-//     return QSize(48, 16 + m_rows.size() * 40);
-// }
+QSize MainSection::minimumSizeHint() const
+{
+    return QSize(48, 16 + m_rows.size() * 40);
+}
 
-// void MainSection::setCompact(bool compact)
-// {
-//     m_compact = compact;
-//     for (NavigationItemRow* row : m_rows)
-//         row->setCompact(compact);
-//     updateGeometry();
-// }
+void MainSection::setCompact(bool compact)
+{
+    m_compact = compact;
+    for (NavigationItemRow* row : m_rows)
+        row->setCompact(compact);
+    updateGeometry();
+}
 
 void MainSection::setSelectedIndex(int index)
 {
@@ -193,14 +193,14 @@ void MainSection::setSelectedIndex(int index)
         m_rows.at(i)->setSelected(i == index);
 }
 
-// void MainSection::clearSelection()
-// {
-//     setSelectedIndex(-1);
-// }
+void MainSection::clearSelection()
+{
+    setSelectedIndex(-1);
+}
 
-// void MainSection::onThemeUpdated()
-// {
-//     for (NavigationItemRow* row : m_rows)
-//         row->update();
-//     update();
-// }
+void MainSection::onThemeUpdated()
+{
+    for (NavigationItemRow* row : m_rows)
+        row->update();
+    update();
+}

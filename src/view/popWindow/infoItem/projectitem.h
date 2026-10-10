@@ -24,7 +24,7 @@ public:
     QSize sizeHint() const override;
 
     void setSelected(bool selected);
-    // void setCompact(bool compact);
+    void setCompact(bool compact);
     bool selectedIndicatorVisible() const { return m_selected && !m_compact; }
 
     std::function<void()> onActivated;
@@ -59,14 +59,14 @@ public:
     explicit MainSection(const QVector<Entry>& entries,
                          QWidget* parent = nullptr);
 
-    // QSize sizeHint() const override;
-    // QSize minimumSizeHint() const override;
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
-    // void setCompact(bool compact);
+    void setCompact(bool compact);
     void setSelectedIndex(int index);
-    // void clearSelection();
+    void clearSelection();
 
-    // void onThemeUpdated() override;
+    void onThemeUpdated() override;
 
     // 点击某项时触发，参数为索引
     std::function<void(int)> onActivated;

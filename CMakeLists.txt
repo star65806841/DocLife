@@ -22,6 +22,7 @@ set(DOCLIFE_SRC
     src/main.cpp
 
     src/view/mainwindow.h src/view/mainwindow.cpp
+    src/view/centralview/centralview.h src/view/centralview/centralview.cpp
 
     src/view/fluentqt/application.h src/view/fluentqt/application.cpp
     src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp
@@ -54,6 +55,10 @@ qt_add_executable(DocLife
     ${DOCLIFE_SRC}
     ${DOCLIFE_MODEL}
     ${DOCLIFE_RESOURCES}
+    src/view/popWindow/dialog/dialogbase.h src/view/popWindow/dialog/dialogbase.cpp
+    src/view/popWindow/projectinfo.h src/view/popWindow/projectinfo.cpp
+
+
 )
 
 target_include_directories(DocLife

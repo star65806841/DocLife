@@ -13,15 +13,5 @@ class MainWindow : public QMainWindow
 
 public:
     explicit MainWindow(QWidget *parent = nullptr);
-    ~MainWindow() override;
-
-private slots:
-    void showProjectsetting();
-    void showProjectNew();
-private:
-    // MainContent *m_mainContent = nullptr;
-private:
-    void initConnect();
-
 };
 #endif // MAINWINDOW_H

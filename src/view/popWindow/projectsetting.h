@@ -3,28 +3,26 @@
 
 #include <QWidget>
 
+#include <components/dialogs_flyouts/Dialog.h>
+
 namespace fluent {
-namespace dialogs_flyouts { class Dialog; }
 namespace navigation { class StackContentHost; }
 }
 
 namespace doclife::ui {
 
-class ProjectSetting : public QWidget
+class ProjectSetting : public fluent::dialogs_flyouts::Dialog
 {
     Q_OBJECT
 public:
     explicit ProjectSetting(QWidget *parent = nullptr);
-    void show(QWidget *parent);
+
 signals:
 
 private slots:
     void slot_projectName(const QString &name);
 private:
     void init();
-    void populateNavigationPages(fluent::navigation::StackContentHost *host);
-    QWidget *buildNavigationDemo(QWidget *parent);
-    QWidget *createDemoPage(const QString &title, const QString &description, QWidget *parent = nullptr);
 
 private:
     fluent::dialogs_flyouts::Dialog* m_dialog = nullptr;

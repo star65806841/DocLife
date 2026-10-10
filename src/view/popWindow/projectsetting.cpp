@@ -2,7 +2,7 @@
 
 #include <components/textfields/Label.h>
 #include <components/basicinput/Button.h>
-#include <components/dialogs_flyouts/Dialog.h>
+// #include <components/dialogs_flyouts/Dialog.h>
 #include <components/navigation/NavigationView.h>
 #include <components/navigation/StackContentHost.h>
 
@@ -12,19 +12,9 @@
 using namespace doclife::ui;
 
 ProjectSetting::ProjectSetting(QWidget *parent)
-    : QWidget{parent}
+    : fluent::dialogs_flyouts::Dialog{parent}
 {
     init();
-}
-
-void ProjectSetting::show(QWidget *parent)
-{
-    if(!m_dialog)
-    {
-        return;
-    }
-    m_dialog->setParent(parent);
-    m_dialog->open();
 }
 
 void ProjectSetting::slot_projectName(const QString &name)
@@ -35,26 +25,24 @@ void ProjectSetting::slot_projectName(const QString &name)
 
 void ProjectSetting::init()
 {
-    m_dialog = new fluent::dialogs_flyouts::Dialog();
-    m_dialog->setMinimumSize(480, 280);
-    m_dialog->setSmokeEnabled(true);
-    m_dialog->setAnimationEnabled(true);
+    this->setMinimumSize(650, 500);
+    this->setSmokeEnabled(true);
+    this->setAnimationEnabled(true);
 
-    auto* layout = new QVBoxLayout(m_dialog);
+    auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(55, 25, 45, 25);
-    layout->setSpacing(12);
+    layout->setSpacing(18);
 
     auto* titleLabel = new fluent::textfields::Label("项目信息");
     titleLabel->setFluentTypography(Typography::FontRole::Subtitle);
 
-    // auto* nameEdit = new fluent::textfields::Label("工程概况");
-    // nameEdit->setFluentTypography(Typography::FontRole::Subtitle);
-
-    // ---- NavigationView ----
-    // auto* navViewBox = new QWidget();
-    // navViewBox->setMinimumWidth(440);
-    // navViewBox->setMaximumWidth(620);
-    // navViewBox->setFixedHeight(320);
+    // QWidget* contentWidget = new QWidget();
+    // contentWidget->setMinimumWidth(220);
+    // contentWidget->setMaximumWidth(620);
+    // contentWidget->setFixedHeight(320);
+    // contentWidget->setFixedSize(this->size());
+    // contentWidget->setStyleSheet("background-color: #a1F1BF; border-radius: 8px;");
+    // contentWidget->setContentsMargins(55, 25, 45, 25);
 
     auto* navView = new fluent::navigation::NavigationView();
     navView->setMinimumWidth(220);
@@ -64,6 +52,7 @@ void ProjectSetting::init()
     navView->setAnimationEnabled(true);
     navView->setDisplayMode(fluent::navigation::NavigationView::DisplayMode::Left);
     navView->setExpandedPaneWidth(180);
+    // navView->setStyleSheet("background-color: #a1F1BF; border-radius: 8px;");
     // navView->setThemeOverrides({
     //     {"radius", QJsonObject{{"overlay", 0}}}
     // });
@@ -71,7 +60,7 @@ void ProjectSetting::init()
     fluent::navigation::StackContentHost* host = navView->contentHost();
     auto* projectNamePage = new ProjectInfoPage("工程名称",this);
     connect(projectNamePage,&ProjectInfoPage::sign_text,this,&ProjectSetting::slot_projectName,Qt::ConnectionType::DirectConnection);
-    host->insertPage(0,projectNamePage,fluent::WidgetOwnership::Owned);
+    host->insertPage(0,projectNamePage,fluent::WidgetOwnership::Reparented);
     host->insertPage(1,new ProjectInfoPage("施工单位",this),fluent::WidgetOwnership::Reparented);
     host->insertPage(2,new ProjectInfoPage("监理单位",this),fluent::WidgetOwnership::Reparented);
     host->insertPage(3,new ProjectInfoPage("设计单位",this),fluent::WidgetOwnership::Reparented);
@@ -82,13 +71,13 @@ void ProjectSetting::init()
 
     // ---- 导航项列表作为 main chrome 接入 ----
     QVector<MainSection::Entry> entries =
-        {
-          {Typography::Icons::glyph(QStringLiteral("ic_fluent_vote_24_regular")), QStringLiteral("工程项目名称"), true},
-          {Typography::Icons::glyph(QStringLiteral("ic_fluent_vehicle_tractor_24_regular")), QStringLiteral("施工单位"), false},
-          {Typography::Icons::glyph(QStringLiteral("ic_fluent_receipt_cube_24_regular")), QStringLiteral("监理单位"), false},
-          {Typography::Icons::glyph(QStringLiteral("ic_fluent_quiz_24_regular")), QStringLiteral("设计单位"), false},
-          {Typography::Icons::glyph(QStringLiteral("ic_fluent_card_ui_portrait_flip_24_regular")), QStringLiteral("建设单位"), false},
-          };
+       {
+         {Typography::Icons::glyph(QStringLiteral("ic_fluent_vote_24_regular")), QStringLiteral("工程项目名称"), true},
+         {Typography::Icons::glyph(QStringLiteral("ic_fluent_vehicle_tractor_24_regular")), QStringLiteral("施工单位"), false},
+         {Typography::Icons::glyph(QStringLiteral("ic_fluent_receipt_cube_24_regular")), QStringLiteral("监理单位"), false},
+         {Typography::Icons::glyph(QStringLiteral("ic_fluent_quiz_24_regular")), QStringLiteral("设计单位"), false},
+         {Typography::Icons::glyph(QStringLiteral("ic_fluent_card_ui_portrait_flip_24_regular")), QStringLiteral("建设单位"), false},
+         };
 
     auto* mainSection = new MainSection(entries, navView);
     navView->setMainChromeWidget(mainSection, fluent::WidgetOwnership::Borrowed);
@@ -98,12 +87,12 @@ void ProjectSetting::init()
 
     // ---- 连接激活回调 ----
     mainSection->onActivated = [host](int pageIndex) {
-        const int direction =
-            pageIndex >= host->currentIndex() ? 1 : -1;
-        host->setCurrentIndex(pageIndex, direction, true);
+       const int direction =
+           pageIndex >= host->currentIndex() ? 1 : -1;
+       host->setCurrentIndex(pageIndex, direction, true);
     };
 
-    // 可选：调试用背景色，确认 MainSection 区域
+    // // 可选：调试用背景色，确认 MainSection 区域
     // mainSection->setStyleSheet("background-color: #FF00FF;");
 
     // 底部命令按钮
@@ -126,38 +115,13 @@ void ProjectSetting::init()
     commandRow->addWidget(cancelButton);
 
     layout->addWidget(titleLabel);
-    // layout->addWidget(nameEdit);
+    // layout->addWidget(contentWidget);
     layout->addWidget(navView);
     layout->addStretch(1);
     layout->addLayout(commandRow);
 
-    connect(editButton, &fluent::basicinput::Button::clicked, m_dialog,&QDialog::close);
-    connect(cancelButton, &fluent::basicinput::Button::clicked, m_dialog,&QDialog::close);
-    connect(m_dialog, &QDialog::finished, m_dialog,&QObject::deleteLater);
-    connect(m_dialog, &QDialog::destroyed, this,&QObject::deleteLater);
-    connect(m_dialog, &QDialog::destroyed, [](){qDebug()<<"m_dialog destroyed";});
-    connect(this, &QWidget::destroyed, [](){qDebug()<<"ProjectSetting destroyed";});
-}
-
-QWidget* ProjectSetting::createDemoPage(const QString& title,
-                        const QString& description, QWidget* parent)
-{
-    auto* page = new QWidget(parent);
-    auto* layout = new QVBoxLayout(page);
-    layout->setContentsMargins(32, 32, 32, 32);
-    layout->setSpacing(12);
-
-    auto* titleLabel = new QLabel(title, page);
-    QFont titleFont = titleLabel->font();
-    titleFont.setPointSizeF(qMax(titleFont.pointSizeF() * 1.5, 15.0));
-    titleFont.setBold(true);
-    titleLabel->setFont(titleFont);
-
-    auto* descLabel = new QLabel(description, page);
-    descLabel->setWordWrap(true);
-
-    layout->addWidget(titleLabel);
-    layout->addWidget(descLabel);
-    layout->addStretch();
-    return page;
+    // connect(editButton, &fluent::basicinput::Button::clicked, this,&QDialog::close);
+    // connect(cancelButton, &fluent::basicinput::Button::clicked, this,&QDialog::close);
+    // connect(this, &QDialog::finished, this,&QObject::deleteLater);
+    // connect(this, &QDialog::destroyed, [](){qDebug()<<"ProjectSetting destroyed";});
 }
