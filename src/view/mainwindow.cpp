@@ -1,25 +1,24 @@
 ﻿#include "mainwindow.h"
-#include "ui_mainwindow.h"
 
 #include <QHBoxLayout>
 #include <QPushButton>
 
 #include <FluentQt/FluentQt.h>
 
+#include "uisignalmanager.h"
 #include "view/topMenu/topmenu.h"
 #include "view/popWindow/projectnew.h"
 #include "view/popWindow/projectsetting.h"
-#include "uisignalmanager.h"
 
-using namespace doclife::ui;
 // MainWindow.cpp
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), ui(new Ui::MainWindow)
+    : QMainWindow(parent)
 {
-    ui->setupUi(this);
     this->setWindowTitle("_公路资料管理");
+    this->setMinimumSize(QSize(850,550));
+    this->setWindowState(Qt::WindowMaximized);
     // ---------- 顶部按钮区 -----------
-    auto *topBar = new TopMenu();
+    auto *topBar = new doclife::ui::TopMenu();
 
     // ----------- 中部区域  -----------
 
@@ -61,7 +60,7 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
-    delete ui;
+
 }
 
 void MainWindow::showProjectsetting()
@@ -71,13 +70,13 @@ void MainWindow::showProjectsetting()
 }
 void MainWindow::showProjectNew()
 {
-    doclife::ui::ProjiectNew* pop = new doclife::ui::ProjiectNew();
+    doclife::ui::ProjectNew* pop = new doclife::ui::ProjectNew();
     pop->show(this);
 }
 
 void MainWindow::initConnect()
 {
     // connect(m_mainOpenBtn,&QPushButton::clicked,UISignalManager::instance(),&UISignalManager::openExcelRequested);
-    connect(UISignalManager::instance(),&UISignalManager::popProjectNew,this,&MainWindow::showProjectNew);
-    connect(UISignalManager::instance(),&UISignalManager::popProjectsetting,this,&MainWindow::showProjectsetting);
+    connect(doclife::ui::UISignalManager::instance(),&doclife::ui::UISignalManager::popProjectNew,this,&MainWindow::showProjectNew);
+    connect(doclife::ui::UISignalManager::instance(),&doclife::ui::UISignalManager::popProjectsetting,this,&MainWindow::showProjectsetting);
 }

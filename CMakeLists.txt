@@ -5,7 +5,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools Svg GuiPriva
 
 qt_standard_project_setup()
 
-# set(QT_NO_PRIVATE_MODULE_WARNING ON)
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
 add_subdirectory(
     ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/QXlsx/QXlsx
     ${CMAKE_CURRENT_BINARY_DIR}/QXlsx_build
@@ -20,9 +20,8 @@ add_subdirectory(
 # )
 set(DOCLIFE_SRC
     src/main.cpp
-    src/view/mainwindow.cpp
-    src/view/mainwindow.h
-    src/view/mainwindow.ui
+
+    src/view/mainwindow.h src/view/mainwindow.cpp
 
     src/view/fluentqt/application.h src/view/fluentqt/application.cpp
     src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp
@@ -39,21 +38,22 @@ set(DOCLIFE_SRC
     exceltreewidget.h exceltreewidget.cpp
 )
 
-set(MODEL_SRC
+set(DOCLIFE_MODEL
     src/helper/uisignalmanager.h src/helper/uisignalmanager.cpp
     src/helper/utils.h src/helper/utils.cpp
 
-    src/model/projecthead.h
+    src/model/projecmodel.h
 )
 
-qt_add_resources(DOCLIFE_SRC
+qt_add_resources(DOCLIFE_RESOURCES
     ./resources/resource.qrc
 )
 
 qt_add_executable(DocLife
     WIN32 MACOSX_BUNDLE
     ${DOCLIFE_SRC}
-    ${MODEL_SRC}
+    ${DOCLIFE_MODEL}
+    ${DOCLIFE_RESOURCES}
 )
 
 target_include_directories(DocLife

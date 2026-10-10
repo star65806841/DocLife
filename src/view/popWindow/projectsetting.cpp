@@ -27,6 +27,12 @@ void ProjectSetting::show(QWidget *parent)
     m_dialog->open();
 }
 
+void ProjectSetting::slot_projectName(const QString &name)
+{
+    qDebug()<< "projectName length ="<< name.length();
+    // return !name.isEmpty();
+}
+
 void ProjectSetting::init()
 {
     m_dialog = new fluent::dialogs_flyouts::Dialog();
@@ -63,8 +69,9 @@ void ProjectSetting::init()
     // });
     // ---- 内容宿主：插入页面 ----
     fluent::navigation::StackContentHost* host = navView->contentHost();
-
-    host->insertPage(0,new ProjectInfoPage("工程名称",this),fluent::WidgetOwnership::Reparented);
+    auto* projectNamePage = new ProjectInfoPage("工程名称",this);
+    connect(projectNamePage,&ProjectInfoPage::sign_text,this,&ProjectSetting::slot_projectName,Qt::ConnectionType::DirectConnection);
+    host->insertPage(0,projectNamePage,fluent::WidgetOwnership::Owned);
     host->insertPage(1,new ProjectInfoPage("施工单位",this),fluent::WidgetOwnership::Reparented);
     host->insertPage(2,new ProjectInfoPage("监理单位",this),fluent::WidgetOwnership::Reparented);
     host->insertPage(3,new ProjectInfoPage("设计单位",this),fluent::WidgetOwnership::Reparented);
@@ -102,6 +109,7 @@ void ProjectSetting::init()
     // 底部命令按钮
     auto* editButton  = new fluent::basicinput::Button(QStringLiteral("确 认"));
     editButton->setMinimumWidth(120);
+    // editButton->setEnabled();
 
     auto* cancelButton = new fluent::basicinput::Button(QStringLiteral("取 消"));
     cancelButton->setMinimumWidth(120);
@@ -126,8 +134,8 @@ void ProjectSetting::init()
     connect(editButton, &fluent::basicinput::Button::clicked, m_dialog,&QDialog::close);
     connect(cancelButton, &fluent::basicinput::Button::clicked, m_dialog,&QDialog::close);
     connect(m_dialog, &QDialog::finished, m_dialog,&QObject::deleteLater);
-    connect(m_dialog, &QDialog::destroyed, [](){qDebug()<<"m_dialog destroyed";});
     connect(m_dialog, &QDialog::destroyed, this,&QObject::deleteLater);
+    connect(m_dialog, &QDialog::destroyed, [](){qDebug()<<"m_dialog destroyed";});
     connect(this, &QWidget::destroyed, [](){qDebug()<<"ProjectSetting destroyed";});
 }
 
@@ -146,28 +154,6 @@ QWidget* ProjectSetting::createDemoPage(const QString& title,
     titleLabel->setFont(titleFont);
 
     auto* descLabel = new QLabel(description, page);
-    descLabel->setWordWrap(true);
-
-    layout->addWidget(titleLabel);
-    layout->addWidget(descLabel);
-    layout->addStretch();
-    return page;
-}
-
-QWidget *ProjectSetting::createPage2(const QString &title1, const QString &description1, const QString &title2, const QString &description2, QWidget *parent)
-{
-    auto* page = new QWidget(parent);
-    auto* layout = new QVBoxLayout(page);
-    layout->setContentsMargins(32, 32, 32, 32);
-    layout->setSpacing(12);
-
-    auto* titleLabel = new QLabel(title1, page);
-    QFont titleFont = titleLabel->font();
-    titleFont.setPointSizeF(qMax(titleFont.pointSizeF() * 1.5, 15.0));
-    titleFont.setBold(true);
-    titleLabel->setFont(titleFont);
-
-    auto* descLabel = new QLabel(description1, page);
     descLabel->setWordWrap(true);
 
     layout->addWidget(titleLabel);

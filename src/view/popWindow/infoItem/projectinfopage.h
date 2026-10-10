@@ -11,7 +11,7 @@ public:
     explicit ProjectInfoPage(const QString& title, QWidget *parent = nullptr);
 
 signals:
-
+    QString sign_text(const QString& text);
 private:
     QString m_content = QString{};
 private:

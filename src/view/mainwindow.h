@@ -3,12 +3,6 @@
 
 #include <QMainWindow>
 
-QT_BEGIN_NAMESPACE
-namespace Ui {
-class MainWindow;
-}
-QT_END_NAMESPACE
-
 class QWidget;
 class MainContent;
 class QPushButton;
@@ -25,7 +19,6 @@ private slots:
     void showProjectsetting();
     void showProjectNew();
 private:
-    Ui::MainWindow *ui;
     // MainContent *m_mainContent = nullptr;
 private:
     void initConnect();

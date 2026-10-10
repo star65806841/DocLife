@@ -23,6 +23,7 @@ Q_SIGNALS:
 
     // 新建项目
     void popProjectNew();
+    void popProjectNewName(const QString &str);
     // 项目设置
     void popProjectsetting();
 
