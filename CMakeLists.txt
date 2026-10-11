@@ -32,7 +32,9 @@ set(DOCLIFE_SRC
 
     src/view/popWindow/infoItem/projectitem.h src/view/popWindow/infoItem/projectitem.cpp
     src/view/popWindow/infoItem/projectinfopage.h src/view/popWindow/infoItem/projectinfopage.cpp
-
+    src/view/popWindow/dialog/dialogbase.h src/view/popWindow/dialog/dialogbase.cpp
+    src/view/popWindow/projectinfo.h src/view/popWindow/projectinfo.cpp
+    src/view/leftview/leftview.h src/view/leftview/leftview.cpp
     excelfile.h excelfile.cpp
     mainContent.h mainContent.cpp
     excelsheet.h excelsheet.cpp
@@ -55,10 +57,6 @@ qt_add_executable(DocLife
     ${DOCLIFE_SRC}
     ${DOCLIFE_MODEL}
     ${DOCLIFE_RESOURCES}
-    src/view/popWindow/dialog/dialogbase.h src/view/popWindow/dialog/dialogbase.cpp
-    src/view/popWindow/projectinfo.h src/view/popWindow/projectinfo.cpp
-
-
 )
 
 target_include_directories(DocLife
