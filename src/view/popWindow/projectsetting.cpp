@@ -121,7 +121,7 @@ void ProjectSetting::init()
     layout->addLayout(commandRow);
 
     // connect(editButton, &fluent::basicinput::Button::clicked, this,&QDialog::close);
-    // connect(cancelButton, &fluent::basicinput::Button::clicked, this,&QDialog::close);
+     //connect(cancelButton, &fluent::basicinput::Button::clicked, this,&QDialog::close);
     // connect(this, &QDialog::finished, this,&QObject::deleteLater);
     // connect(this, &QDialog::destroyed, [](){qDebug()<<"ProjectSetting destroyed";});
 }
