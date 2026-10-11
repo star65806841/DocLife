@@ -2,25 +2,34 @@
 #define CENTRALVIEW_H
 
 #include <QWidget>
+
+namespace doclife::model
+{
+    class ProjectObject;
+}
 namespace doclife::ui {
 
-class LeftView;
+    class LeftView;
 
-class CentralView : public QWidget
-{
-    Q_OBJECT
-public:
-    explicit CentralView(QWidget *parent = nullptr);
+    class CentralView : public QWidget
+    {
+        Q_OBJECT
+    public:
+        explicit CentralView(QWidget* parent = nullptr);
 
-signals:
-private:
-    LeftView* m_leftView = nullptr;
-private:
+    signals:
+    private:
+        //project context data
+        doclife::model::ProjectObject* m_projectObject = nullptr;
 
-    void init();
-    void initConnect();
-    void showProjectNew();
-    void showProjectsetting();
-};
+        LeftView* m_leftView = nullptr;
+
+    private:
+
+        void init();
+        void initConnect();
+        void showProjectNew();
+        void showProjectsetting();
+    };
 }
 #endif // CENTRALVIEW_H

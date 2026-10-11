@@ -46,6 +46,7 @@ set(DOCLIFE_MODEL
     src/helper/uisignalmanager.h src/helper/uisignalmanager.cpp
     src/helper/utils.h src/helper/utils.cpp
 
+    src/model/projectobject.h src/model/projectobject.cpp
     src/model/projecmodel.h
 )
 

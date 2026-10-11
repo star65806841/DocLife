@@ -12,10 +12,13 @@ ProjectNew::ProjectNew(QWidget *parent)
     init();
 }
 
-void ProjectNew::sendNewProjectName()
+void ProjectNew::sendNewProject()
 {
-    qDebug()<<"sendNewProjectName:"<< m_newProjectName->text();
-    emit UISignalManager::instance()->popProjectNewName(m_newProjectName->text());
+    if (m_projectNameLine->text().isEmpty())
+    {
+        m_projectNameLine->setText("自定义工程");
+    }
+    emit UISignalManager::instance()->projectNewByName(m_projectNameLine->text());
 }
 
 void ProjectNew::init()
@@ -32,13 +35,13 @@ void ProjectNew::init()
     auto* label = new fluent::textfields::Label("档案名称：");
     label->setMinimumWidth(100);
     label->setFluentTypography(Typography::FontRole::BodyLargeStrong);
-    m_newProjectName = new fluent::textfields::LineEdit();
-    m_newProjectName->setPlaceholderText("单位工程或分部分项工程名称");
-    m_newProjectName->setContentMargins(QMargins(10, 4, 10, 4));
-    m_newProjectName->setFocusedBorderWidth(3);
-    m_newProjectName->setUnfocusedBorderWidth(2);
+    m_projectNameLine = new fluent::textfields::LineEdit();
+    m_projectNameLine->setPlaceholderText("单位工程或分部分项工程名称");
+    m_projectNameLine->setContentMargins(QMargins(10, 4, 10, 4));
+    m_projectNameLine->setFocusedBorderWidth(3);
+    m_projectNameLine->setUnfocusedBorderWidth(2);
     h1->addWidget(label);
-    h1->addWidget(m_newProjectName);
+    h1->addWidget(m_projectNameLine);
     /**********************************************************/
     /**********************************************************/
     // auto *h2 = new QHBoxLayout(contenLayout);
@@ -66,7 +69,8 @@ void ProjectNew::init()
     this->setDefaultButton(fluent::dialogs_flyouts::ContentDialog::Primary);
     this->setAnimationEnabled(true);
     this->setSmokeEnabled(true);
-    //connect(m_dialog, &QDialog::finished, m_dialog, &QObject::deleteLater);
-    //connect(m_dialog, &QDialog::destroyed, this, &QObject::deleteLater);
-    //connect(m_dialog, &fluent::dialogs_flyouts::ContentDialog::primaryButtonClicked, this, &ProjectNew::sendNewProjectName);
+
+    connect(this, &fluent::dialogs_flyouts::ContentDialog::primaryButtonClicked, this, &ProjectNew::sendNewProject);
+    connect(this, &QDialog::finished, this, &QObject::deleteLater);
+    connect(this, &QDialog::destroyed, []() {qDebug() << "ProjectNew dialog destroyed"; });
 }

@@ -16,9 +16,9 @@ public:
 signals:
 
 private slots:
-    void sendNewProjectName();
+    void sendNewProject();
 private:
-    fluent::textfields::LineEdit* m_newProjectName = nullptr;
+    fluent::textfields::LineEdit* m_projectNameLine = nullptr;
 private:
     void init();
 };
