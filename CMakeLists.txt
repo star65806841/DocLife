@@ -35,6 +35,7 @@ set(DOCLIFE_SRC
     src/view/popWindow/dialog/dialogbase.h src/view/popWindow/dialog/dialogbase.cpp
     src/view/popWindow/projectinfo.h src/view/popWindow/projectinfo.cpp
     src/view/leftview/leftview.h src/view/leftview/leftview.cpp
+
     excelfile.h excelfile.cpp
     mainContent.h mainContent.cpp
     excelsheet.h excelsheet.cpp

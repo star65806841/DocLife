@@ -4,6 +4,8 @@
 #include <QWidget>
 namespace doclife::ui {
 
+class LeftView;
+
 class CentralView : public QWidget
 {
     Q_OBJECT
@@ -12,6 +14,9 @@ public:
 
 signals:
 private:
+    LeftView* m_leftView = nullptr;
+private:
+
     void init();
     void initConnect();
     void showProjectNew();

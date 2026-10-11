@@ -64,7 +64,8 @@ void ProjectNew::init()
     this->setPrimaryButtonText("确定");
     this->setCloseButtonText("取消");
     this->setDefaultButton(fluent::dialogs_flyouts::ContentDialog::Primary);
-
+    this->setAnimationEnabled(true);
+    this->setSmokeEnabled(true);
     //connect(m_dialog, &QDialog::finished, m_dialog, &QObject::deleteLater);
     //connect(m_dialog, &QDialog::destroyed, this, &QObject::deleteLater);
     //connect(m_dialog, &fluent::dialogs_flyouts::ContentDialog::primaryButtonClicked, this, &ProjectNew::sendNewProjectName);

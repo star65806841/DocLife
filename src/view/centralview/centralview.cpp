@@ -11,6 +11,8 @@
 
 #include <popWindow/dialog/dialogbase.h>
 
+#include <leftview/leftview.h>
+
 
 using namespace doclife::ui;
 
@@ -24,18 +26,18 @@ void CentralView::init()
     // =========================================================
     // 顶部按钮区
     // =========================================================
-    auto *topBar = new TopMenu();
+    auto *topBar = new TopMenu(this);
 
     // =========================================================
     // 中部区域
     // =========================================================
     // ----------- 左侧区域  -----------
-    auto *left   = new QWidget();
+    m_leftView = new LeftView(this);
     // ----------- 右侧区域  -----------
-    auto *m_mainContent = new QWidget();
+    auto *m_mainContent = new QWidget(this);
 
-    auto *splitter = new fluent::collections::SplitView();
-    splitter->addPane(left,{50,200,850,false});
+    auto *splitter = new fluent::collections::SplitView(this);
+    splitter->addPane(m_leftView,{50,230,850,false});
     splitter->addPane(m_mainContent);
     splitter->setPaneFill(1, true);
     // ---------- 外层垂直布局：上按钮、下 splitter ----------
@@ -54,9 +56,9 @@ void CentralView::showProjectsetting()
 }
 void CentralView::showProjectNew()
 {
-     ProjectNew* pop = new ProjectNew();
+     ProjectNew* pop = new ProjectNew(this);
      pop->open();
-    //DialogBase* pop = new DialogBase();
+    //DialogBase* pop = new DialogBase(this);
     //pop->open();
 }
 
