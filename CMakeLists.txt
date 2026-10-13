@@ -35,6 +35,9 @@ set(DOCLIFE_SRC
     src/view/popWindow/dialog/dialogbase.h src/view/popWindow/dialog/dialogbase.cpp
     src/view/popWindow/projectinfo.h src/view/popWindow/projectinfo.cpp
     src/view/leftview/leftview.h src/view/leftview/leftview.cpp
+    src/view/leftview/projecttreeview.h src/view/leftview/projecttreeview.cpp
+    src/view/leftview/fluenttreeitemdelegate.h src/view/leftview/fluenttreeitemdelegate.cpp
+
 
     excelfile.h excelfile.cpp
     mainContent.h mainContent.cpp
@@ -46,8 +49,9 @@ set(DOCLIFE_MODEL
     src/helper/uisignalmanager.h src/helper/uisignalmanager.cpp
     src/helper/utils.h src/helper/utils.cpp
 
-    src/model/projectobject.h src/model/projectobject.cpp
+    src/business/projectcontext.h src/business/projectcontext.cpp
     src/model/projecmodel.h
+    src/model/ProjectInfo.h
 )
 
 qt_add_resources(DOCLIFE_RESOURCES
@@ -59,6 +63,7 @@ qt_add_executable(DocLife
     ${DOCLIFE_SRC}
     ${DOCLIFE_MODEL}
     ${DOCLIFE_RESOURCES}
+
 )
 
 target_include_directories(DocLife
@@ -68,6 +73,7 @@ target_include_directories(DocLife
         ${CMAKE_CURRENT_SOURCE_DIR}/src/view
         ${CMAKE_CURRENT_SOURCE_DIR}/src/model
         ${CMAKE_CURRENT_SOURCE_DIR}/src/helper
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/business
 )
 
 target_link_libraries(DocLife

@@ -11,7 +11,7 @@ class QBoxLayout;
 
 namespace fluent::navigation { class StackContentHost; }
 
-// 单条导航项（对应测试中的 NavigationItemRow）
+// 单条导航项
 class NavigationItemRow : public QWidget, public fluent::FluentElement
 {
     Q_OBJECT

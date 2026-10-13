@@ -3,9 +3,9 @@
 
 #include <QWidget>
 
-namespace doclife::model
+namespace doclife::core
 {
-    class ProjectObject;
+    class ProjectContext ;
 }
 namespace doclife::ui {
 
@@ -18,9 +18,12 @@ namespace doclife::ui {
         explicit CentralView(QWidget* parent = nullptr);
 
     signals:
+
+    public slots:
+        void newProject(const QString& name);
     private:
         //project context data
-        doclife::model::ProjectObject* m_projectObject = nullptr;
+        doclife::core::ProjectContext * m_projectObject = nullptr;
 
         LeftView* m_leftView = nullptr;
 

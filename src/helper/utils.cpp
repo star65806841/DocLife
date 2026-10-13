@@ -5,17 +5,20 @@
 #include <QMessageBox>
 #include <projecmodel.h>
 
-using namespace doclife::model;
+using namespace doclife::core;
 
-int Utils::add(int a, int b) {
-    return a + b;
+QString Utils::makeProjectId()
+{
+    // 形如 "proj-3f2a9b1c-4e5d-6f78-9abc-def012345678"
+    const QString uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    return QStringLiteral("proj-") + uuid;
 }
 
-QString Utils::formatName(const QString &name) {
+QString Utils::formatName(const QString& name) {
     return name.trimmed();
 }
 
-QString Utils::openExcelFile(QWidget *parent)
+QString Utils::openExcelFile(QWidget* parent)
 {
     QMessageBox::StandardButton choice = QMessageBox::question(
         parent,
@@ -24,7 +27,7 @@ QString Utils::openExcelFile(QWidget *parent)
         "Do you want to continue and select a file?",
         QMessageBox::Yes | QMessageBox::No,
         QMessageBox::Yes
-        );
+    );
 
     if (choice != QMessageBox::Yes)
         return QString();
@@ -34,10 +37,10 @@ QString Utils::openExcelFile(QWidget *parent)
         "Select Excel File",
         QString(),
         "Excel File (*.xlsx)"
-        );
+    );
 }
 
-QString Utils::selectDir(QWidget *parent)
+QString Utils::selectDir(QWidget* parent)
 {
     return QString();
 }
@@ -55,7 +58,7 @@ QStringList Utils::jsonToStrList(const QJsonArray& arr) {
     return list;
 }
 
-bool Utils::saveProject(const ProjectHead& proj, const QString& filePath) {
+bool Utils::saveProject(const doclife::model::ProjectHead& proj, const QString& filePath) {
     QFile f(filePath);
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         qWarning() << "打开失败:" << f.errorString();
@@ -65,7 +68,7 @@ bool Utils::saveProject(const ProjectHead& proj, const QString& filePath) {
     return true;
 }
 
-bool Utils::loadProject(const QString& filePath, ProjectHead& out) {
+bool Utils::loadProject(const QString& filePath, doclife::model::ProjectHead& out) {
     QFile f(filePath);
     if (!f.open(QIODevice::ReadOnly)) {
         qWarning() << "打开失败:" << f.errorString();
@@ -77,6 +80,6 @@ bool Utils::loadProject(const QString& filePath, ProjectHead& out) {
         qWarning() << "JSON 解析失败:" << err.errorString();
         return false;
     }
-    out = ProjectHead::fromJson(doc.object());
+    out = doclife::model::ProjectHead::fromJson(doc.object());
     return true;
 }

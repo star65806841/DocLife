@@ -1,5 +1,7 @@
 ﻿#include "leftview.h"
 
+#include "projecttreeview.h"
+
 #include <components/collections/SplitView.h>
 
 namespace doclife::ui {
@@ -11,8 +13,8 @@ LeftView::LeftView(QWidget *parent)
 void LeftView::init()
 {
     // ----------- 上侧区域  -----------
-    auto *leftTop = new QWidget();
-    leftTop->setStyleSheet("background-color: #a1F1BF;");
+    auto *leftTop = new ProjectTreeView();
+    // leftTop->setStyleSheet("background-color: #a1F1BF;");
     // ----------- 下侧区域  -----------
     auto *leftDown = new QWidget();
     leftDown->setStyleSheet("background-color: #a1a1Ba;");

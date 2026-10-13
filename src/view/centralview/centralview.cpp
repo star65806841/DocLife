@@ -7,6 +7,7 @@
 #include <popWindow/projectnew.h>
 #include <popWindow/projectsetting.h>
 
+#include <projectcontext.h>
 #include <uisignalmanager.h>
 
 #include <popWindow/dialog/dialogbase.h>
@@ -21,6 +22,12 @@ CentralView::CentralView(QWidget *parent)
 {
     init();
 }
+
+void CentralView::newProject(const QString &name)
+{
+    doclife::core::ProjectContext::instance()->addNewProject(name);
+}
+
 void CentralView::init()
 {
     // =========================================================
@@ -65,6 +72,7 @@ void CentralView::showProjectNew()
 void CentralView::initConnect()
 {
     // connect(m_mainOpenBtn,&QPushButton::clicked,UISignalManager::instance(),&UISignalManager::openExcelRequested);
-    connect(UISignalManager::instance(),&UISignalManager::popProjectNew,this,&CentralView::showProjectNew);
     connect(UISignalManager::instance(),&UISignalManager::popProjectsetting,this,&CentralView::showProjectsetting);
+    connect(UISignalManager::instance(),&UISignalManager::projectNewByName,this,&CentralView::newProject);
+    connect(UISignalManager::instance(),&UISignalManager::popProjectNew,this,&CentralView::showProjectNew);
 }
