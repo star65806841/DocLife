@@ -1,7 +1,7 @@
 ﻿cmake_minimum_required(VERSION 3.17)
 project(DocLife LANGUAGES CXX)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools Svg GuiPrivate)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools Svg GuiPrivate Network)
 
 qt_standard_project_setup()
 
@@ -27,16 +27,23 @@ set(DOCLIFE_SRC
     src/view/fluentqt/application.h src/view/fluentqt/application.cpp
     src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp
 
-    src/view/popWindow/projectnew.h src/view/popWindow/projectnew.cpp
-    src/view/popWindow/projectsetting.h src/view/popWindow/projectsetting.cpp
-
-    src/view/popWindow/infoItem/projectitem.h src/view/popWindow/infoItem/projectitem.cpp
-    src/view/popWindow/infoItem/projectinfopage.h src/view/popWindow/infoItem/projectinfopage.cpp
-    src/view/popWindow/dialog/dialogbase.h src/view/popWindow/dialog/dialogbase.cpp
-    src/view/popWindow/projectinfo.h src/view/popWindow/projectinfo.cpp
     src/view/leftview/leftview.h src/view/leftview/leftview.cpp
     src/view/leftview/projecttreeview.h src/view/leftview/projecttreeview.cpp
     src/view/leftview/fluenttreeitemdelegate.h src/view/leftview/fluenttreeitemdelegate.cpp
+
+    src/view/popWindow/projectnew.h src/view/popWindow/projectnew.cpp
+    src/view/popWindow/projectsetting.h src/view/popWindow/projectsetting.cpp
+
+    src/view/popWindow/projectinfo.h src/view/popWindow/projectinfo.cpp
+
+    src/view/popWindow/infoItem/projectitem.h src/view/popWindow/infoItem/projectitem.cpp
+    src/view/popWindow/infoItem/projectinfopage.h src/view/popWindow/infoItem/projectinfopage.cpp
+    src/view/popWindow/infoItem/duplicateapp.h src/view/popWindow/infoItem/duplicateapp.cpp
+
+    src/view/popWindow/dialog/dialogbase.h src/view/popWindow/dialog/dialogbase.cpp
+    src/view/popWindow/dialog/popupbase.h src/view/popWindow/dialog/popupbase.cpp
+
+
 
 
     excelfile.h excelfile.cpp
@@ -48,8 +55,10 @@ set(DOCLIFE_SRC
 set(DOCLIFE_MODEL
     src/helper/uisignalmanager.h src/helper/uisignalmanager.cpp
     src/helper/utils.h src/helper/utils.cpp
+    src/helper/singleinstanceguard.h src/helper/singleinstanceguard.cpp
 
     src/business/projectcontext.h src/business/projectcontext.cpp
+
     src/model/projecmodel.h
     src/model/ProjectInfo.h
 )
@@ -79,8 +88,10 @@ target_include_directories(DocLife
 target_link_libraries(DocLife
     PRIVATE
         Qt::Core
-        Qt::Widgets
         Qt::Svg
+        Qt::Network
+        Qt::Widgets
+
         QXlsx::QXlsx
         FluentQt::FluentQt
 )

@@ -20,7 +20,12 @@ namespace doclife::ui {
     signals:
 
     public slots:
+
+    private slots:
         void newProject(const QString& name);
+        void showProjectNew();
+        void showProjectsetting();
+        void popOpenedWarning();
     private:
         //project context data
         doclife::core::ProjectContext * m_projectObject = nullptr;
@@ -31,8 +36,6 @@ namespace doclife::ui {
 
         void init();
         void initConnect();
-        void showProjectNew();
-        void showProjectsetting();
     };
 }
 #endif // CENTRALVIEW_H

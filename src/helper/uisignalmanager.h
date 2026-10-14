@@ -26,7 +26,8 @@ Q_SIGNALS:
     void projectNewByName(const QString &str);
     // 项目设置
     void popProjectsetting();
-
+    // 项目多开
+    void duplicateInstanceDetected();
     // 日志
     void logMessage(const QString &msg);
     void logError(const QString &msg);

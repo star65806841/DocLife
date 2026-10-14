@@ -5,4 +5,3 @@ DialogBase::DialogBase(QWidget *parent)
 {
     setMinimumSize(QSize(500,300));
 }
-

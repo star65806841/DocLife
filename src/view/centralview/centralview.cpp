@@ -6,14 +6,13 @@
 
 #include <popWindow/projectnew.h>
 #include <popWindow/projectsetting.h>
+#include <popWindow/dialog/PopupBase.h>
+#include <popWindow/infoItem/duplicateapp.h>
 
 #include <projectcontext.h>
 #include <uisignalmanager.h>
 
-#include <popWindow/dialog/dialogbase.h>
-
 #include <leftview/leftview.h>
-
 
 using namespace doclife::ui;
 
@@ -61,6 +60,16 @@ void CentralView::showProjectsetting()
     ProjectSetting* pop = new ProjectSetting(this);
     pop->show();
 }
+
+void CentralView::popOpenedWarning()
+{
+    auto* popOpenedWarning = new PopupBase(this);
+    auto* popConnect = new DuplicateApp(this);
+    popOpenedWarning->setFixedSize(400,250);
+    popOpenedWarning->setContentWidget(popConnect);
+    popOpenedWarning->open();
+
+}
 void CentralView::showProjectNew()
 {
      ProjectNew* pop = new ProjectNew(this);
@@ -75,4 +84,6 @@ void CentralView::initConnect()
     connect(UISignalManager::instance(),&UISignalManager::popProjectsetting,this,&CentralView::showProjectsetting);
     connect(UISignalManager::instance(),&UISignalManager::projectNewByName,this,&CentralView::newProject);
     connect(UISignalManager::instance(),&UISignalManager::popProjectNew,this,&CentralView::showProjectNew);
+    // 多开处理
+    connect(UISignalManager::instance(),&UISignalManager::duplicateInstanceDetected,this, &CentralView::popOpenedWarning);
 }

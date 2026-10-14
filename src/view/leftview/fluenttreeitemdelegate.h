@@ -1,74 +1,79 @@
-﻿#ifndef TESTS_FLUENTTREEITEMDELEGATE_H
-#define TESTS_FLUENTTREEITEMDELEGATE_H
+﻿#pragma once
 
 #include <QStyledItemDelegate>
+#include <QStyleOptionViewItem>
+#include <QModelIndex>
+#include <QPainter>
+#include <QRectF>
+#include <QColor>
 
 #include "components/foundation/FluentElement.h"
 
-class QAbstractItemView;
-class QModelIndex;
-class QPainter;
-class QStyleOptionViewItem;
-class QMouseEvent;
+namespace doclife::ui {
 
 /**
- * 测试 / 示例用：Fluent 风格树视图行代理（业务层组装，不放入 FluentQt core library）。
+ * @brief Fluent 风格树视图行代理（无参构造版）
  *
- * WinUI 3 TreeView 视觉规范：
- *   - 32px 行高, 4px 圆角背景
- *   - 中号 Chevron 展开/折叠图标 (12px FluentQt Icons)
- *   - 选中项左侧 3px×16px accent 指示条
- *   - 每级缩进 16px
- *   - 可选 CheckBox (Multi-selection 模式)
- *   - 可选图标 (通过 IconGlyphRole)
+ * 使用方式：
+ *   auto* delegate = new FluentTreeItemDelegate(tree);   // 只需传 parent
+ *   tree->setItemDelegate(delegate);
+ *
+ * 内部会自动从 view 获取 FluentElement 来读取主题色，
+ * 行高固定为 32px（与官方示例一致）。
  */
-
-/** 自定义 Role: 存放 FluentQt Icons 字符串作为行前图标 */
-static constexpr int IconGlyphRole = Qt::UserRole + 100;
-
-class FluentTreeItemDelegate : public QStyledItemDelegate {
+class FluentTreeItemDelegate : public QStyledItemDelegate
+{
     Q_OBJECT
+
 public:
-    explicit FluentTreeItemDelegate(fluent::FluentElement* themeHost, int rowHeight,
-                                    QAbstractItemView* view,
-                                    QObject* parent = nullptr);
+    explicit FluentTreeItemDelegate(QObject* parent = nullptr);
 
-    void setThemeHost(fluent::FluentElement* host);
-    void setRowHeight(int height);
-    int rowHeight() const { return m_rowHeight; }
-
-    /** 是否在每行显示 CheckBox（WinUI Multi-selection 模式） */
+    // -------- 可选配置 --------
     void setCheckBoxVisible(bool visible);
     bool checkBoxVisible() const { return m_checkBoxVisible; }
 
-    void paint(QPainter* painter, const QStyleOptionViewItem& option,
+    // -------- QStyledItemDelegate 接口 --------
+    void paint(QPainter* painter,
+               const QStyleOptionViewItem& option,
                const QModelIndex& index) const override;
-    QSize sizeHint(const QStyleOptionViewItem& option,
-                   const QModelIndex& index) const override;
-    bool editorEvent(QEvent* event, QAbstractItemModel* model,
+
+    bool editorEvent(QEvent* event,
+                     QAbstractItemModel* model,
                      const QStyleOptionViewItem& option,
                      const QModelIndex& index) override;
 
+    QSize sizeHint(const QStyleOptionViewItem& option,
+                   const QModelIndex& index) const override;
+
+    // -------- 自定义数据角色 --------
+    static constexpr int IconGlyphRole = Qt::UserRole + 100;
+
 private:
-    qreal accentProgress(const QModelIndex& index) const;
+    // -------- 内部辅助（从 option 动态获取）--------
+    fluent::FluentElement* themeHostFromOption(const QStyleOptionViewItem& option) const;
+    QAbstractItemView*    viewFromOption(const QStyleOptionViewItem& option) const;
 
-    void paintCheckBox(QPainter* painter, const QRectF& rect,
-                       Qt::CheckState state, const fluent::FluentElement::Colors& colors) const;
-    void paintIconGlyph(QPainter* painter, const QRectF& rect,
-                        const QString& glyph, const QColor& color) const;
+    // -------- 绘制辅助 --------
+    void paintCheckBox(QPainter* painter,
+                       const QRectF& rect,
+                       Qt::CheckState state,
+                       const fluent::FluentElement::Colors& colors) const;
 
-    /** Compute the full-width background rect for a row */
+    void paintIconGlyph(QPainter* painter,
+                        const QRectF& rect,
+                        const QString& glyph,
+                        const QColor& color) const;
+
+    qreal accentProgress(const QModelIndex& index,
+                         QAbstractItemView* view) const;
+
+    // -------- 布局计算 --------
     QRectF bgRectForOption(const QStyleOptionViewItem& option) const;
-    /** Compute the chevron hit-test rect within a row */
-    QRectF chevronRectForOption(const QStyleOptionViewItem& option) const;
-    /** Compute the checkbox hit-test rect within a row */
     QRectF checkBoxRectForOption(const QStyleOptionViewItem& option) const;
+    QRectF chevronRectForOption(const QStyleOptionViewItem& option) const;
 
-    fluent::FluentElement* m_themeHost = nullptr;
-    int m_rowHeight = 0;
-    QAbstractItemView* m_view = nullptr;
+private:
     bool m_checkBoxVisible = false;
 };
 
-
-#endif
+} // namespace doclife::ui

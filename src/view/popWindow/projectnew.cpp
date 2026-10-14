@@ -16,7 +16,7 @@ void ProjectNew::sendNewProject()
 {
     if (m_projectNameLine->text().isEmpty())
     {
-        m_projectNameLine->setText("自定义工程");
+        m_projectNameLine->setText("自定义文档");
     }
     emit UISignalManager::instance()->projectNewByName(m_projectNameLine->text());
 }
@@ -32,7 +32,7 @@ void ProjectNew::init()
     auto *h1 = new QHBoxLayout(contentWid);
     h1->setSpacing(10);
     h1->setContentsMargins(10,0,0,20);
-    auto* label = new fluent::textfields::Label("档案名称：");
+    auto* label = new fluent::textfields::Label("文档名称：");
     label->setMinimumWidth(100);
     label->setFluentTypography(Typography::FontRole::BodyLargeStrong);
     m_projectNameLine = new fluent::textfields::LineEdit();
@@ -62,7 +62,7 @@ void ProjectNew::init()
     // h->addWidget(m_newProjectName);
     this->setFixedSize(QSize(470,300));
     // this->setFixedSize(QSize(580,430));
-    this->setTitle("新建档案");
+    this->setTitle("新建文档");
     this->setContent(contentWid);
     this->setPrimaryButtonText("确定");
     this->setCloseButtonText("取消");

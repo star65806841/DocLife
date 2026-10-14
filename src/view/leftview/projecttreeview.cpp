@@ -23,7 +23,8 @@ ProjectTreeView::ProjectTreeView(QWidget* parent)
 {
     // ---- Model ----
     m_model = new QStandardItemModel(this);
-    m_model->setHorizontalHeaderLabels({QStringLiteral("名称"), QStringLiteral("信息")});
+    // m_model->setHorizontalHeaderLabels({QStringLiteral("名称"), QStringLiteral("信息")});
+    m_model->setHorizontalHeaderLabels({QStringLiteral("名称")});
 
     // ---- TreeView ----
     m_tree = new fluent::collections::TreeView(this);
@@ -33,11 +34,11 @@ ProjectTreeView::ProjectTreeView(QWidget* parent)
     m_tree->setHeaderHidden(false);
 
     // auto* delegate = new treeview_test::FluentTreeItemDelegate(m_tree, 42, m_tree);
-    // auto* delegate = new FluentTreeItemDelegate();
+    auto* delegate = new FluentTreeItemDelegate();
     // delegate->setCheckBoxVisible(true);   // 如需复选框
-    m_tree->setItemDelegate(new FluentTreeItemDelegate(
-        static_cast<fluent::FluentElement*>(m_tree), 24, m_tree, m_tree));
-    // m_tree->setItemDelegate(delegate);
+    // m_tree->setItemDelegate(new FluentTreeItemDelegate(
+    //     static_cast<fluent::FluentElement*>(m_tree), 24, m_tree, m_tree));
+    m_tree->setItemDelegate(delegate);
     // ---- 布局 ----
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -144,8 +145,7 @@ QStandardItem* ProjectTreeView::makeProjectItem(const QString& projectId)
         unitItem->setEditable(false);
 
         // ---------- 分部 ----------
-        int nuitsSubs = unit.subs.count();
-        qDebug() << " subs has : " << nuitsCount;
+        qDebug() << " subs has : " << unit.subs.count();
         for (doclife::model::ProjectSub & sub : unit.subs) {
         // for (int var = 0; var < 2; ++var){
             auto* subItem = new QStandardItem("sub.subName");
@@ -177,6 +177,7 @@ QStandardItem* ProjectTreeView::makeProjectItem(const QString& projectId)
                     sheetItem->setEditable(false);
                     sheetItem->setFlags(sheetItem->flags() & ~Qt::ItemIsDropEnabled);
                     itemItem->appendRow(sheetItem);
+                    itemItem->setIcon(QIcon(":/icons/logo/Flash.png"));
                 }
                 subItem->appendRow(itemItem);
             }

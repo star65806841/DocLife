@@ -31,7 +31,7 @@ void TopMenu::init()
 
 
     auto* addAction = new QAction(
-        QIcon(":/icons/menu/AddFile.svg"), "新建工程", bar);
+        QIcon(":/icons/menu/AddFile.svg"), "新建", bar);
     auto* infoAction = new QAction(
         QIcon(":/icons/menu/InfoFile.svg"), "工程信息", bar);
     infoAction->setPriority(QAction::HighPriority);
