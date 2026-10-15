@@ -48,18 +48,15 @@ public:
     // ============================================================
     // 操作
     // ============================================================
-    // 创建项目：新建 Excel，写 A1（树 JSON）和 B1（ProjectInfoModel JSON）
-    bool createProject(const QString& filePath,
-                       const doclife::model::ProjectInfoModel& info,
-                       QString* errorMsg = nullptr);
+    // 新建（不再需要 filePath）——内部使用临时文件
+    bool newProject(QString* errorMsg = nullptr);
 
     // 打开项目：若已有打开的项目，会先尝试保存再关闭
     bool openProject(const QString& filePath, QString* errorMsg = nullptr);
 
-    // 保存当前项目到磁盘
+    // 保存当前项目到磁盘 已保存过 → 直接覆盖
     bool saveProject(QString* errorMsg = nullptr);
-
-    // 另存为
+    // 保存当前项目到磁盘 首次保存
     bool saveProjectAs(const QString& filePath, QString* errorMsg = nullptr);
 
     // 关闭项目：saveBeforeClose=true 时先保存；释放内存
@@ -70,7 +67,9 @@ public:
 
     // 业务侧改动树之后调用，标记为"有未保存修改"
     void markDirty();
-
+    bool isUntitled() const { return !m_tempFilePath.isEmpty(); }
+    // 标题栏用
+    QString displayName() const;
 signals:
     void projectCreated(const QString& filePath);
     void projectOpened (const QString& filePath);
@@ -78,19 +77,29 @@ signals:
     void projectClosed ();
     void dirtyChanged  (bool dirty);
     void errorOccurred (const QString& message);
-
 private:
     explicit ProjectContext(QObject* parent = nullptr);
     ~ProjectContext() override;
+    
+    void initConnect();
+
+    void resetState();
+    void cleanupTempFile();
 
     bool writeMetadata(const QString& filePath, QString* errorMsg);
     bool readMetadata (const QString& filePath, QString* errorMsg);
-    void resetState();
+
+    QString makeTempFilePath() const;
+
+
 
     doclife::model::ProjectNode m_root;
     doclife::model::ProjectInfoModel m_projectInfo;
-    QString                     m_excelFilePath;
-    bool                        m_dirty = false;
+
+    QString m_excelFilePath;   // 当前操作的真实文件（可能是临时 .doclife）
+    QString m_tempFilePath;    // 非空表示"还没保存过、用的临时文件"
+
+    bool m_dirty = false;
 };
 
 } // namespace doclife::core

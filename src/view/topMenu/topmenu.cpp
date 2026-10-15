@@ -74,7 +74,7 @@ void TopMenu::init()
     barLayout->addWidget(bar);
     barLayout->addStretch();
 
-    connect(actionAddBlank,&QAction::triggered,UISignalManager::instance(),&UISignalManager::popProjectNew);
+    connect(actionAddBlank,&QAction::triggered,UISignalManager::instance(),&UISignalManager::newProject);
     connect(infoAction,&QAction::triggered,UISignalManager::instance(),&UISignalManager::popProjectsetting);
 }
 

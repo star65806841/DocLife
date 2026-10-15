@@ -64,6 +64,7 @@ void SingleInstanceGuard::handleNewConnection()
         connect(socket, &QLocalSocket::readyRead, this, [this, socket]() {
             const QByteArray data = socket->readAll();
             if (!data.isEmpty()) {
+                qDebug()<< "emit duplicateInstanceDetected";
                 emit doclife::ui::UISignalManager::instance()->duplicateInstanceDetected();
             }
         });

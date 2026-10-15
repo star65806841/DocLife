@@ -7,6 +7,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QDebug>
+#include <QStandardPaths>
+#include <uisignalmanager.h>
 
 #include "xlsxdocument.h"
 #include "xlsxworksheet.h"
@@ -26,7 +28,16 @@ ProjectContext* ProjectContext::instance() {
 }
 
 ProjectContext::ProjectContext(QObject* parent) : QObject(parent) {}
-ProjectContext::~ProjectContext() {}
+ProjectContext::~ProjectContext()
+{
+    // 程序退出时兜底清理临时文件
+    cleanupTempFile();
+}
+
+void ProjectContext::initConnect()
+{
+    // connect(doclife::ui::UISignalManager::instance(),&doclife::ui::UISignalManager::newProject,this,&ProjectContext::slot_newProject);
+}
 
 // ============================================================
 // 状态
@@ -45,53 +56,61 @@ void ProjectContext::markDirty() {
 }
 
 void ProjectContext::resetState() {
-    m_root          = doclife::model::ProjectNode{};
-    m_projectInfo   = doclife::model::ProjectInfoModel{};
+    m_root        = doclife::model::ProjectNode{};
+    m_projectInfo = doclife::model::ProjectInfoModel{};
     m_excelFilePath.clear();
-    m_dirty = false;
-    emit dirtyChanged(false);
+    // m_tempFilePath 由 cleanupTempFile 负责清
+    if (m_dirty) {
+        m_dirty = false;
+        emit dirtyChanged(false);
+    }
+}
+
+void ProjectContext::cleanupTempFile()
+{
+    if (m_tempFilePath.isEmpty()) return;
+    QFile::remove(m_tempFilePath);
+    QFile::remove(m_tempFilePath + QStringLiteral(".tmp"));
+    m_tempFilePath.clear();
 }
 
 // ============================================================
 // 创建项目
 // ============================================================
-bool ProjectContext::createProject(const QString& filePath,
-                                   const doclife::model::ProjectInfoModel& info,
-                                   QString* errorMsg) {
-    // 已有项目：先关闭
+bool ProjectContext::newProject(QString* errorMsg)
+{
+    // 已有项目 → 先保存/关闭
     if (hasOpenProject()) {
         if (!closeProject(true, errorMsg)) return false;
     }
 
-    // 初始化树根
+    // 每次新建前清掉旧的临时文件（若上次异常退出残留）
+    cleanupTempFile();
+    const QString tempPath = makeTempFilePath();
+    QFile::remove(tempPath);
+
+    // 初始化树 + 信息
     m_root = doclife::model::ProjectNode{};
     m_root.type = QStringLiteral("project");
-    m_root.id   = info.id.isEmpty()
-                    ? QUuid::createUuid().toString(QUuid::WithoutBraces)
-                    : info.id;
+    m_root.id   = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
-    m_projectInfo   = info;
-    if (m_projectInfo.id.isEmpty())
-        m_projectInfo.id = m_root.id;
     m_projectInfo.projectnodeId = m_root.id;
 
-    m_excelFilePath = QDir::cleanPath(filePath);
-
-    // 确保目录存在
-    QDir().mkpath(QFileInfo(m_excelFilePath).absolutePath());
-
-    if (!writeMetadata(m_excelFilePath, errorMsg)) {
+    // 写临时文件
+    if (!writeMetadata(tempPath, errorMsg)) {
         resetState();
         return false;
     }
 
-    m_dirty = false;
+    m_excelFilePath = tempPath;
+    m_tempFilePath  = tempPath;   // ← 标记为"未保存"
+    m_dirty         = false;
+
     emit dirtyChanged(false);
-    emit projectCreated(m_excelFilePath);
-    emit projectOpened(m_excelFilePath);
+    emit projectCreated(tempPath);
+    emit projectOpened (tempPath);
     return true;
 }
-
 // ============================================================
 // 打开项目
 // ============================================================
@@ -104,7 +123,7 @@ bool ProjectContext::openProject(const QString& filePath, QString* errorMsg) {
         return false;
     }
 
-    // 已有项目 → 保存并关闭
+    // 若当前打开着东西（可能是临时文件），先保存/关闭
     if (hasOpenProject()) {
         if (!closeProject(true, errorMsg)) return false;
     }
@@ -115,9 +134,11 @@ bool ProjectContext::openProject(const QString& filePath, QString* errorMsg) {
     }
 
     m_excelFilePath = cleanPath;
+    m_tempFilePath.clear();        // 打开的是已保存文件 → 不是临时
     m_dirty = false;
+
     emit dirtyChanged(false);
-    emit projectOpened(m_excelFilePath);
+    emit projectOpened(cleanPath);
     return true;
 }
 
@@ -144,15 +165,36 @@ bool ProjectContext::saveProjectAs(const QString& filePath, QString* errorMsg) {
         if (errorMsg) *errorMsg = QStringLiteral("没有打开的项目");
         return false;
     }
+
     const QString cleanPath = QDir::cleanPath(filePath);
+    if (cleanPath == m_excelFilePath) {
+        return saveProject(errorMsg);
+    }
+
     QDir().mkpath(QFileInfo(cleanPath).absolutePath());
 
-    if (!writeMetadata(cleanPath, errorMsg)) {
+    // 先把内存里的最新数据刷到当前操作的文件（可能是临时文件）
+    if (!writeMetadata(m_excelFilePath, errorMsg)) {
         emit errorOccurred(errorMsg ? *errorMsg : QString());
         return false;
     }
-    m_excelFilePath = cleanPath;
+
+    // 拷贝到用户指定路径
+    if (QFile::exists(cleanPath) && !QFile::remove(cleanPath)) {
+        if (errorMsg) *errorMsg = QStringLiteral("无法覆盖目标文件: %1").arg(cleanPath);
+        return false;
+    }
+    if (!QFile::copy(m_excelFilePath, cleanPath)) {
+        if (errorMsg) *errorMsg = QStringLiteral("拷贝到目标路径失败: %1").arg(cleanPath);
+        return false;
+    }
+
+    // 临时文件使命结束 → 删除
+    cleanupTempFile();
+
+    m_excelFilePath = cleanPath;   // 之后都操作这个文件
     m_dirty = false;
+
     emit dirtyChanged(false);
     emit projectSaved(cleanPath);
     return true;
@@ -164,10 +206,12 @@ bool ProjectContext::saveProjectAs(const QString& filePath, QString* errorMsg) {
 bool ProjectContext::closeProject(bool saveBeforeClose, QString* errorMsg) {
     if (!hasOpenProject()) return true;
 
-    if (saveBeforeClose && m_dirty) {
+    if (saveBeforeClose && m_dirty && !isUntitled()) {
         if (!saveProject(errorMsg)) return false;
     }
+    // 若还是临时文件：不主动保存，直接丢掉（也可以按需加确认弹窗）
 
+    cleanupTempFile();
     resetState();
     emit projectClosed();
     return true;
@@ -255,6 +299,15 @@ bool ProjectContext::readMetadata(const QString& filePath, QString* errorMsg) {
     return true;
 }
 
+QString ProjectContext::makeTempFilePath() const
+{
+    // 放系统临时目录下的 DocLife 子目录，固定文件名，每次新建前删除
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
+                        + QStringLiteral("/DocLife");
+    QDir().mkpath(dir);
+    return dir + QStringLiteral("/_untitled_.doclife");
+}
+
 // ============================================================
 // 打印：除 _meta_ 外的所有工作表
 // ============================================================
@@ -292,5 +345,10 @@ bool ProjectContext::printAllSheets(QString* errorMsg) {
     qDebug() << "[print] 共处理" << printed << "张表";
     return true;
 }
-
+QString ProjectContext::displayName() const {
+    const QString name = m_projectInfo.projectName;
+    if (!name.isEmpty()) return name;
+    if (isUntitled())    return QStringLiteral("未命名文档");
+    return QFileInfo(m_excelFilePath).baseName();
+}
 } // namespace doclife::core

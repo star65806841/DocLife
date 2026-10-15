@@ -22,7 +22,7 @@ namespace doclife::ui {
     public slots:
 
     private slots:
-        void newProject(const QString& name);
+        void newProject();
         void showProjectNew();
         void showProjectsetting();
         void popOpenedWarning();

@@ -22,9 +22,9 @@ CentralView::CentralView(QWidget *parent)
     init();
 }
 
-void CentralView::newProject(const QString &name)
+void CentralView::newProject()
 {
-    //doclife::core::ProjectContext::instance()->addNewProject(name);
+    doclife::core::ProjectContext::instance()->newProject();
 }
 
 void CentralView::init()
@@ -82,8 +82,8 @@ void CentralView::initConnect()
 {
     // connect(m_mainOpenBtn,&QPushButton::clicked,UISignalManager::instance(),&UISignalManager::openExcelRequested);
     connect(UISignalManager::instance(),&UISignalManager::popProjectsetting,this,&CentralView::showProjectsetting);
-    connect(UISignalManager::instance(),&UISignalManager::projectNewByName,this,&CentralView::newProject);
-    connect(UISignalManager::instance(),&UISignalManager::popProjectNew,this,&CentralView::showProjectNew);
+    connect(UISignalManager::instance(),&UISignalManager::newProject,this,&CentralView::newProject);
+    //connect(UISignalManager::instance(),&UISignalManager::popProjectNew,this,&CentralView::showProjectNew);
     // 多开处理
     connect(UISignalManager::instance(),&UISignalManager::duplicateInstanceDetected,this, &CentralView::popOpenedWarning);
 }

@@ -18,7 +18,6 @@ void ProjectNew::sendNewProject()
     {
         m_projectNameLine->setText("自定义文档");
     }
-    emit UISignalManager::instance()->projectNewByName(m_projectNameLine->text());
 }
 
 void ProjectNew::init()

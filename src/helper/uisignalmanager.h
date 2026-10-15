@@ -23,7 +23,7 @@ Q_SIGNALS:
 
     // 新建项目
     void popProjectNew();
-    void projectNewByName(const QString &str);
+    void newProject();
     // 项目设置
     void popProjectsetting();
     // 项目多开
