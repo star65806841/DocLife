@@ -24,7 +24,7 @@ CentralView::CentralView(QWidget *parent)
 
 void CentralView::newProject(const QString &name)
 {
-    doclife::core::ProjectContext::instance()->addNewProject(name);
+    //doclife::core::ProjectContext::instance()->addNewProject(name);
 }
 
 void CentralView::init()

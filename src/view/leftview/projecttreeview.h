@@ -1,43 +1,29 @@
 ﻿#pragma once
 
 #include <QWidget>
+#include <QStandardItem>
+#include "projectnode.h"
 
 class QStandardItemModel;
-class QStandardItem;
 
-namespace fluent::collections {
-class TreeView;
-}
+namespace fluent::collections { class TreeView; }
 
 namespace doclife::ui {
 
-/**
- * @brief 用一个 TreeView 展示 ProjectContext 中所有项目
- *        —— 每个项目是树的一个顶层节点
- */
-class ProjectTreeView : public QWidget
-{
+class ProjectTreeView : public QWidget {
     Q_OBJECT
-
 public:
-    explicit ProjectTreeView(QWidget *parent = nullptr);
-    ~ProjectTreeView() override = default;
+    explicit ProjectTreeView(QWidget* parent = nullptr);
 
 private slots:
-    // ProjectContext 变化时调用
-    void rebuildAll();                              // 全量重建
-    void onProjectUpdated(const QString& projectId); // 局部重建单棵子树
+    void rebuildAll();                       // 项目打开/创建/关闭时全量重建
 
 private:
-    // 递归构建：ProjectHead → QStandardItem
-    QStandardItem* makeProjectItem(const QString& projectId);
+    QStandardItem* makeItem(const doclife::model::ProjectNode& node);
+    static void    applyFlags(QStandardItem* item, const QString& type);
 
-    // 找到某项目在 model 顶层的行号（找不到返回 -1）
-    int findProjectRow(const QString& projectId) const;
-
-private:
-    fluent::collections::TreeView* m_tree  = nullptr;
     QStandardItemModel*            m_model = nullptr;
+    fluent::collections::TreeView* m_tree  = nullptr;
 };
 
 } // namespace doclife::ui

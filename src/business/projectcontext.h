@@ -1,124 +1,96 @@
 ﻿#pragma once
 
 #include <QObject>
-#include <QList>
 #include <QString>
-#include "model/projecmodel.h"
+#include <QStringList>
+#include "projectnode.h"
+#include "projectInfomodel.h"
 
 namespace doclife::core {
 
-    /**
-     * @brief 全局唯一的工程上下文（单例），持有多个 ProjectHead
-     *
-     * 模型：
-     *  - 一个 ProjectHead  =  TreeView 上的一个顶层节点（一棵子树）
-     *  - 多个 ProjectHead  =  TreeView 上的多个顶层节点
-     *  - 整个 ProjectContext 就是这棵"多根树"的数据源
-     *
-     * 使用方式：
-     *  - 读取全部：ProjectContext::instance().projects()
-     *  - 监听变化：connect(&ctx, &ProjectContext::projectsChanged, ...)
-     *  - 修改：addProject / updateProject / removeProject / clear
-     */
-    class ProjectContext : public QObject
-    {
-        Q_OBJECT
+/**
+ * @brief 全局唯一的工程上下文（单例）
+ *
+ * 模型：
+ *  - 同一时间只打开一个项目（对应一个 .xlsx 文件）
+ *  - 项目文件结构：
+ *      Sheet[0] "_meta_"  →  A1 = 整棵树的 JSON，B1 = ProjectInfo 的 JSON
+ *      Sheet[1..N]        →  各个业务表格
+ *  - 内存中只保留一棵 ProjectNode 树 + 一份 ProjectInfo
+ */
+class ProjectContext : public QObject
+{
+    Q_OBJECT
 
-    public:
-        // -------- 单例入口 --------
-        static ProjectContext* instance();
-        // 禁用拷贝与移动
-        ProjectContext(const ProjectContext&) = delete;
-        ProjectContext& operator=(const ProjectContext&) = delete;
-        ProjectContext(ProjectContext&&) = delete;
-        ProjectContext& operator=(ProjectContext&&) = delete;
+public:
+    static ProjectContext* instance();
 
-        // ============================================================
-        // 项目集合（只读访问）
-        // ============================================================
-        const QList<doclife::model::ProjectHead>& projects() const { return m_projects; }
-        int  projectCount() const { return m_projects.size(); }
-        bool isEmpty() const { return m_projects.isEmpty(); }
+    ProjectContext(const ProjectContext&) = delete;
+    ProjectContext& operator=(const ProjectContext&) = delete;
 
-        QStringList projectIds() const;
-        bool hasProject(const QString& id) const;
+    // ============================================================
+    // 状态
+    // ============================================================
+    bool    hasOpenProject() const { return !m_excelFilePath.isEmpty(); }
+    bool    isDirty()        const { return m_dirty; }
+    QString excelFilePath()  const { return m_excelFilePath; }
+    QString projectName()    const;
 
-        // 按 id 取项目（不存在返回 nullptr）
-        const doclife::model::ProjectHead* head(const QString& id) const;
+    // ============================================================
+    // 数据访问
+    // ============================================================
+    const doclife::model::ProjectNode& rootNode() const { return m_root; }
+    doclife::model::ProjectNode&       rootNode()       { return m_root; }
 
-        // 按索引取项目（越界返回 nullptr）
-        const doclife::model::ProjectHead* headAt(int index) const;
+    const doclife::model::ProjectInfoModel& projectInfo() const { return m_projectInfo; }
+    doclife::model::ProjectInfoModel&       projectInfo()       { return m_projectInfo; }
 
-        // 取得某项目在列表中的索引（不存在返回 -1）
-        int indexOf(const QString& id) const;
+    // ============================================================
+    // 操作
+    // ============================================================
+    // 创建项目：新建 Excel，写 A1（树 JSON）和 B1（ProjectInfoModel JSON）
+    bool createProject(const QString& filePath,
+                       const doclife::model::ProjectInfoModel& info,
+                       QString* errorMsg = nullptr);
 
-        // ============================================================
-        // 增 / 删 / 改
-        // ============================================================
-        // 新增项目；id 已存在则覆盖（不重复添加）
-        void addNewProject(const QString& docName);
-        void addProject(const doclife::model::ProjectHead& head);
+    // 打开项目：若已有打开的项目，会先尝试保存再关闭
+    bool openProject(const QString& filePath, QString* errorMsg = nullptr);
 
-        // 一次添加多个项目
-        void addProjects(const QList<doclife::model::ProjectHead>& heads);
+    // 保存当前项目到磁盘
+    bool saveProject(QString* errorMsg = nullptr);
 
-        // 按 head.id 更新已有项目；若 id 不存在则等同于 addProject
-        void updateProject(const doclife::model::ProjectHead& head);
+    // 另存为
+    bool saveProjectAs(const QString& filePath, QString* errorMsg = nullptr);
 
-        // 删除项目（id 不存在则忽略）
-        void removeProject(const QString& id);
+    // 关闭项目：saveBeforeClose=true 时先保存；释放内存
+    bool closeProject(bool saveBeforeClose = true, QString* errorMsg = nullptr);
 
-        // 清空全部项目
-        void clear();
+    // 打印（除 _meta_ 外的所有工作表）
+    bool printAllSheets(QString* errorMsg = nullptr);
 
-        // ============================================================
-        // 跨项目查询（在所有项目中查找）
-        // ============================================================
-        // 返回值包含：所属项目 id + 节点指针
-        struct UnitRef { QString projectId; const doclife::model::ProjectUnit* unit = nullptr; };
-        struct SubRef { QString projectId; const doclife::model::ProjectSub* sub = nullptr; };
-        struct ItemRef { QString projectId; const doclife::model::ProjectItem* item = nullptr; };
-        struct SheetRef { QString projectId; const doclife::model::Sheet* sheet = nullptr; };
+    // 业务侧改动树之后调用，标记为"有未保存修改"
+    void markDirty();
 
-        UnitRef  findUnit(const QString& id) const;
-        SubRef   findSub(const QString& id) const;
-        ItemRef  findItem(const QString& id) const;
-        SheetRef findSheet(const QString& tableName, const QString& sheetName) const;
+signals:
+    void projectCreated(const QString& filePath);
+    void projectOpened (const QString& filePath);
+    void projectSaved  (const QString& filePath);
+    void projectClosed ();
+    void dirtyChanged  (bool dirty);
+    void errorOccurred (const QString& message);
 
-    signals:
-        /**
-         * 项目列表整体发生变化（增 / 删 / 清空 / 整体替换）。
-         * TreeView 应重新构建模型。
-         *
-         * 注意：如果只是单个项目内容更新，不会发射此信号，
-         * 而是发射 projectUpdated(id)，以便做局部刷新。
-         */
-        void projectsChanged();
+private:
+    explicit ProjectContext(QObject* parent = nullptr);
+    ~ProjectContext() override;
 
-        /**
-         * 单个项目内容更新（updateProject 触发）。
-         * 监听者可以只刷新对应子树。
-         */
-        void projectUpdated(const QString& projectId);
+    bool writeMetadata(const QString& filePath, QString* errorMsg);
+    bool readMetadata (const QString& filePath, QString* errorMsg);
+    void resetState();
 
-        /**
-         * 项目被添加。
-         */
-        void projectAdded(const QString& projectId);
-
-        /**
-         * 项目被删除。
-         */
-        void projectRemoved(const QString& projectId);
-
-    private:
-        explicit ProjectContext(QObject* parent = nullptr);
-        ~ProjectContext();
-
-        doclife::model::ProjectHead* findMutable(const QString& id);
-
-    private:
-        QList<doclife::model::ProjectHead> m_projects;   // 保序，每个元素是树的一个顶点
-    };
+    doclife::model::ProjectNode m_root;
+    doclife::model::ProjectInfoModel m_projectInfo;
+    QString                     m_excelFilePath;
+    bool                        m_dirty = false;
+};
 
 } // namespace doclife::core

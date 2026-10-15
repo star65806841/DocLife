@@ -3,7 +3,7 @@
 #include <QWidget>
 #include <QFileDialog>
 #include <QMessageBox>
-#include <projecmodel.h>
+#include <projecmodel1.h>
 
 using namespace doclife::core;
 
@@ -82,4 +82,20 @@ bool Utils::loadProject(const QString& filePath, doclife::model::ProjectHead& ou
     }
     out = doclife::model::ProjectHead::fromJson(doc.object());
     return true;
+}
+
+inline QString Utils::jsonToStr(const QJsonObject& o, bool pretty) {
+    return QString::fromUtf8(
+        QJsonDocument(o).toJson(pretty ? QJsonDocument::Indented
+                                       : QJsonDocument::Compact));
+}
+
+inline QJsonObject Utils::jsonToStr(const QString& s) {
+    QJsonParseError err;
+    QJsonDocument doc = QJsonDocument::fromJson(s.toUtf8(), &err);
+    if (err.error != QJsonParseError::NoError) {
+        qWarning() << "解析失败:" << err.errorString();
+        return QJsonObject{};
+    }
+    return doc.object();
 }

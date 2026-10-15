@@ -59,8 +59,11 @@ set(DOCLIFE_MODEL
 
     src/business/projectcontext.h src/business/projectcontext.cpp
 
-    src/model/projecmodel.h
-    src/model/ProjectInfo.h
+    src/model/projecmodel1.h
+    src/model/projectInfomodel.h
+    src/model/projectnode.h
+    src/model/custommodel/projecttreemodel.h src/model/custommodel/projecttreemodel.cpp
+
 )
 
 qt_add_resources(DOCLIFE_RESOURCES
@@ -72,7 +75,6 @@ qt_add_executable(DocLife
     ${DOCLIFE_SRC}
     ${DOCLIFE_MODEL}
     ${DOCLIFE_RESOURCES}
-
 )
 
 target_include_directories(DocLife

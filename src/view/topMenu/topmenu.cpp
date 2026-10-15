@@ -2,7 +2,10 @@
 
 #include <QHBoxLayout>
 #include <components/menus_toolbars/CommandBar.h>
+#include <components/menus_toolbars/Menu.h>
+#include <components/menus_toolbars/MenuBar.h>
 #include <components/foundation/FontIcon.h>
+#include <components/basicinput/DropDownButton.h>
 
 #include "uisignalmanager.h"
 
@@ -25,18 +28,20 @@ void TopMenu::init()
 
     auto* bar = new fluent::menus_toolbars::CommandBar(this);
     bar->setAccessibleName("Document commands");
-    bar->setLabelPosition(
-        fluent::menus_toolbars::CommandBar::LabelPosition::Right);
+    bar->setLabelPosition(fluent::menus_toolbars::CommandBar::LabelPosition::Right);
     bar->setBackgroundVisible(true);
 
+    auto* actionAddBlank = new QAction(QIcon(":/icons/menu/AddFile.svg"), "新建空白", bar);
+    // auto* menu = new fluent::menus_toolbars::FluentMenu("新建", bar);
+    // auto* actionAddBlank = new QAction(QIcon(":/icons/menu/AddFile.svg"), "新建空白");
+    // auto* actionAddTemplate = new QAction(QIcon(":/icons/menu/AddFile.svg"), "按模板新建");
+    // menu->addAction(actionAddBlank);
+    // menu->addAction(actionAddTemplate);
+    // addAct->setMenu(menu);
 
-    auto* addAction = new QAction(
-        QIcon(":/icons/menu/AddFile.svg"), "新建", bar);
-    auto* infoAction = new QAction(
-        QIcon(":/icons/menu/InfoFile.svg"), "工程信息", bar);
+    auto* infoAction = new QAction(QIcon(":/icons/menu/InfoFile.svg"), "工程信息", bar);
     infoAction->setPriority(QAction::HighPriority);
-    auto* shareAction = new QAction(
-        QIcon(":/icons/logo/Flash.png"), "Share", bar);
+    auto* shareAction = new QAction(QIcon(":/icons/logo/Flash.png"), "Share", bar);
 
     auto* separator = new QAction(bar);
     separator->setSeparator(true);
@@ -48,7 +53,7 @@ void TopMenu::init()
         QIcon(":/icons/logo/Flash.png"), "Pin", bar);
     pinAction->setCheckable(true);
 
-    bar->addPrimaryAction(addAction);
+    bar->addPrimaryAction(actionAddBlank);
     bar->addPrimaryAction(infoAction);
     bar->addPrimaryAction(shareAction);
     bar->addPrimaryAction(separator);
@@ -67,8 +72,9 @@ void TopMenu::init()
     }
 
     barLayout->addWidget(bar);
+    barLayout->addStretch();
 
-    connect(addAction,&QAction::triggered,UISignalManager::instance(),&UISignalManager::popProjectNew);
+    connect(actionAddBlank,&QAction::triggered,UISignalManager::instance(),&UISignalManager::popProjectNew);
     connect(infoAction,&QAction::triggered,UISignalManager::instance(),&UISignalManager::popProjectsetting);
 }
 

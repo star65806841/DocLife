@@ -1,13 +1,14 @@
-﻿#ifndef PROJECTINFO_H
-#define PROJECTINFO_H
+#ifndef PROJECTINFOMODEL_H
+#define PROJECTINFOMODEL_H
 
 #include <QJsonObject>
 #include <utils.h>
 
 namespace doclife::model {
 
-    struct ProjectInfo {
+    struct ProjectInfoModel {
         QString id;
+        QString projectnodeId;
         // 项目名称
         QString projectName;
 
@@ -26,6 +27,7 @@ namespace doclife::model {
         QJsonObject toJson() const {
             QJsonObject o;
             o["id"] = id;
+            o["projectnodeId"] = projectnodeId;
             o["projectName"] = projectName;
             o["ownerUnitName"] = ownerUnitName;
             o["constructionUnitName"] = constructionUnitName;
@@ -34,9 +36,10 @@ namespace doclife::model {
 
             return o;
         }
-        static ProjectInfo fromJson(const QJsonObject& o) {
-            ProjectInfo p;
+        static ProjectInfoModel fromJson(const QJsonObject& o) {
+            ProjectInfoModel p;
             p.id = o.value("id").toString();
+            p.projectnodeId = o.value("projectnodeId").toString();
             p.projectName = o.value("projectName").toString();
             p.ownerUnitName = o.value("ownerUnitName").toString();
             p.constructionUnitName = o.value("constructionUnitName").toString();
@@ -47,4 +50,4 @@ namespace doclife::model {
         }
     };
 }
-#endif // PROJECTINFO_H
+#endif // PROJECTINFOMODEL_H

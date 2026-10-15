@@ -1,252 +1,296 @@
-﻿#include "ProjectContext.h"
+﻿#include "projectcontext.h"
 
-#include <QApplication>
+#include <QFile>
+#include <QFileInfo>
+#include <QDir>
+#include <QUuid>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QDebug>
+
+#include "xlsxdocument.h"
+#include "xlsxworksheet.h"
+#include "xlsxcellrange.h"
 
 namespace doclife::core {
 
-    // ---------------------------------------------------------------
-    // 单例
-    // ---------------------------------------------------------------
-    ProjectContext* ProjectContext::instance()
-    {
-        // 用 qApp 作为 parent，QApplication 析构时自动删
-        static ProjectContext* ctx = new ProjectContext(qApp);
-        return ctx;
+// 元数据工作表的名字（第一个工作表）
+static const QString kMetaSheetName = QStringLiteral("_meta_");
+
+// ============================================================
+// 单例
+// ============================================================
+ProjectContext* ProjectContext::instance() {
+    static ProjectContext s;
+    return &s;
+}
+
+ProjectContext::ProjectContext(QObject* parent) : QObject(parent) {}
+ProjectContext::~ProjectContext() {}
+
+// ============================================================
+// 状态
+// ============================================================
+QString ProjectContext::projectName() const {
+    if (!m_projectInfo.projectName.isEmpty())
+        return m_projectInfo.projectName;
+    return QFileInfo(m_excelFilePath).baseName();
+}
+
+void ProjectContext::markDirty() {
+    if (!m_dirty) {
+        m_dirty = true;
+        emit dirtyChanged(true);
     }
-    ProjectContext::~ProjectContext()
-    {
-        qDebug() << "[ProjectContext] destroyed";
-    }
-    ProjectContext::ProjectContext(QObject* parent)
-        : QObject(parent)
-    {
+}
+
+void ProjectContext::resetState() {
+    m_root          = doclife::model::ProjectNode{};
+    m_projectInfo   = doclife::model::ProjectInfoModel{};
+    m_excelFilePath.clear();
+    m_dirty = false;
+    emit dirtyChanged(false);
+}
+
+// ============================================================
+// 创建项目
+// ============================================================
+bool ProjectContext::createProject(const QString& filePath,
+                                   const doclife::model::ProjectInfoModel& info,
+                                   QString* errorMsg) {
+    // 已有项目：先关闭
+    if (hasOpenProject()) {
+        if (!closeProject(true, errorMsg)) return false;
     }
 
-    // ===============================================================
-    // 只读访问
-    // ===============================================================
-    QStringList ProjectContext::projectIds() const
-    {
-        QStringList ids;
-        ids.reserve(m_projects.size());
-        for (const auto& p : m_projects) {
-            ids.append(p.id);
-        }
-        return ids;
-    }
+    // 初始化树根
+    m_root = doclife::model::ProjectNode{};
+    m_root.type = QStringLiteral("project");
+    m_root.id   = info.id.isEmpty()
+                    ? QUuid::createUuid().toString(QUuid::WithoutBraces)
+                    : info.id;
 
-    bool ProjectContext::hasProject(const QString& id) const
-    {
-        for (const auto& p : m_projects) {
-            if (p.id == id) return true;
-        }
+    m_projectInfo   = info;
+    if (m_projectInfo.id.isEmpty())
+        m_projectInfo.id = m_root.id;
+    m_projectInfo.projectnodeId = m_root.id;
+
+    m_excelFilePath = QDir::cleanPath(filePath);
+
+    // 确保目录存在
+    QDir().mkpath(QFileInfo(m_excelFilePath).absolutePath());
+
+    if (!writeMetadata(m_excelFilePath, errorMsg)) {
+        resetState();
         return false;
     }
 
-    const doclife::model::ProjectHead* ProjectContext::head(const QString& id) const
+    m_dirty = false;
+    emit dirtyChanged(false);
+    emit projectCreated(m_excelFilePath);
+    emit projectOpened(m_excelFilePath);
+    return true;
+}
+
+// ============================================================
+// 打开项目
+// ============================================================
+bool ProjectContext::openProject(const QString& filePath, QString* errorMsg) {
+    const QString cleanPath = QDir::cleanPath(filePath);
+
+    if (!QFile::exists(cleanPath)) {
+        if (errorMsg) *errorMsg = QStringLiteral("文件不存在: %1").arg(cleanPath);
+        emit errorOccurred(errorMsg ? *errorMsg : QString());
+        return false;
+    }
+
+    // 已有项目 → 保存并关闭
+    if (hasOpenProject()) {
+        if (!closeProject(true, errorMsg)) return false;
+    }
+
+    if (!readMetadata(cleanPath, errorMsg)) {
+        emit errorOccurred(errorMsg ? *errorMsg : QString());
+        return false;
+    }
+
+    m_excelFilePath = cleanPath;
+    m_dirty = false;
+    emit dirtyChanged(false);
+    emit projectOpened(m_excelFilePath);
+    return true;
+}
+
+// ============================================================
+// 保存
+// ============================================================
+bool ProjectContext::saveProject(QString* errorMsg) {
+    if (!hasOpenProject()) {
+        if (errorMsg) *errorMsg = QStringLiteral("没有打开的项目");
+        return false;
+    }
+    if (!writeMetadata(m_excelFilePath, errorMsg)) {
+        emit errorOccurred(errorMsg ? *errorMsg : QString());
+        return false;
+    }
+    m_dirty = false;
+    emit dirtyChanged(false);
+    emit projectSaved(m_excelFilePath);
+    return true;
+}
+
+bool ProjectContext::saveProjectAs(const QString& filePath, QString* errorMsg) {
+    if (!hasOpenProject()) {
+        if (errorMsg) *errorMsg = QStringLiteral("没有打开的项目");
+        return false;
+    }
+    const QString cleanPath = QDir::cleanPath(filePath);
+    QDir().mkpath(QFileInfo(cleanPath).absolutePath());
+
+    if (!writeMetadata(cleanPath, errorMsg)) {
+        emit errorOccurred(errorMsg ? *errorMsg : QString());
+        return false;
+    }
+    m_excelFilePath = cleanPath;
+    m_dirty = false;
+    emit dirtyChanged(false);
+    emit projectSaved(cleanPath);
+    return true;
+}
+
+// ============================================================
+// 关闭
+// ============================================================
+bool ProjectContext::closeProject(bool saveBeforeClose, QString* errorMsg) {
+    if (!hasOpenProject()) return true;
+
+    if (saveBeforeClose && m_dirty) {
+        if (!saveProject(errorMsg)) return false;
+    }
+
+    resetState();
+    emit projectClosed();
+    return true;
+}
+
+// ============================================================
+// 元数据读写
+// ============================================================
+bool ProjectContext::writeMetadata(const QString& filePath, QString* errorMsg) {
+    // 原子保存：先写临时文件，再替换
+    const QString tmpPath = filePath + QStringLiteral(".tmp");
+
     {
-        for (const auto& p : m_projects) {
-            if (p.id == id) return &p;
+        // 若文件已存在，QXlsx 会加载它；否则创建新文档
+        QXlsx::Document doc(filePath);
+
+        // 确保元数据工作表存在
+        if (!doc.sheetNames().contains(kMetaSheetName)) {
+            doc.addSheet(kMetaSheetName);
         }
-        return nullptr;
-    }
+        doc.selectSheet(kMetaSheetName);
 
-    const doclife::model::ProjectHead* ProjectContext::headAt(int index) const
-    {
-        if (index < 0 || index >= m_projects.size()) return nullptr;
-        return &m_projects[index];
-    }
+        // A1 = 整棵树的 JSON；B1 = ProjectInfoModel 的 JSON
+        const QByteArray rootJson = QJsonDocument(
+                                        doclife::model::ProjectNode::toJson(m_root)
+                                        ).toJson(QJsonDocument::Compact);
 
-    int ProjectContext::indexOf(const QString& id) const
-    {
-        for (int i = 0; i < m_projects.size(); ++i) {
-            if (m_projects[i].id == id) return i;
+        const QByteArray infoJson = QJsonDocument(
+                                        m_projectInfo.toJson()
+                                        ).toJson(QJsonDocument::Compact);
+
+        doc.write(1, 1, QString::fromUtf8(rootJson));
+        doc.write(1, 2, QString::fromUtf8(infoJson));
+
+        if (!doc.saveAs(tmpPath)) {
+            if (errorMsg) *errorMsg = QStringLiteral("写临时文件失败: %1").arg(tmpPath);
+            return false;
         }
-        return -1;
+    }   // doc 析构，释放文件句柄
+
+    // 用临时文件替换原文件
+    if (QFile::exists(filePath) && !QFile::remove(filePath)) {
+        if (errorMsg) *errorMsg = QStringLiteral("无法删除原文件: %1").arg(filePath);
+        return false;
+    }
+    if (!QFile::rename(tmpPath, filePath)) {
+        if (errorMsg) *errorMsg = QStringLiteral("重命名临时文件失败: %1").arg(tmpPath);
+        return false;
+    }
+    return true;
+}
+
+bool ProjectContext::readMetadata(const QString& filePath, QString* errorMsg) {
+    QXlsx::Document doc(filePath);
+
+    const QStringList sheets = doc.sheetNames();
+    if (sheets.isEmpty()) {
+        if (errorMsg) *errorMsg = QStringLiteral("Excel 文件为空");
+        return false;
     }
 
-    void ProjectContext::addNewProject(const QString &docName)
-    {
-        doclife::model::Sheet sheet1;
-        sheet1.id = "1234";
-        sheet1.sheetName = "表1";
-        doclife::model::Sheet sheet2;
-        sheet2.id = "1235";
-        sheet2.sheetName = "表2";
+    // 优先用命名表；找不到就用第一个表兜底
+    const QString metaName = sheets.contains(kMetaSheetName)
+                                 ? kMetaSheetName : sheets.first();
+    doc.selectSheet(metaName);
 
-        doclife::model::ProjectItem item1;
-        item1.id = "1234";
-        item1.itemName = "分项工程1";
+    const QString rootStr = doc.read(1, 1).toString();
+    const QString infoStr = doc.read(1, 2).toString();
 
-        item1.sheets.append(sheet1);
-        item1.sheets.append(sheet2);
-
-        doclife::model::ProjectSub sub1;
-        sub1.id = "1234";
-        sub1.subName = "分部工程1";
-        sub1.items.append(item1);
-
-        doclife::model::ProjectUnit unit1;
-        unit1.id = "1234";
-        unit1.unitName = "单位工程1";
-        doclife::model::ProjectUnit unit2;
-        unit2.id = "1235";
-        unit2.unitName = "单位工程2";
-
-        unit1.subs.append(sub1);
-        unit2.subs.append(sub1);
-
-        doclife::model::ProjectHead head;
-        head.docName = docName;
-
-        head.id = doclife::core::Utils::makeProjectId();
-
-        head.units.append(unit1);
-        head.units.append(unit2);
-        m_projects.append(head);
-
-        emit projectAdded(head.id);
-        emit projectsChanged();
+    QJsonParseError err{};
+    const auto rootDoc = QJsonDocument::fromJson(rootStr.toUtf8(), &err);
+    if (err.error != QJsonParseError::NoError || !rootDoc.isObject()) {
+        if (errorMsg) *errorMsg = QStringLiteral("根节点 JSON 解析失败: %1").arg(err.errorString());
+        return false;
     }
 
-    // ===============================================================
-    // 增 / 删 / 改
-    // ===============================================================
-    void ProjectContext::addProject(const doclife::model::ProjectHead& head)
-    {
-        if (head.id.isEmpty()) return;   // 不允许空 id
+    const auto infoDoc = QJsonDocument::fromJson(infoStr.toUtf8(), &err);
+    if (err.error != QJsonParseError::NoError || !infoDoc.isObject()) {
+        if (errorMsg) *errorMsg = QStringLiteral("项目信息 JSON 解析失败: %1").arg(err.errorString());
+        return false;
+    }
 
-        // 已存在 → 覆盖（不重复添加）
-        if (auto* existing = findMutable(head.id)) {
-            *existing = head;
-            emit projectUpdated(head.id);
-            return;
+    m_root        = doclife::model::ProjectNode::fromJson(rootDoc.object());
+    m_projectInfo = doclife::model::ProjectInfoModel::fromJson(infoDoc.object());
+    return true;
+}
+
+// ============================================================
+// 打印：除 _meta_ 外的所有工作表
+// ============================================================
+bool ProjectContext::printAllSheets(QString* errorMsg) {
+    if (!hasOpenProject()) {
+        if (errorMsg) *errorMsg = QStringLiteral("没有打开的项目");
+        return false;
+    }
+
+    QXlsx::Document doc(m_excelFilePath);
+    const QStringList allSheets = doc.sheetNames();
+
+    int printed = 0;
+    for (const QString& sheetName : allSheets) {
+        if (sheetName == kMetaSheetName) continue;
+
+        doc.selectSheet(sheetName);
+        QXlsx::CellRange range = doc.dimension();
+        if (!range.isValid()) {
+            qDebug() << "[print] 空表:" << sheetName;
+            continue;
         }
 
-        m_projects.append(head);
-        emit projectAdded(head.id);
-        emit projectsChanged();
+        // 这里可以做真正的打印：
+        //   1) 用 QPrinter + QPainter 逐格绘制
+        //   2) 转 HTML 后用 QTextDocument::print()
+        //   3) 导出 PDF
+        qDebug() << "[print] 表:" << sheetName
+                 << "行:" << range.firstRow() << "~" << range.lastRow()
+                 << "列:" << range.firstColumn() << "~" << range.lastColumn();
+
+        ++printed;
     }
 
-    void ProjectContext::addProjects(const QList<doclife::model::ProjectHead>& heads)
-    {
-        bool anyAdded = false;
-        for (const auto& h : heads) {
-            if (h.id.isEmpty()) continue;
-
-            if (auto* existing = findMutable(h.id)) {
-                *existing = h;
-                emit projectUpdated(h.id);
-            }
-            else {
-                m_projects.append(h);
-                emit projectAdded(h.id);
-                anyAdded = true;
-            }
-        }
-        if (anyAdded) {
-            emit projectsChanged();
-        }
-    }
-
-    void ProjectContext::updateProject(const doclife::model::ProjectHead& head)
-    {
-        if (head.id.isEmpty()) return;
-
-        if (auto* existing = findMutable(head.id)) {
-            *existing = head;
-            emit projectUpdated(head.id);
-        }
-        else {
-            addProject(head);
-        }
-    }
-
-    void ProjectContext::removeProject(const QString& id)
-    {
-        const int idx = indexOf(id);
-        if (idx < 0) return;
-
-        m_projects.removeAt(idx);
-        emit projectRemoved(id);
-        emit projectsChanged();
-    }
-
-    void ProjectContext::clear()
-    {
-        if (m_projects.isEmpty()) return;
-
-        m_projects.clear();
-        emit projectsChanged();
-    }
-
-    // ===============================================================
-    // 内部
-    // ===============================================================
-    doclife::model::ProjectHead* ProjectContext::findMutable(const QString& id)
-    {
-        for (auto& p : m_projects) {
-            if (p.id == id) return &p;
-        }
-        return nullptr;
-    }
-
-    // ===============================================================
-    // 跨项目查询
-    // ===============================================================
-    ProjectContext::UnitRef ProjectContext::findUnit(const QString& id) const
-    {
-        for (const auto& p : m_projects) {
-            for (const auto& u : p.units) {
-                if (u.id == id) return { p.id, &u };
-            }
-        }
-        return {};
-    }
-
-    ProjectContext::SubRef ProjectContext::findSub(const QString& id) const
-    {
-        for (const auto& p : m_projects) {
-            for (const auto& u : p.units) {
-                for (const auto& s : u.subs) {
-                    if (s.id == id) return { p.id, &s };
-                }
-            }
-        }
-        return {};
-    }
-
-    ProjectContext::ItemRef ProjectContext::findItem(const QString& id) const
-    {
-        for (const auto& p : m_projects) {
-            for (const auto& u : p.units) {
-                for (const auto& s : u.subs) {
-                    for (const auto& i : s.items) {
-                        if (i.id == id) return { p.id, &i };
-                    }
-                }
-            }
-        }
-        return {};
-    }
-
-    ProjectContext::SheetRef ProjectContext::findSheet(const QString& tableName,
-        const QString& sheetName) const
-    {
-        for (const auto& p : m_projects) {
-            for (const auto& u : p.units) {
-                for (const auto& s : u.subs) {
-                    for (const auto& i : s.items) {
-                        for (const auto& sh : i.sheets) {
-                            if (sh.tableName == tableName && sh.sheetName == sheetName) {
-                                return { p.id, &sh };
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return {};
-    }
+    qDebug() << "[print] 共处理" << printed << "张表";
+    return true;
+}
 
 } // namespace doclife::core
