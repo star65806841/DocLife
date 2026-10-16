@@ -8,6 +8,7 @@
 #include <popWindow/projectsetting.h>
 #include <popWindow/dialog/PopupBase.h>
 #include <popWindow/infoItem/duplicateapp.h>
+#include <popWindow/toast/apptoast.h>
 
 #include <projectcontext.h>
 #include <uisignalmanager.h>
@@ -88,11 +89,12 @@ void CentralView::showProjectsetting()
 
 void CentralView::popOpenedWarning()
 {
-    auto* popOpenedWarning = new PopupBase(this);
-    auto* popConnect = new DuplicateApp(this);
-    popOpenedWarning->setFixedSize(400,250);
-    popOpenedWarning->setContentWidget(popConnect);
-    popOpenedWarning->open();
+    // auto* popOpenedWarning = new PopupBase(this);
+    // auto* popConnect = new DuplicateApp(this);
+    // popOpenedWarning->setFixedSize(400,250);
+    // popOpenedWarning->setContentWidget(popConnect);
+    // popOpenedWarning->open();
+    AppToast::showInfo(this, "应用程序正在运行, 请先关闭后再启动!");
 
 }
 void CentralView::showProjectNew()

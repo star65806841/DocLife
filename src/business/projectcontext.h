@@ -46,6 +46,7 @@ public:
     QString excelFilePath()  const { return m_excelFilePath; }
     QString projectName()    const;
     QString displayName()    const;    // 标题栏用
+    QString getUuid()        const;
 
     // ============================================================
     // 数据访问
@@ -55,7 +56,7 @@ public:
 
     const doclife::model::ProjectInfoModel& projectInfo() const { return m_projectInfo; }
     doclife::model::ProjectInfoModel&       projectInfo()       { return m_projectInfo; }
-
+    void setProjectInfo(doclife::model::ProjectInfoModel& projectInfo);
     // ============================================================
     // 操作
     // ============================================================

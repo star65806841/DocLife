@@ -8,19 +8,57 @@
 
 #include "popWindow/infoItem/projectinfopage.h"
 #include "infoItem/projectitem.h"
+#include "business/projectcontext.h"
 
 using namespace doclife::ui;
 
-ProjectSetting::ProjectSetting(QWidget *parent)
-    : fluent::dialogs_flyouts::Dialog{parent}
+ProjectSetting::ProjectSetting(QWidget* parent)
+    : fluent::dialogs_flyouts::Dialog{ parent }
 {
     init();
 }
 
-void ProjectSetting::slot_projectName(const QString &name)
+void ProjectSetting::slot_updateProjectInfo()
 {
-    qDebug()<< "projectName length ="<< name.length();
-    // return !name.isEmpty();
+    // 写回 ProjectContext
+    auto* ctx = doclife::core::ProjectContext::instance();
+    auto info = ctx->projectInfo();          // 拿一份副本
+
+    info.projectName = m_projectName.trimmed();
+    info.constructionUnitName = m_constructionUnitName.trimmed();
+    info.supervisionUnitName = m_supervisionUnitName.trimmed();
+    info.designUnitName = m_designUnitName.trimmed();
+    info.ownerUnitName = m_ownerUnitName.trimmed();
+
+    ctx->setProjectInfo(info);               // 如果有 setter 就调用
+
+    // 3. 关闭对话框并返回 Accepted
+    accept();
+}
+
+void ProjectSetting::slot_updateProjectName(const QString& str)
+{
+    m_projectName = str;
+}
+
+void ProjectSetting::slot_updateConstructionUnitName(const QString& str)
+{
+    m_constructionUnitName = str;
+}
+
+void ProjectSetting::slot_updateSupervisionUnitName(const QString& str)
+{
+    m_supervisionUnitName = str;
+}
+
+void ProjectSetting::slot_updateDesignUnitName(const QString& str)
+{
+    m_designUnitName = str;
+}
+
+void ProjectSetting::slot_updateOwnerUnitName(const QString& str)
+{
+    m_ownerUnitName = str;
 }
 
 void ProjectSetting::init()
@@ -33,7 +71,8 @@ void ProjectSetting::init()
     layout->setContentsMargins(55, 25, 45, 25);
     layout->setSpacing(18);
 
-    auto* titleLabel = new fluent::textfields::Label("项目信息");
+    QString proName = "项目信息:" + doclife::core::ProjectContext::instance()->getUuid();
+    auto* titleLabel = new fluent::textfields::Label(proName);
     titleLabel->setFluentTypography(Typography::FontRole::Subtitle);
 
     // QWidget* contentWidget = new QWidget();
@@ -56,28 +95,40 @@ void ProjectSetting::init()
     // navView->setThemeOverrides({
     //     {"radius", QJsonObject{{"overlay", 0}}}
     // });
+
+    // ---- 项目数据 ----
+    auto const projectInfo = doclife::core::ProjectContext::instance()->projectInfo();
+    // 用已有数据初始化成员，防止用户不改动就把空串写回去
+    m_projectName = projectInfo.projectName;
+    m_constructionUnitName = projectInfo.constructionUnitName;
+    m_supervisionUnitName = projectInfo.supervisionUnitName;
+    m_designUnitName = projectInfo.designUnitName;
+    m_ownerUnitName = projectInfo.ownerUnitName;
     // ---- 内容宿主：插入页面 ----
     fluent::navigation::StackContentHost* host = navView->contentHost();
-    auto* projectNamePage = new ProjectInfoPage("工程名称",this);
-    connect(projectNamePage,&ProjectInfoPage::sign_text,this,&ProjectSetting::slot_projectName,Qt::ConnectionType::DirectConnection);
-    host->insertPage(0,projectNamePage,fluent::WidgetOwnership::Reparented);
-    host->insertPage(1,new ProjectInfoPage("施工单位",this),fluent::WidgetOwnership::Reparented);
-    host->insertPage(2,new ProjectInfoPage("监理单位",this),fluent::WidgetOwnership::Reparented);
-    host->insertPage(3,new ProjectInfoPage("设计单位",this),fluent::WidgetOwnership::Reparented);
-    host->insertPage(4,new ProjectInfoPage("建设单位",this),fluent::WidgetOwnership::Reparented);
+    auto* projectNamePage = new ProjectInfoPage("工程名称", projectInfo.projectName, this);
+    auto* constructionUnitNamePage = new ProjectInfoPage("施工单位", projectInfo.constructionUnitName, this);
+    auto* supervisionUnitNamePage = new ProjectInfoPage("监理单位", projectInfo.supervisionUnitName, this);
+    auto* designUnitNamePage = new ProjectInfoPage("设计单位", projectInfo.designUnitName, this);
+    auto* ownerUnitNamePage = new ProjectInfoPage("建设单位", projectInfo.ownerUnitName, this);
+    host->insertPage(0, projectNamePage, fluent::WidgetOwnership::Reparented);
+    host->insertPage(1, constructionUnitNamePage, fluent::WidgetOwnership::Reparented);
+    host->insertPage(2, supervisionUnitNamePage, fluent::WidgetOwnership::Reparented);
+    host->insertPage(3, designUnitNamePage, fluent::WidgetOwnership::Reparented);
+    host->insertPage(4, ownerUnitNamePage, fluent::WidgetOwnership::Reparented);
 
     // 切换动画
     host->setTransitionEffect(fluent::navigation::StackContentHost::TransitionEffect::SlideFromBottom);
 
     // ---- 导航项列表作为 main chrome 接入 ----
     QVector<MainSection::Entry> entries =
-       {
-         {Typography::Icons::glyph(QStringLiteral("ic_fluent_vote_24_regular")), QStringLiteral("工程项目名称"), true},
-         {Typography::Icons::glyph(QStringLiteral("ic_fluent_vehicle_tractor_24_regular")), QStringLiteral("施工单位"), false},
-         {Typography::Icons::glyph(QStringLiteral("ic_fluent_receipt_cube_24_regular")), QStringLiteral("监理单位"), false},
-         {Typography::Icons::glyph(QStringLiteral("ic_fluent_quiz_24_regular")), QStringLiteral("设计单位"), false},
-         {Typography::Icons::glyph(QStringLiteral("ic_fluent_card_ui_portrait_flip_24_regular")), QStringLiteral("建设单位"), false},
-         };
+    {
+      {Typography::Icons::glyph(QStringLiteral("ic_fluent_vote_24_regular")), QStringLiteral("工程项目名称"), true},
+      {Typography::Icons::glyph(QStringLiteral("ic_fluent_vehicle_tractor_24_regular")), QStringLiteral("施工单位"), false},
+      {Typography::Icons::glyph(QStringLiteral("ic_fluent_receipt_cube_24_regular")), QStringLiteral("监理单位"), false},
+      {Typography::Icons::glyph(QStringLiteral("ic_fluent_quiz_24_regular")), QStringLiteral("设计单位"), false},
+      {Typography::Icons::glyph(QStringLiteral("ic_fluent_card_ui_portrait_flip_24_regular")), QStringLiteral("建设单位"), false},
+    };
 
     auto* mainSection = new MainSection(entries, navView);
     navView->setMainChromeWidget(mainSection, fluent::WidgetOwnership::Borrowed);
@@ -87,16 +138,16 @@ void ProjectSetting::init()
 
     // ---- 连接激活回调 ----
     mainSection->onActivated = [host](int pageIndex) {
-       const int direction =
-           pageIndex >= host->currentIndex() ? 1 : -1;
-       host->setCurrentIndex(pageIndex, direction, true);
-    };
+        const int direction =
+            pageIndex >= host->currentIndex() ? 1 : -1;
+        host->setCurrentIndex(pageIndex, direction, true);
+        };
 
     // // 可选：调试用背景色，确认 MainSection 区域
     // mainSection->setStyleSheet("background-color: #FF00FF;");
 
     // 底部命令按钮
-    auto* editButton  = new fluent::basicinput::Button(QStringLiteral("确 认"));
+    auto* editButton = new fluent::basicinput::Button(QStringLiteral("确 认"));
     editButton->setMinimumWidth(120);
     // editButton->setEnabled();
 
@@ -120,8 +171,14 @@ void ProjectSetting::init()
     layout->addStretch(1);
     layout->addLayout(commandRow);
 
-    // connect(editButton, &fluent::basicinput::Button::clicked, this,&QDialog::close);
-     //connect(cancelButton, &fluent::basicinput::Button::clicked, this,&QDialog::close);
-    // connect(this, &QDialog::finished, this,&QObject::deleteLater);
-    // connect(this, &QDialog::destroyed, [](){qDebug()<<"ProjectSetting destroyed";});
+    connect(projectNamePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateProjectName);
+    connect(constructionUnitNamePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateConstructionUnitName);
+    connect(supervisionUnitNamePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateSupervisionUnitName);
+    connect(designUnitNamePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateDesignUnitName);
+    connect(ownerUnitNamePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateOwnerUnitName);
+
+    connect(editButton, &fluent::basicinput::Button::clicked, this, &ProjectSetting::slot_updateProjectInfo);
+    connect(cancelButton, &fluent::basicinput::Button::clicked, this, &QDialog::close);
+    connect(this, &QDialog::finished, this, &QObject::deleteLater);
+    connect(this, &ProjectSetting::destroyed, []() {qDebug() << "ProjectSetting destroyed"; });
 }

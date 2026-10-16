@@ -42,6 +42,7 @@ set(DOCLIFE_SRC
 
     src/view/popWindow/dialog/dialogbase.h src/view/popWindow/dialog/dialogbase.cpp
     src/view/popWindow/dialog/popupbase.h src/view/popWindow/dialog/popupbase.cpp
+    src/view/popWindow/toast/apptoast.h src/view/popWindow/toast/apptoast.cpp
 
 
 

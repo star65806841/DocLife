@@ -27,21 +27,21 @@ void ProjectInfo::init()
     auto* contentHost = new fluent::navigation::StackContentHost(this);
     contentHost->setTransitionEffect(fluent::navigation::StackContentHost::TransitionEffect::SlideFromBottom);
 
-    auto* projectNamePage = new ProjectInfoPage("工程名称",this);
-    auto* buildPage = new ProjectInfoPage("施工单位",this);
-    auto* supervisionPage = new ProjectInfoPage("监理单位",this);
-    auto* designingPage = new ProjectInfoPage("设计单位",this);
-    auto* constructionPage = new ProjectInfoPage("建设单位",this);
+    // auto* projectNamePage = new ProjectInfoPage("工程名称",this);
+    // auto* buildPage = new ProjectInfoPage("施工单位",this);
+    // auto* supervisionPage = new ProjectInfoPage("监理单位",this);
+    // auto* designingPage = new ProjectInfoPage("设计单位",this);
+    // auto* constructionPage = new ProjectInfoPage("建设单位",this);
     // =========================================================
     // 将页面注册到 StackContentHost
     // =========================================================
-    contentHost->insertPage(0,projectNamePage,fluent::WidgetOwnership::Reparented);
-    contentHost->insertPage(1,buildPage,fluent::WidgetOwnership::Reparented);
-    contentHost->insertPage(2,supervisionPage,fluent::WidgetOwnership::Reparented);
-    contentHost->insertPage(3,designingPage,fluent::WidgetOwnership::Reparented);
-    contentHost->insertPage(4,constructionPage,fluent::WidgetOwnership::Reparented);
+    // contentHost->insertPage(0,projectNamePage,fluent::WidgetOwnership::Reparented);
+    // contentHost->insertPage(1,buildPage,fluent::WidgetOwnership::Reparented);
+    // contentHost->insertPage(2,supervisionPage,fluent::WidgetOwnership::Reparented);
+    // contentHost->insertPage(3,designingPage,fluent::WidgetOwnership::Reparented);
+    // contentHost->insertPage(4,constructionPage,fluent::WidgetOwnership::Reparented);
     // 初始显示 Home
-    contentHost->setCurrentIndex(0, 0, false);
+    // contentHost->setCurrentIndex(0, 0, false);
     // navView->;
 }
 }

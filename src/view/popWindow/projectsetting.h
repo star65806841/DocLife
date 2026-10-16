@@ -20,13 +20,23 @@ public:
 signals:
 
 private slots:
-    void slot_projectName(const QString &name);
+    void slot_updateProjectInfo();
+    void slot_updateProjectName(const QString& str);
+    void slot_updateConstructionUnitName(const QString& str);
+    void slot_updateSupervisionUnitName(const QString& str);
+    void slot_updateDesignUnitName(const QString& str);
+    void slot_updateOwnerUnitName(const QString& str);
 private:
     void init();
 
 private:
     fluent::dialogs_flyouts::Dialog* m_dialog = nullptr;
     bool editButtonEnabled = true;
+    QString m_projectName;
+    QString m_constructionUnitName;
+    QString m_supervisionUnitName;
+    QString m_designUnitName;
+    QString m_ownerUnitName;
 };
 
 }

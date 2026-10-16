@@ -139,6 +139,7 @@ void writeNodeFlat(QXlsx::Document& doc, int& row,
     o["parentRow"] = parentRow;
     if (!n.id.isEmpty())    o["id"]    = n.id;
     o["type"] = n.type;
+    o["name"] = n.name;
     if (!n.attrs.isEmpty()) o["attrs"] = n.attrs;
 
     doc.write(myRow, 1,
@@ -195,6 +196,32 @@ QString ProjectContext::displayName() const {
     if (!name.isEmpty()) return name;
     if (isUntitled())    return QStringLiteral("未命名文档");
     return QFileInfo(m_excelFilePath).baseName();
+}
+
+QString ProjectContext::getUuid() const
+{
+    return m_root.id;
+}
+
+void ProjectContext::setProjectInfo(model::ProjectInfoModel &projectInfo)
+{
+    m_projectInfo.projectName            = projectInfo.projectName.trimmed();
+    m_projectInfo.constructionUnitName   = projectInfo.constructionUnitName.trimmed();
+    m_projectInfo.supervisionUnitName    = projectInfo.supervisionUnitName.trimmed();
+    m_projectInfo.designUnitName         = projectInfo.designUnitName.trimmed();
+    m_projectInfo.ownerUnitName          = projectInfo.ownerUnitName.trimmed();
+    // set 完成以后尝试保存一下
+    if (!hasOpenProject()) {
+        // 没有打开的项目
+        qDebug() << "[ProjectContext] setProjectInfo: There are no open projects.Attempting to save failed.";
+        return;
+    }
+    if (isUntitled()) {
+        // 项目尚未保存过
+        qDebug() << "[ProjectContext] setProjectInfo: The project has not been saved yet. The attempt to save failed.";
+        return;
+    }
+    saveProject();
 }
 
 void ProjectContext::markDirty() {
@@ -532,6 +559,7 @@ bool ProjectContext::readMetadata(const QString& filePath, QString* errorMsg) {
             doclife::model::ProjectNode n;
             n.id    = o.value(QStringLiteral("id")).toString();
             n.type  = o.value(QStringLiteral("type")).toString();
+            n.name  = o.value(QStringLiteral("name")).toString();
             n.attrs = o.value(QStringLiteral("attrs")).toObject();
 
             nodeByRow.insert(r, n);

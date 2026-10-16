@@ -7,13 +7,13 @@
 
 using namespace doclife::ui;
 
-ProjectInfoPage::ProjectInfoPage(const QString& title, QWidget *parent)
+ProjectInfoPage::ProjectInfoPage(const QString& title,const QString& content, QWidget *parent)
     : QWidget{parent}
 {
-    createPage(title);
+    createPage(title,content);
 }
 
-void ProjectInfoPage::createPage(const QString& title)
+void ProjectInfoPage::createPage(const QString& title,const QString& content)
 {
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(35, 40, 32, 30);
@@ -27,6 +27,7 @@ void ProjectInfoPage::createPage(const QString& title)
     descEdit->setFocusedBorderWidth(3);
     descEdit->setUnfocusedBorderWidth(2);
     descEdit->setFontRole(Typography::FontRole::BodyStrong);
+    descEdit->setText(content);
 
     layout->addWidget(titleLabel);
     layout->addWidget(descEdit);
@@ -34,5 +35,5 @@ void ProjectInfoPage::createPage(const QString& title)
 
     connect(descEdit,&fluent::textfields::LineEdit::textChanged,this,&ProjectInfoPage::sign_text);
     connect(descEdit,&fluent::textfields::LineEdit::destroyed,[](){qDebug()<<"descEdit destroyed";});
-    connect(descEdit,&fluent::textfields::LineEdit::textChanged,[](){qDebug()<<"descEdit textChanged";});
+    // connect(descEdit,&fluent::textfields::LineEdit::textChanged,[](){qDebug()<<"descEdit textChanged";});
 }
