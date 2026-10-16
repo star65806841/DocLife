@@ -32,12 +32,9 @@ void TopMenu::init()
     bar->setBackgroundVisible(true);
 
     auto* actionAddBlank = new QAction(QIcon(":/icons/menu/AddFile.svg"), "新建空白", bar);
-    // auto* menu = new fluent::menus_toolbars::FluentMenu("新建", bar);
-    // auto* actionAddBlank = new QAction(QIcon(":/icons/menu/AddFile.svg"), "新建空白");
-    // auto* actionAddTemplate = new QAction(QIcon(":/icons/menu/AddFile.svg"), "按模板新建");
-    // menu->addAction(actionAddBlank);
-    // menu->addAction(actionAddTemplate);
-    // addAct->setMenu(menu);
+    auto* actionOpenProject = new QAction(QIcon(":/icons/menu/file_open.svg"), "打开", bar);
+    auto* actionSaveProject = new QAction(QIcon(":/icons/menu/file_save.svg"), "保存", bar);
+
 
     auto* infoAction = new QAction(QIcon(":/icons/menu/InfoFile.svg"), "工程信息", bar);
     infoAction->setPriority(QAction::HighPriority);
@@ -54,6 +51,8 @@ void TopMenu::init()
     pinAction->setCheckable(true);
 
     bar->addPrimaryAction(actionAddBlank);
+    bar->addPrimaryAction(actionOpenProject);
+    bar->addPrimaryAction(actionSaveProject);
     bar->addPrimaryAction(infoAction);
     bar->addPrimaryAction(shareAction);
     bar->addPrimaryAction(separator);
@@ -75,6 +74,8 @@ void TopMenu::init()
     barLayout->addStretch();
 
     connect(actionAddBlank,&QAction::triggered,UISignalManager::instance(),&UISignalManager::newProject);
+    connect(actionOpenProject,&QAction::triggered,UISignalManager::instance(),&UISignalManager::openProject);
+    connect(actionSaveProject,&QAction::triggered,UISignalManager::instance(),&UISignalManager::saveProject);
     connect(infoAction,&QAction::triggered,UISignalManager::instance(),&UISignalManager::popProjectsetting);
 }
 

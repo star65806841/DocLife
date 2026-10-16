@@ -5,5 +5,7 @@
         <file>icons/logo/logo.ico</file>
         <file>icons/menu/AddFile.svg</file>
         <file>icons/menu/InfoFile.svg</file>
+        <file>icons/menu/file_open.svg</file>
+        <file>icons/menu/file_save.svg</file>
     </qresource>
 </RCC>

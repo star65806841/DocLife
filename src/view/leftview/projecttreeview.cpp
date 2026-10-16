@@ -126,7 +126,7 @@ void ProjectTreeView::rebuildAll()
 QStandardItem* ProjectTreeView::makeItem(const doclife::model::ProjectNode& node)
 {
     // ---- 名称：优先 type 对应字段 → 通用 name → 兜底中文标签 ----
-    QString title = node.attr(nameKeyFor(node.type));
+    QString title = node.name;
     if (title.isEmpty()) title = node.attr(QStringLiteral("name"));
     if (title.isEmpty()) title = labelFor(node.type);
 

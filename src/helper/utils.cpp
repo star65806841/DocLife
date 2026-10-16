@@ -18,7 +18,46 @@ QString Utils::formatName(const QString& name) {
     return name.trimmed();
 }
 
-QString Utils::openExcelFile(QWidget* parent)
+QString Utils::saveFileDialog(const QString& headName,QWidget *parent)
+{
+    QFileDialog dlg(parent, QObject::tr("保存文件"));
+    // 设置为保存模式
+    dlg.setAcceptMode(QFileDialog::AcceptSave);
+    // 允许输入一个不存在的文件名
+    dlg.setFileMode(QFileDialog::AnyFile);
+    // 文件过滤器
+    dlg.setNameFilter(QObject::tr("文档 (*.doclife)"));
+
+    // 如果用户没有输入后缀，自动添加 .doclife
+    dlg.setDefaultSuffix("doclife");
+
+    // 默认文件名
+    dlg.selectFile(headName + ".doclife");
+
+    // 弹出对话框
+    if (dlg.exec() != QDialog::Accepted)
+        return QString(); // 用户取消
+
+    QStringList files = dlg.selectedFiles();
+    if (files.isEmpty())
+        return QString();
+
+    QString fileName = files.first();
+
+    // 强制固定格式：检查后缀是不是 .json
+    QFileInfo fi(fileName);
+
+    // compare 忽略大小写
+    if (fi.suffix().compare("doclife", Qt::CaseInsensitive) != 0) {
+
+        // 方案 A：自动改成
+        fileName = QDir(fi.absolutePath()).filePath(fi.completeBaseName() + ".doclife");
+    }
+
+    return fileName;
+}
+
+QString Utils::openFileDialog(QWidget* parent)
 {
     QMessageBox::StandardButton choice = QMessageBox::question(
         parent,
@@ -34,9 +73,9 @@ QString Utils::openExcelFile(QWidget* parent)
 
     return QFileDialog::getOpenFileName(
         parent,
-        "Select Excel File",
+        "Select doclife File",
         QString(),
-        "Excel File (*.xlsx)"
+        "DocLife File (*.doclife)"
     );
 }
 

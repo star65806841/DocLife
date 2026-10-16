@@ -23,6 +23,8 @@ namespace doclife::ui {
 
     private slots:
         void newProject();
+        void saveProject();
+        void openProject();
         void showProjectNew();
         void showProjectsetting();
         void popOpenedWarning();

@@ -11,6 +11,7 @@
 
 #include <projectcontext.h>
 #include <uisignalmanager.h>
+#include <utils.h>
 
 #include <leftview/leftview.h>
 
@@ -25,6 +26,30 @@ CentralView::CentralView(QWidget *parent)
 void CentralView::newProject()
 {
     doclife::core::ProjectContext::instance()->newProject();
+}
+
+void CentralView::saveProject()
+{
+    if(doclife::core::ProjectContext::instance()->isUntitled())
+    {
+        qDebug()<<"start saveProjectas-> open a fill diaog";
+        QString filepath = doclife::core::Utils::saveFileDialog(doclife::core::ProjectContext::instance()->displayName(),this);
+        qDebug()<<"file path is :"<<filepath;
+        doclife::core::ProjectContext::instance()->saveProjectAs(filepath);
+    }
+    else {
+        QString excelFilePath = doclife::core::ProjectContext::instance()->excelFilePath();
+        qDebug()<<"start saveProject-> the file path is:"<< excelFilePath;
+        doclife::core::ProjectContext::instance()->saveProject();
+    }
+}
+
+void CentralView::openProject()
+{
+    qDebug()<<"start openProject-> open a fill diaog";
+    QString filepath = doclife::core::Utils::openFileDialog();
+    qDebug()<<"file path is :"<<filepath;
+    doclife::core::ProjectContext::instance()->openProject(filepath);
 }
 
 void CentralView::init()
@@ -83,6 +108,8 @@ void CentralView::initConnect()
     // connect(m_mainOpenBtn,&QPushButton::clicked,UISignalManager::instance(),&UISignalManager::openExcelRequested);
     connect(UISignalManager::instance(),&UISignalManager::popProjectsetting,this,&CentralView::showProjectsetting);
     connect(UISignalManager::instance(),&UISignalManager::newProject,this,&CentralView::newProject);
+    connect(UISignalManager::instance(),&UISignalManager::saveProject,this,&CentralView::saveProject);
+    connect(UISignalManager::instance(),&UISignalManager::openProject,this,&CentralView::openProject);
     //connect(UISignalManager::instance(),&UISignalManager::popProjectNew,this,&CentralView::showProjectNew);
     // 多开处理
     connect(UISignalManager::instance(),&UISignalManager::duplicateInstanceDetected,this, &CentralView::popOpenedWarning);

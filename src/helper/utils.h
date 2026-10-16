@@ -13,12 +13,14 @@ namespace doclife::core {
         static QString makeProjectId();
 
         static QString formatName(const QString& name);
-        static QString openExcelFile(QWidget* parent = nullptr);
+        static QString saveFileDialog(const QString& headName,QWidget *parent);
+        static QString openFileDialog(QWidget* parent = nullptr);
         static QString selectDir(QWidget* parent = nullptr);
         static QString jsonToStr(const QJsonObject &o, bool pretty = false);
         static QJsonObject jsonToStr(const QString &s);
         static QJsonArray strListToJson(const QStringList& list);
         static QStringList jsonToStrList(const QJsonArray& arr);
+
         static bool saveProject(const doclife::model::ProjectHead& proj, const QString& filePath);
         static bool loadProject(const QString& filePath, doclife::model::ProjectHead& out);
 

@@ -11,6 +11,7 @@ namespace doclife::model {
 struct ProjectNode {
     QString      id;         // 节点 id（Sheet 等没有 id 的层可留空）
     QString      type;       // "project" / "unit" / "sub" / "item" / "sheet"
+    QString      name;
     QJsonObject  attrs;      // 各层差异化字段（原 projectName、filePath 等）
     QList<ProjectNode> children;
 
@@ -26,6 +27,7 @@ struct ProjectNode {
         QJsonObject o = n.attrs;          // 先把差异化字段平铺进来
         o["id"]   = n.id;
         o["type"] = n.type;
+        o["name"] = n.name;
 
         if (!n.children.isEmpty()) {
             QJsonArray arr;
@@ -42,6 +44,7 @@ struct ProjectNode {
             const QString& k = it.key();
             if      (k == "id")       n.id   = it.value().toString();
             else if (k == "type")     n.type = it.value().toString();
+            else if (k == "name")     n.name = it.value().toString();
             else if (k == "children") {
                 for (const auto& v : it.value().toArray())
                     n.children.append(fromJson(v.toObject()));

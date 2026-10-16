@@ -24,6 +24,8 @@ Q_SIGNALS:
     // 新建项目
     void popProjectNew();
     void newProject();
+    void saveProject();
+    void openProject();
     // 项目设置
     void popProjectsetting();
     // 项目多开
