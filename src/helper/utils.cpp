@@ -59,17 +59,17 @@ QString Utils::saveFileDialog(const QString& headName,QWidget *parent)
 
 QString Utils::openFileDialog(QWidget* parent)
 {
-    QMessageBox::StandardButton choice = QMessageBox::question(
-        parent,
-        "Information",
-        "If the xlsx file is large, opening it may take a significant amount of time.\n\n"
-        "Do you want to continue and select a file?",
-        QMessageBox::Yes | QMessageBox::No,
-        QMessageBox::Yes
-    );
+    // QMessageBox::StandardButton choice = QMessageBox::question(
+    //     parent,
+    //     "Information",
+    //     "If the xlsx file is large, opening it may take a significant amount of time.\n\n"
+    //     "Do you want to continue and select a file?",
+    //     QMessageBox::Yes | QMessageBox::No,
+    //     QMessageBox::Yes
+    // );
 
-    if (choice != QMessageBox::Yes)
-        return QString();
+    // if (choice != QMessageBox::Yes)
+    //     return QString();
 
     return QFileDialog::getOpenFileName(
         parent,

@@ -31,7 +31,10 @@ PopupBase::PopupBase(QWidget *parent)
     connect(btnClose, &fluent::basicinput::Button::clicked, this, &Popup::close);
 }
 
-PopupBase::~PopupBase() = default;
+PopupBase::~PopupBase()
+{
+    qDebug()<<"~PopupBase";
+}
 
 // ─── 内容管理 ──────────────────────────────────────────────────
 

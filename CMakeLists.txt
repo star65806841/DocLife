@@ -38,8 +38,8 @@ set(DOCLIFE_SRC
 
     src/view/popWindow/infoItem/projectitem.h src/view/popWindow/infoItem/projectitem.cpp
     src/view/popWindow/infoItem/projectinfopage.h src/view/popWindow/infoItem/projectinfopage.cpp
-    src/view/popWindow/infoItem/duplicateapp.h src/view/popWindow/infoItem/duplicateapp.cpp
 
+    src/view/popWindow/dialog/popcontent.h src/view/popWindow/dialog/popcontent.cpp
     src/view/popWindow/dialog/dialogbase.h src/view/popWindow/dialog/dialogbase.cpp
     src/view/popWindow/dialog/popupbase.h src/view/popWindow/dialog/popupbase.cpp
     src/view/popWindow/toast/apptoast.h src/view/popWindow/toast/apptoast.cpp

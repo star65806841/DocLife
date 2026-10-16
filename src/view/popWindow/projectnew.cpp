@@ -31,7 +31,7 @@ void ProjectNew::init()
     auto *h1 = new QHBoxLayout(contentWid);
     h1->setSpacing(10);
     h1->setContentsMargins(10,0,0,20);
-    auto* label = new fluent::textfields::Label("文档名称：");
+    auto* label = new fluent::textfields::Label("要保存当前项目吗");
     label->setMinimumWidth(100);
     label->setFluentTypography(Typography::FontRole::BodyLargeStrong);
     m_projectNameLine = new fluent::textfields::LineEdit();
@@ -69,7 +69,7 @@ void ProjectNew::init()
     this->setAnimationEnabled(true);
     this->setSmokeEnabled(true);
 
-    connect(this, &fluent::dialogs_flyouts::ContentDialog::primaryButtonClicked, this, &ProjectNew::sendNewProject);
+    // connect(this, &fluent::dialogs_flyouts::ContentDialog::primaryButtonClicked, this, &ProjectNew::sendNewProject);
     connect(this, &QDialog::finished, this, &QObject::deleteLater);
     connect(this, &QDialog::destroyed, []() {qDebug() << "ProjectNew dialog destroyed"; });
 }
