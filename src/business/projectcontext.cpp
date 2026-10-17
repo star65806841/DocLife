@@ -210,18 +210,8 @@ void ProjectContext::setProjectInfo(model::ProjectInfoModel &projectInfo)
     m_projectInfo.supervisionUnitName    = projectInfo.supervisionUnitName.trimmed();
     m_projectInfo.designUnitName         = projectInfo.designUnitName.trimmed();
     m_projectInfo.ownerUnitName          = projectInfo.ownerUnitName.trimmed();
-    // set 完成以后尝试保存一下
-    if (!hasOpenProject()) {
-        // 没有打开的项目
-        qDebug() << "[ProjectContext] setProjectInfo: There are no open projects.Attempting to save failed.";
-        return;
-    }
-    if (isUntitled()) {
-        // 项目尚未保存过
-        qDebug() << "[ProjectContext] setProjectInfo: The project has not been saved yet. The attempt to save failed.";
-        return;
-    }
-    saveProject();
+    // set 完成以后标记数据不同步就可以了，就不保存了
+    markDirty();
 }
 
 void ProjectContext::markDirty() {

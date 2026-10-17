@@ -6,12 +6,19 @@
 class QWidget;
 class MainContent;
 class QPushButton;
-
-class MainWindow : public QMainWindow
+namespace doclife::ui
 {
-    Q_OBJECT
+    class CentralView;
+    class MainWindow : public QMainWindow
+    {
+        Q_OBJECT
 
-public:
-    explicit MainWindow(QWidget *parent = nullptr);
-};
+    public:
+        explicit MainWindow(QWidget* parent = nullptr);
+    protected:
+        void closeEvent(QCloseEvent* event) override;
+    private:
+        CentralView* m_cenWidget = nullptr;
+    };
+}
 #endif // MAINWINDOW_H

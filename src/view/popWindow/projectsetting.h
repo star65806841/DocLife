@@ -31,7 +31,9 @@ private:
 
 private:
     fluent::dialogs_flyouts::Dialog* m_dialog = nullptr;
+
     bool editButtonEnabled = true;
+
     QString m_projectName;
     QString m_constructionUnitName;
     QString m_supervisionUnitName;

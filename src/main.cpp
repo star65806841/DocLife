@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
     if (!guard.enforce(QStringLiteral("OnePoint.DocLife.SingleInstance")))
         return 0;
 
-    MainWindow w;
+    doclife::ui::MainWindow w;
 
     w.show();
     return a.exec();
