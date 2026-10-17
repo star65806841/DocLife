@@ -89,6 +89,9 @@ signals:
     void dirtyChanged  (bool dirty);
     void errorOccurred (const QString& message);
 
+public slots:
+    void onNewProject();
+
 private:
     explicit ProjectContext(QObject* parent = nullptr);
     ~ProjectContext() override;

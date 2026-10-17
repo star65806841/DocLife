@@ -2,6 +2,7 @@
 
 #include <topMenu/topmenu.h>
 
+#include <components/collections/DrawerView.h>
 #include <components/collections/SplitView.h>
 
 #include <popWindow/projectnew.h>
@@ -25,6 +26,17 @@ CentralView::CentralView(QWidget* parent)
     init();
 }
 
+void CentralView::closeProject()
+{
+    if (!doclife::core::ProjectContext::instance()->hasOpenProject()) {
+        // 没有打开过项目
+        return;
+    }
+    else {
+        this->saveProject();
+    }
+}
+
 void CentralView::newProject()
 {
     if (!doclife::core::ProjectContext::instance()->hasOpenProject()) {
@@ -41,19 +53,23 @@ void CentralView::newProject()
             [this]() {
                 qDebug() << "Save confirmation for newly created file that has not been saved. User clicks OK";
                 this->saveProject();
+                connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectSaved,
+                    doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::onNewProject);
             },
-            []() { qDebug() << "Save confirmation for newly created file that has not been saved. User clicks Cancel"; }
-            );
-        doclife::core::ProjectContext::instance()->newProject();
+            []() {
+                qDebug() << "Save confirmation for newly created file that has not been saved. User clicks Cancel";
+                doclife::core::ProjectContext::instance()->newProject();
+            }
+        );
     }
     else {
         // 不需要先保存 新建中有对 已经保存过的项目保存的操作
         auto* popOpenedWarning = new PopupBase(this);
-        auto* popConnect = new PopContent("新建提醒","新建文档会关闭当前文档，关闭前会自动保存。",this);
+        auto* popConnect = new PopContent("新建提醒", "新建文档会关闭当前文档，关闭前会自动保存。", this);
         popOpenedWarning->setFixedSize(400, 250);
         popOpenedWarning->setContentWidget(popConnect);
         popOpenedWarning->open();
-        doclife::core::ProjectContext::instance()->newProject();
+        connect(popOpenedWarning, &PopupBase::closed, []() {doclife::core::ProjectContext::instance()->newProject(); });
     }
 }
 
@@ -88,18 +104,22 @@ void CentralView::openProject()
             [this]() {
                 qDebug() << "Save confirmation for newly open file that has not been saved. User clicks OK";
                 this->saveProject();
+                connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectSaved,
+                    [this]() {this->openProjectDialog();});
             },
-            []() { qDebug() << "Save confirmation for newly open file that has not been saved. User clicks Cancel"; }
-            );
-        openProjectDialog();
+            [this]() {
+                qDebug() << "Save confirmation for newly open file that has not been saved. User clicks Cancel";
+                this->openProjectDialog();
+            }
+        );
     }
     else {
         auto* popOpenedWarning = new PopupBase(this);
-        auto* popConnect = new PopContent("打开提醒","打开文档会关闭当前文档，关闭前会自动保存。",this);
+        auto* popConnect = new PopContent("打开提醒", "打开文档会关闭当前文档，关闭前会自动保存。", this);
         popOpenedWarning->setFixedSize(400, 250);
         popOpenedWarning->setContentWidget(popConnect);
         popOpenedWarning->open();
-        connect(popOpenedWarning,&PopupBase::closed,[this](){this->openProjectDialog();});
+        connect(popOpenedWarning, &PopupBase::closed, [this]() {this->openProjectDialog(); });
     }
 }
 
@@ -151,11 +171,20 @@ void CentralView::popProjectClosed()
 {
     // QString s2 = u"你好"_qs;
     QString infoStr = QStringLiteral("文档已关闭");
-    AppToast::showInfo(this,infoStr);
+    AppToast::showInfo(this, infoStr);
 }
 void CentralView::popProjectSaved()
 {
     AppToast::showSuccess(this, "保存成功");
+}
+
+void CentralView::onDrawerFileSetting()
+{
+    auto* drawer = new fluent::collections::DrawerView(this);
+    drawer->setEdge(fluent::collections::DrawerView::DrawerEdge::Right);
+    drawer->setDrawerLength(260);
+    drawer->setContentWidget(new QWidget(), fluent::WidgetOwnership::Owned);
+    drawer->open();
 }
 void CentralView::showProjectNew()
 {
@@ -166,6 +195,7 @@ void CentralView::showProjectNew()
 void CentralView::initConnect()
 {
     // connect(m_mainOpenBtn,&QPushButton::clicked,UISignalManager::instance(),&UISignalManager::openExcelRequested);
+    connect(UISignalManager::instance(), &UISignalManager::drawerFileSetting, this, &CentralView::onDrawerFileSetting);
     connect(UISignalManager::instance(), &UISignalManager::popProjectsetting, this, &CentralView::showProjectsetting);
     connect(UISignalManager::instance(), &UISignalManager::newProject, this, &CentralView::newProject);
     connect(UISignalManager::instance(), &UISignalManager::saveProject, this, &CentralView::saveProject);

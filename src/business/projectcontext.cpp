@@ -221,6 +221,11 @@ void ProjectContext::markDirty() {
     }
 }
 
+void ProjectContext::onNewProject()
+{
+    this->newProject();
+}
+
 void ProjectContext::resetState() {
     m_root        = doclife::model::ProjectNode{};
     m_projectInfo = doclife::model::ProjectInfoModel{};

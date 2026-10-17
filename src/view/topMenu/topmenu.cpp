@@ -31,6 +31,7 @@ void TopMenu::init()
     bar->setLabelPosition(fluent::menus_toolbars::CommandBar::LabelPosition::Right);
     bar->setBackgroundVisible(true);
 
+    auto* actionFile = new QAction(QIcon(":/icons/menu/AddFile.svg"), "文件测试", bar);
     auto* actionAddBlank = new QAction(QIcon(":/icons/menu/AddFile.svg"), "新建空白", bar);
     auto* actionOpenProject = new QAction(QIcon(":/icons/menu/file_open.svg"), "打开", bar);
     auto* actionSaveProject = new QAction(QIcon(":/icons/menu/file_save.svg"), "保存", bar);
@@ -50,6 +51,7 @@ void TopMenu::init()
         QIcon(":/icons/logo/Flash.png"), "Pin", bar);
     pinAction->setCheckable(true);
 
+    bar->addPrimaryAction(actionFile);
     bar->addPrimaryAction(actionAddBlank);
     bar->addPrimaryAction(actionOpenProject);
     bar->addPrimaryAction(actionSaveProject);
@@ -73,6 +75,7 @@ void TopMenu::init()
     barLayout->addWidget(bar);
     barLayout->addStretch();
 
+    connect(actionFile,&QAction::triggered,UISignalManager::instance(),&UISignalManager::drawerFileSetting);
     connect(actionAddBlank,&QAction::triggered,UISignalManager::instance(),&UISignalManager::newProject);
     connect(actionOpenProject,&QAction::triggered,UISignalManager::instance(),&UISignalManager::openProject);
     connect(actionSaveProject,&QAction::triggered,UISignalManager::instance(),&UISignalManager::saveProject);

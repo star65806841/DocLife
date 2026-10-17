@@ -20,11 +20,14 @@ add_subdirectory(
 # )
 set(DOCLIFE_SRC
     src/main.cpp
-
     src/view/mainwindow.h src/view/mainwindow.cpp
+
+    src/view/centralview/myfluentwindow.h src/view/centralview/myfluentwindow.cpp
     src/view/centralview/centralview.h src/view/centralview/centralview.cpp
 
     src/view/fluentqt/application.h src/view/fluentqt/application.cpp
+
+
     src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp
 
     src/view/leftview/leftview.h src/view/leftview/leftview.cpp

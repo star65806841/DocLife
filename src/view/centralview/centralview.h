@@ -16,7 +16,7 @@ namespace doclife::ui {
         Q_OBJECT
     public:
         explicit CentralView(QWidget* parent = nullptr);
-
+        void closeProject();
     signals:
 
     public slots:
@@ -30,6 +30,7 @@ namespace doclife::ui {
         void popOpenedWarning();
         void popProjectClosed();
         void popProjectSaved();
+        void onDrawerFileSetting();
     private:
         //project context data
         doclife::core::ProjectContext * m_projectObject = nullptr;

@@ -16,6 +16,6 @@ namespace doclife::ui
 
     void MainWindow::closeEvent(QCloseEvent* event)
     {
-
+        m_cenWidget->closeProject();
     }
 }

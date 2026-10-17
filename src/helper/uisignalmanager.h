@@ -21,6 +21,7 @@ public:
 Q_SIGNALS:
     // ============---============
 
+    void drawerFileSetting();
     // 新建项目
     void popProjectNew();
     void newProject();
