@@ -28,6 +28,8 @@ namespace doclife::ui {
         void showProjectNew();
         void showProjectsetting();
         void popOpenedWarning();
+        void popProjectClosed();
+        void popProjectSaved();
     private:
         //project context data
         doclife::core::ProjectContext * m_projectObject = nullptr;
@@ -38,6 +40,7 @@ namespace doclife::ui {
 
         void init();
         void initConnect();
+        void openProjectDialog();
     };
 }
 #endif // CENTRALVIEW_H

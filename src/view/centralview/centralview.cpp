@@ -37,19 +37,19 @@ void CentralView::newProject()
         doclife::ui::DialogBase::show(
             this,
             QStringLiteral("保存确认"),
-            QStringLiteral("新建文档会关闭当前文档，点击确定保存否则点击取消！"),
+            QStringLiteral("新建文档会关闭当前文档，点击确定保存，否则点击取消放弃保存。"),
             [this]() {
                 qDebug() << "Save confirmation for newly created file that has not been saved. User clicks OK";
                 this->saveProject();
-                doclife::core::ProjectContext::instance()->newProject();
             },
             []() { qDebug() << "Save confirmation for newly created file that has not been saved. User clicks Cancel"; }
             );
+        doclife::core::ProjectContext::instance()->newProject();
     }
     else {
         // 不需要先保存 新建中有对 已经保存过的项目保存的操作
         auto* popOpenedWarning = new PopupBase(this);
-        auto* popConnect = new PopContent("新建提醒","新建文档会关闭当前文档!",this);
+        auto* popConnect = new PopContent("新建提醒","新建文档会关闭当前文档，关闭前会自动保存。",this);
         popOpenedWarning->setFixedSize(400, 250);
         popOpenedWarning->setContentWidget(popConnect);
         popOpenedWarning->open();
@@ -75,10 +75,32 @@ void CentralView::saveProject()
 
 void CentralView::openProject()
 {
-    qDebug() << "start openProject-> open a fill diaog";
-    QString filepath = doclife::core::Utils::openFileDialog();
-    qDebug() << "file path is :" << filepath;
-    doclife::core::ProjectContext::instance()->openProject(filepath);
+    if (!doclife::core::ProjectContext::instance()->hasOpenProject()) {
+        openProjectDialog();
+        return;
+    }
+    else if (doclife::core::ProjectContext::instance()->isUntitled()) {
+        // 项目尚未保存过
+        doclife::ui::DialogBase::show(
+            this,
+            QStringLiteral("保存确认"),
+            QStringLiteral("打开文档会关闭当前文档，点击确定保存,否则点击取消放弃保存！"),
+            [this]() {
+                qDebug() << "Save confirmation for newly open file that has not been saved. User clicks OK";
+                this->saveProject();
+            },
+            []() { qDebug() << "Save confirmation for newly open file that has not been saved. User clicks Cancel"; }
+            );
+        openProjectDialog();
+    }
+    else {
+        auto* popOpenedWarning = new PopupBase(this);
+        auto* popConnect = new PopContent("打开提醒","打开文档会关闭当前文档，关闭前会自动保存。",this);
+        popOpenedWarning->setFixedSize(400, 250);
+        popOpenedWarning->setContentWidget(popConnect);
+        popOpenedWarning->open();
+        connect(popOpenedWarning,&PopupBase::closed,[this](){this->openProjectDialog();});
+    }
 }
 
 void CentralView::init()
@@ -122,8 +144,18 @@ void CentralView::popOpenedWarning()
     // popOpenedWarning->setFixedSize(400,250);
     // popOpenedWarning->setContentWidget(popConnect);
     // popOpenedWarning->open();
-    AppToast::showInfo(this, "应用程序正在运行, 请先关闭后再启动!");
+    AppToast::showInfo(this, "应用程序正在运行, 请先关闭后再启动。");
 
+}
+void CentralView::popProjectClosed()
+{
+    // QString s2 = u"你好"_qs;
+    QString infoStr = QStringLiteral("文档已关闭");
+    AppToast::showInfo(this,infoStr);
+}
+void CentralView::popProjectSaved()
+{
+    AppToast::showSuccess(this, "保存成功");
 }
 void CentralView::showProjectNew()
 {
@@ -141,4 +173,15 @@ void CentralView::initConnect()
     //connect(UISignalManager::instance(),&UISignalManager::popProjectNew,this,&CentralView::showProjectNew);
     // 多开处理
     connect(UISignalManager::instance(), &UISignalManager::duplicateInstanceDetected, this, &CentralView::popOpenedWarning);
+    // 工程关闭提醒
+    connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectClosed, this, &CentralView::popProjectClosed);
+    connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectSaved, this, &CentralView::popProjectSaved);
+}
+
+void CentralView::openProjectDialog()
+{
+    qDebug() << "start openProject-> open a fill diaog";
+    QString filepath = doclife::core::Utils::openFileDialog();
+    qDebug() << "file path is :" << filepath;
+    doclife::core::ProjectContext::instance()->openProject(filepath);
 }
