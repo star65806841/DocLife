@@ -162,10 +162,17 @@ void CentralView::popProjectClosed()
     QString infoStr = QStringLiteral("文档已关闭");
     AppToast::showInfo(this, infoStr);
 }
-
 void CentralView::popProjectSaved()
 {
     AppToast::showSuccess(this, "保存成功");
+}
+void CentralView::popProjectCreated()
+{
+    AppToast::showSuccess(this, "创建成功");
+}
+void CentralView::popProjectOpened()
+{
+    AppToast::showSuccess(this, "打开成功");
 }
 
 void CentralView::onDrawerFileSetting()
@@ -197,9 +204,16 @@ void CentralView::initConnect()
     //connect(UISignalManager::instance(),&UISignalManager::popProjectNew,this,&CentralView::showProjectNew);
     // 多开处理
     connect(UISignalManager::instance(), &UISignalManager::duplicateInstanceDetected, this, &CentralView::popOpenedWarning);
+    /******************状态提醒*****************************************/
     // 工程关闭提醒
     connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectClosed, this, &CentralView::popProjectClosed);
+    // 工程保存提醒
     connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectSaved, this, &CentralView::popProjectSaved);
+    // 工程创建提醒
+    connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectCreated, this, &CentralView::popProjectCreated);
+    // 工程打开提醒
+    connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectOpened, this, &CentralView::popProjectOpened);
+    /******************状态提醒*****************************************/
 }
 
 void CentralView::openProjectDialog()

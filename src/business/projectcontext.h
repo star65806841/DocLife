@@ -86,6 +86,7 @@ namespace doclife::core {
         void projectOpened(const QString& filePath);
         void projectSaved(const QString& filePath);
         void projectClosed();
+
         void dirtyChanged(bool dirty);
         void errorOccurred(const QString& message);
 

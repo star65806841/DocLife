@@ -24,13 +24,18 @@ namespace doclife::ui {
         void newProject();
         void saveProject();
         void openProject();
+        void onDrawerFileSetting();
+
         void openProjectDialog();
         void showProjectNew();
         void showProjectsetting();
+
         void popOpenedWarning();
+
         void popProjectClosed();
         void popProjectSaved();
-        void onDrawerFileSetting();
+        void popProjectCreated();
+        void popProjectOpened();
     private:
         //project context data
         doclife::core::ProjectContext* m_projectObject = nullptr;

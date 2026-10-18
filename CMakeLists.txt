@@ -20,7 +20,6 @@ add_subdirectory(
 # )
 set(DOCLIFE_SRC
     src/main.cpp
-    src/view/mainwindow.h src/view/mainwindow.cpp
 
     src/view/centralview/myfluentwindow.h src/view/centralview/myfluentwindow.cpp
     src/view/centralview/centralview.h src/view/centralview/centralview.cpp
@@ -51,7 +50,7 @@ set(DOCLIFE_SRC
 
 
     excelfile.h excelfile.cpp
-    mainContent.h mainContent.cpp
+
     excelsheet.h excelsheet.cpp
     exceltreewidget.h exceltreewidget.cpp
 )
