@@ -1,12 +1,15 @@
 ﻿#include "MyFluentWindow.h"
 
 #include "centralview.h"
+#include "business/projectcontext.h"
+#include "view/popWindow/dialog/dialogbase.h"
 
 #include <FluentQt/FluentQt.h>
 #include <QApplication>
 #include <QShowEvent>
 #include <QHideEvent>
 #include <QWidget>
+#include <uisignalmanager.h>
 
 namespace doclife::ui {
     MyFluentWindow::MyFluentWindow(QWidget* parent)
@@ -34,12 +37,12 @@ namespace doclife::ui {
 
     void MyFluentWindow::setTitleBar()
     {
-       fluent::windowing::TitleBar* titleBar = this->titleBar();
+        fluent::windowing::TitleBar* titleBar = this->titleBar();
         // titleBar->setTitleBarHeight(48);
         // macOS reserves leading traffic-light controls;
         // Windows reserves trailing caption buttons.
-       int platformLeadingWidth  = 0;
-       int platformTrailingWidth = 0;
+        int platformLeadingWidth = 0;
+        int platformTrailingWidth = 0;
 
 #if defined(Q_OS_WIN)
         // Windows 自绘 caption 按钮总宽度（三个 Button 的宽度之和）
@@ -81,11 +84,11 @@ namespace doclife::ui {
     void MyFluentWindow::closeEvent(QCloseEvent* event)
     {
         // 若业务需要“关闭前确认”，可在此弹出对话框
-        // bool shouldClose = askUser();
-        // if (!shouldClose) {
-        //     event->ignore();
-        //     return;
-        // }
+        bool shouldClose = askUser();
+        if (!shouldClose) {
+            event->ignore();
+            return;
+        }
 
 
         // 执行必要的资源释放、配置保存等
@@ -108,7 +111,9 @@ namespace doclife::ui {
     {
         // 保存窗口几何信息、释放独占资源等
         // 内容部件由 WA_DeleteOnClose 或父对象析构负责
-        m_content->closeProject();
+
+        // 先关闭文档再关闭窗口
+        doclife::core::ProjectContext::instance()->closeProject();
     }
 
     void MyFluentWindow::showEvent(QShowEvent* event)
@@ -121,5 +126,36 @@ namespace doclife::ui {
     {
         fluent::windowing::Window::hideEvent(event);
         // 窗口隐藏时暂停动画、计时器等
+    }
+
+    bool MyFluentWindow::askUser()
+    {
+        if (!doclife::core::ProjectContext::instance()->hasOpenProject()) {
+            // 没有打开过项目
+            return true; 
+        }
+        else if (doclife::core::ProjectContext::instance()->isUntitled() && !m_didCancel) {
+            // 项目尚未保存过
+            doclife::ui::DialogBase::show(
+                this,
+                QStringLiteral("保存确认"),
+                QStringLiteral("当前文档从未保存，你要保存再关闭吗。"),
+                [this]() {
+                    qDebug() << "User clicks OK";
+                    emit UISignalManager::instance()->saveProject();
+                },
+                [this]() {
+                    qDebug() << "User clicks Cancel";
+                    // 点击不保存
+                    this->m_didCancel = true;
+                    this->close();
+                }
+            );
+            return false;
+        }
+        else
+        {
+            return true;
+        }
     }
 }

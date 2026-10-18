@@ -19,6 +19,11 @@ DialogBase::DialogBase(const QString& title,
     connect(this, &QDialog::finished, this, &DialogBase::handleFinished);
 }
 
+DialogBase::~DialogBase()
+{
+    qDebug() << "~DialogBase";
+}
+
 void DialogBase::initUi(const QString& title, const QString& content)
 {
     // ---------------- 内容区 ----------------

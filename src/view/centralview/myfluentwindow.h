@@ -10,7 +10,7 @@ namespace fluent::windowing {
 }
 namespace doclife::ui {
 
-class CentralView;
+    class CentralView;
     class MyFluentWindow : public fluent::windowing::Window {
         Q_OBJECT
 
@@ -32,8 +32,10 @@ class CentralView;
         void setTitleBar();
 
         void onClosedCleanup();       // 关闭后的资源清理
+        bool askUser();               // 关闭前的询问
 
         CentralView* m_content = nullptr;
+        bool m_didCancel = false;
     };
 }
 #endif // MY_FLUENT_WINDOW_H

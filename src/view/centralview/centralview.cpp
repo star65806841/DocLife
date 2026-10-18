@@ -26,17 +26,6 @@ CentralView::CentralView(QWidget* parent)
     init();
 }
 
-void CentralView::closeProject()
-{
-    if (!doclife::core::ProjectContext::instance()->hasOpenProject()) {
-        // 没有打开过项目
-        return;
-    }
-    else {
-        this->saveProject();
-    }
-}
-
 void CentralView::newProject()
 {
     if (!doclife::core::ProjectContext::instance()->hasOpenProject()) {
@@ -53,9 +42,6 @@ void CentralView::newProject()
             [this]() {
                 qDebug() << "Save confirmation for newly created file that has not been saved. User clicks OK";
                 this->saveProject();
-                connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectSaved,
-                        doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::onNewProject,
-                        Qt::ConnectionType::SingleShotConnection);
             },
             []() {
                 qDebug() << "Save confirmation for newly created file that has not been saved. User clicks Cancel";
@@ -70,12 +56,13 @@ void CentralView::newProject()
         popOpenedWarning->setFixedSize(400, 250);
         popOpenedWarning->setContentWidget(popConnect);
         popOpenedWarning->open();
-        connect(popOpenedWarning, &PopupBase::closed, []() {doclife::core::ProjectContext::instance()->newProject(); });
+        connect(popOpenedWarning, &PopupBase::destroyed, []() {doclife::core::ProjectContext::instance()->newProject(); });
     }
 }
 
 void CentralView::saveProject()
 {
+    // go saveas
     if (doclife::core::ProjectContext::instance()->isUntitled())
     {
         qDebug() << "start saveProjectas-> open a fill diaog";
@@ -83,9 +70,11 @@ void CentralView::saveProject()
         qDebug() << "file path is :" << filepath;
         doclife::core::ProjectContext::instance()->saveProjectAs(filepath);
     }
-    else {
-        QString excelFilePath = doclife::core::ProjectContext::instance()->excelFilePath();
-        qDebug() << "start saveProject-> the file path is:" << excelFilePath;
+    // go save
+    else
+    {
+        QString filePath = doclife::core::ProjectContext::instance()->filePath();
+        qDebug() << "start saveProject-> the file path is:" << filePath;
         doclife::core::ProjectContext::instance()->saveProject();
     }
 }
@@ -103,14 +92,11 @@ void CentralView::openProject()
             QStringLiteral("保存确认"),
             QStringLiteral("打开文档会关闭当前文档，点击确定保存,否则点击取消放弃保存！"),
             [this]() {
-                qDebug() << "Save confirmation for newly open file that has not been saved. User clicks OK";
+                qDebug() << "Open confirmation for newly open file that has not been saved. User clicks OK";
                 this->saveProject();
-                connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectSaved,
-                        this,&CentralView::openProjectDialog,
-                        Qt::ConnectionType::SingleShotConnection);
             },
             [this]() {
-                qDebug() << "Save confirmation for newly open file that has not been saved. User clicks Cancel";
+                qDebug() << "Open confirmation for newly open file that has not been saved. User clicks Cancel";
                 this->openProjectDialog();
             }
         );
@@ -169,12 +155,14 @@ void CentralView::popOpenedWarning()
     AppToast::showInfo(this, "应用程序正在运行, 请先关闭后再启动。");
 
 }
+
 void CentralView::popProjectClosed()
 {
     // QString s2 = u"你好"_qs;
     QString infoStr = QStringLiteral("文档已关闭");
     AppToast::showInfo(this, infoStr);
 }
+
 void CentralView::popProjectSaved()
 {
     AppToast::showSuccess(this, "保存成功");

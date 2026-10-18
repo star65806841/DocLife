@@ -5,7 +5,7 @@
 
 namespace doclife::core
 {
-    class ProjectContext ;
+    class ProjectContext;
 }
 namespace doclife::ui {
 
@@ -16,7 +16,6 @@ namespace doclife::ui {
         Q_OBJECT
     public:
         explicit CentralView(QWidget* parent = nullptr);
-        void closeProject();
     signals:
 
     public slots:
@@ -34,7 +33,7 @@ namespace doclife::ui {
         void onDrawerFileSetting();
     private:
         //project context data
-        doclife::core::ProjectContext * m_projectObject = nullptr;
+        doclife::core::ProjectContext* m_projectObject = nullptr;
 
         LeftView* m_leftView = nullptr;
 
