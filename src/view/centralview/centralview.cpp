@@ -53,8 +53,9 @@ void CentralView::newProject()
             [this]() {
                 qDebug() << "Save confirmation for newly created file that has not been saved. User clicks OK";
                 this->saveProject();
-                connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectSaved,
-                    doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::onNewProject);
+                // connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectSaved,
+                //         doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::onNewProject,
+                //         Qt::ConnectionType::UniqueConnection | Qt::ConnectionType::SingleShotConnection);
             },
             []() {
                 qDebug() << "Save confirmation for newly created file that has not been saved. User clicks Cancel";

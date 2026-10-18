@@ -92,4 +92,9 @@ void PopupBase::applyDefaultOptions()
     setLightDismissConsumesPress(false);
 }
 
+void PopupBase::onPopupClosed()
+{
+    this->deleteLater();
+}
+
 } // namespace doclife::ui

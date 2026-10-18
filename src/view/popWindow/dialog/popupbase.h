@@ -72,7 +72,7 @@ protected:
     /**
      * @brief 关闭动画完成后的回调。
      */
-    virtual void onPopupClosed() {}
+    void onPopupClosed();
 
 private:
     QPointer<QWidget> m_contentWidget;

@@ -177,9 +177,7 @@ ProjectContext::~ProjectContext()
 
 void ProjectContext::initConnect()
 {
-    // connect(doclife::ui::UISignalManager::instance(),
-    //         &doclife::ui::UISignalManager::newProject,
-    //         this, &ProjectContext::slot_newProject);
+
 }
 
 // ============================================================

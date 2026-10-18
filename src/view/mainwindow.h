@@ -4,7 +4,6 @@
 #include <QMainWindow>
 
 class QWidget;
-class MainContent;
 class QPushButton;
 namespace doclife::ui
 {
