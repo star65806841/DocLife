@@ -33,7 +33,7 @@ PopupBase::PopupBase(QWidget *parent)
 
 PopupBase::~PopupBase()
 {
-    qDebug()<<"~PopupBase";
+    // qDebug()<<"~PopupBase"; // test ok 20261018
 }
 
 // ─── 内容管理 ──────────────────────────────────────────────────

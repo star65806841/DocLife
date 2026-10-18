@@ -180,5 +180,5 @@ void ProjectSetting::init()
     connect(editButton, &fluent::basicinput::Button::clicked, this, &ProjectSetting::slot_updateProjectInfo);
     connect(cancelButton, &fluent::basicinput::Button::clicked, this, &QDialog::close);
     connect(this, &QDialog::finished, this, &QObject::deleteLater);
-    connect(this, &ProjectSetting::destroyed, []() {qDebug() << "ProjectSetting destroyed"; });
+    // connect(this, &ProjectSetting::destroyed, []() {qDebug() << "ProjectSetting destroyed"; });// test ok 20261018
 }

@@ -53,9 +53,9 @@ void CentralView::newProject()
             [this]() {
                 qDebug() << "Save confirmation for newly created file that has not been saved. User clicks OK";
                 this->saveProject();
-                // connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectSaved,
-                //         doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::onNewProject,
-                //         Qt::ConnectionType::UniqueConnection | Qt::ConnectionType::SingleShotConnection);
+                connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectSaved,
+                        doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::onNewProject,
+                        Qt::ConnectionType::SingleShotConnection);
             },
             []() {
                 qDebug() << "Save confirmation for newly created file that has not been saved. User clicks Cancel";
@@ -106,7 +106,8 @@ void CentralView::openProject()
                 qDebug() << "Save confirmation for newly open file that has not been saved. User clicks OK";
                 this->saveProject();
                 connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectSaved,
-                    [this]() {this->openProjectDialog();});
+                        this,&CentralView::openProjectDialog,
+                        Qt::ConnectionType::SingleShotConnection);
             },
             [this]() {
                 qDebug() << "Save confirmation for newly open file that has not been saved. User clicks Cancel";
@@ -197,9 +198,13 @@ void CentralView::initConnect()
 {
     // connect(m_mainOpenBtn,&QPushButton::clicked,UISignalManager::instance(),&UISignalManager::openExcelRequested);
     connect(UISignalManager::instance(), &UISignalManager::drawerFileSetting, this, &CentralView::onDrawerFileSetting);
+    // 点击项目信息按钮
     connect(UISignalManager::instance(), &UISignalManager::popProjectsetting, this, &CentralView::showProjectsetting);
+    // 点击新建
     connect(UISignalManager::instance(), &UISignalManager::newProject, this, &CentralView::newProject);
+    // 点击保存
     connect(UISignalManager::instance(), &UISignalManager::saveProject, this, &CentralView::saveProject);
+    // 点击打开
     connect(UISignalManager::instance(), &UISignalManager::openProject, this, &CentralView::openProject);
     //connect(UISignalManager::instance(),&UISignalManager::popProjectNew,this,&CentralView::showProjectNew);
     // 多开处理

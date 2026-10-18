@@ -34,6 +34,6 @@ void ProjectInfoPage::createPage(const QString& title,const QString& content)
     layout->addStretch();
 
     connect(descEdit,&fluent::textfields::LineEdit::textChanged,this,&ProjectInfoPage::sign_text);
-    // connect(this,&ProjectInfoPage::destroyed,[](){qDebug()<<"ProjectInfoPage destroyed";});// test ok
+    // connect(this,&ProjectInfoPage::destroyed,[](){qDebug()<<"ProjectInfoPage destroyed";});// test ok 20261018
     // connect(descEdit,&fluent::textfields::LineEdit::textChanged,[](){qDebug()<<"descEdit textChanged";});
 }

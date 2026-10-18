@@ -25,6 +25,7 @@ namespace doclife::ui {
         void newProject();
         void saveProject();
         void openProject();
+        void openProjectDialog();
         void showProjectNew();
         void showProjectsetting();
         void popOpenedWarning();
@@ -41,7 +42,6 @@ namespace doclife::ui {
 
         void init();
         void initConnect();
-        void openProjectDialog();
     };
 }
 #endif // CENTRALVIEW_H
