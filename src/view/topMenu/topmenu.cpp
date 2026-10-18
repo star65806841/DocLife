@@ -51,11 +51,11 @@ void TopMenu::init()
     bar->addPrimaryAction(actionFile);
     bar->addPrimaryAction(actionAddBlank);
     bar->addPrimaryAction(actionOpenProject);
-    bar->addPrimaryAction(separator);//
+    bar->addPrimaryAction(separator);//|
     bar->addPrimaryAction(actionSaveProject);
     bar->addPrimaryAction(infoAction);
     bar->addPrimaryAction(shareAction);
-    bar->addPrimaryAction(separator);//
+    bar->addPrimaryAction(separator);//|
     bar->addPrimaryAction(syncAction);
     bar->addPrimaryAction(pinAction);
     bar->addPrimaryAction(new QAction(

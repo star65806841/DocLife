@@ -25,6 +25,7 @@ namespace doclife::ui {
         setTitleBar();
         setCaptionTexts();
         setContent();
+        connentInit();
     }
 
     MyFluentWindow::~MyFluentWindow() = default;
@@ -134,7 +135,7 @@ namespace doclife::ui {
             // 没有打开过项目
             return true; 
         }
-        else if (doclife::core::ProjectContext::instance()->isUntitled() && !m_didCancel) {
+        else if (doclife::core::ProjectContext::instance()->isUntitled() && !didCancel()) {
             // 项目尚未保存过
             doclife::ui::DialogBase::show(
                 this,
@@ -147,8 +148,7 @@ namespace doclife::ui {
                 [this]() {
                     qDebug() << "User clicks Cancel";
                     // 点击不保存
-                    this->m_didCancel = true;
-                    this->close();
+                    setDidCancel(true);
                 }
             );
             return false;
@@ -157,5 +157,24 @@ namespace doclife::ui {
         {
             return true;
         }
+    }
+
+    bool MyFluentWindow::didCancel() const
+    {
+        return m_didCancel;
+    }
+
+    void MyFluentWindow::setDidCancel(bool newDidCancel)
+    {
+        if (m_didCancel == newDidCancel)
+            return;
+        m_didCancel = newDidCancel;
+        emit didCancelChanged();
+    }
+
+    void MyFluentWindow::connentInit() {
+        connect(this, &MyFluentWindow::didCancelChanged, this, [this]() {
+            QTimer::singleShot(300, this, &MyFluentWindow::close);
+        });
     }
 }

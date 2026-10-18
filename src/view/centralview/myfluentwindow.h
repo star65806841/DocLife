@@ -19,7 +19,10 @@ namespace doclife::ui {
         ~MyFluentWindow() override;
 
         void showAndActivate();
+
     signals:
+
+        void didCancelChanged();
 
     protected:
         void closeEvent(QCloseEvent* event) override;
@@ -27,6 +30,7 @@ namespace doclife::ui {
         void hideEvent(QHideEvent* event) override;
 
     private:
+        void connentInit();
         void setCaptionTexts();
         void setContent();
         void setTitleBar();
@@ -34,8 +38,12 @@ namespace doclife::ui {
         void onClosedCleanup();       // 关闭后的资源清理
         bool askUser();               // 关闭前的询问
 
+        bool didCancel() const;
+        void setDidCancel(bool newDidCancel);
+
         CentralView* m_content = nullptr;
         bool m_didCancel = false;
+
     };
 }
 #endif // MY_FLUENT_WINDOW_H
