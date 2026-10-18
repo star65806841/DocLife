@@ -20,8 +20,6 @@ doclife::ui::TopMenu::TopMenu(QWidget *parent)
 
 void TopMenu::init()
 {
-    // auto* settingsIcon = new fluent::FontIcon("ic_fluent_settings_20_regular");
-
     auto *barLayout = new QHBoxLayout(this);
     barLayout->setContentsMargins(2, 0, 0, 2);
     barLayout->setSpacing(6);
@@ -29,13 +27,12 @@ void TopMenu::init()
     auto* bar = new fluent::menus_toolbars::CommandBar(this);
     bar->setAccessibleName("Document commands");
     bar->setLabelPosition(fluent::menus_toolbars::CommandBar::LabelPosition::Right);
-    bar->setBackgroundVisible(true);
+    bar->setBackgroundVisible(false);
 
     auto* actionFile = new QAction(QIcon(":/icons/menu/AddFile.svg"), "文件测试", bar);
     auto* actionAddBlank = new QAction(QIcon(":/icons/menu/AddFile.svg"), "新建空白", bar);
     auto* actionOpenProject = new QAction(QIcon(":/icons/menu/file_open.svg"), "打开", bar);
     auto* actionSaveProject = new QAction(QIcon(":/icons/menu/file_save.svg"), "保存", bar);
-
 
     auto* infoAction = new QAction(QIcon(":/icons/menu/InfoFile.svg"), "工程信息", bar);
     infoAction->setPriority(QAction::HighPriority);
@@ -54,10 +51,11 @@ void TopMenu::init()
     bar->addPrimaryAction(actionFile);
     bar->addPrimaryAction(actionAddBlank);
     bar->addPrimaryAction(actionOpenProject);
+    bar->addPrimaryAction(separator);//
     bar->addPrimaryAction(actionSaveProject);
     bar->addPrimaryAction(infoAction);
     bar->addPrimaryAction(shareAction);
-    bar->addPrimaryAction(separator);
+    bar->addPrimaryAction(separator);//
     bar->addPrimaryAction(syncAction);
     bar->addPrimaryAction(pinAction);
     bar->addPrimaryAction(new QAction(
