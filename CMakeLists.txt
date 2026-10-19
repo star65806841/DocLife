@@ -29,9 +29,9 @@ set(DOCLIFE_SRC
 
     src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp
 
-    src/view/leftview/leftview.h src/view/leftview/leftview.cpp
-    src/view/leftview/projecttreeview.h src/view/leftview/projecttreeview.cpp
-    src/view/leftview/fluenttreeitemdelegate.h src/view/leftview/fluenttreeitemdelegate.cpp
+    src/view/leftview/lefttreeview/leftview.h src/view/leftview/lefttreeview/leftview.cpp
+    src/view/leftview/lefttreeview/projecttreeview.h src/view/leftview/lefttreeview/projecttreeview.cpp
+    src/view/leftview/lefttreeview/fluenttreeitemdelegate.h src/view/leftview/lefttreeview/fluenttreeitemdelegate.cpp
 
     src/view/popWindow/projectnew.h src/view/popWindow/projectnew.cpp
     src/view/popWindow/projectsetting.h src/view/popWindow/projectsetting.cpp
@@ -78,6 +78,7 @@ qt_add_executable(DocLife
     ${DOCLIFE_SRC}
     ${DOCLIFE_MODEL}
     ${DOCLIFE_RESOURCES}
+
 )
 
 target_include_directories(DocLife

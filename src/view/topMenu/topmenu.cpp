@@ -1,11 +1,13 @@
 ﻿#include "topmenu.h"
 
 #include <QHBoxLayout>
+
 #include <components/menus_toolbars/CommandBar.h>
 #include <components/menus_toolbars/Menu.h>
 #include <components/menus_toolbars/MenuBar.h>
 #include <components/foundation/FontIcon.h>
 #include <components/basicinput/DropDownButton.h>
+#include <components/basicinput/ToggleButton.h>
 
 #include "uisignalmanager.h"
 
@@ -25,6 +27,7 @@ void TopMenu::init()
     barLayout->setSpacing(6);
 
     auto* bar = new fluent::menus_toolbars::CommandBar(this);
+
     bar->setAccessibleName("Document commands");
     bar->setLabelPosition(fluent::menus_toolbars::CommandBar::LabelPosition::Right);
     bar->setBackgroundVisible(false);
@@ -78,6 +81,7 @@ void TopMenu::init()
     connect(actionOpenProject,&QAction::triggered,UISignalManager::instance(),&UISignalManager::openProject);
     connect(actionSaveProject,&QAction::triggered,UISignalManager::instance(),&UISignalManager::saveProject);
     connect(infoAction,&QAction::triggered,UISignalManager::instance(),&UISignalManager::popProjectsetting);
+
 }
 
 void TopMenu::initConnect()
