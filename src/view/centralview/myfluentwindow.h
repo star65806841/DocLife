@@ -4,6 +4,7 @@
 #include <FluentQt/Windowing.h>
 #include <QCloseEvent>
 #include <QString>
+#include <components/basicinput/ToggleButton.h>
 
 namespace fluent::windowing {
     enum class BackdropEffect; // 前向声明，避免在头文件引入过多依赖
@@ -24,13 +25,16 @@ namespace doclife::ui {
 
         void didCancelChanged();
 
+    private slots:
+        void switchDarkLight(bool dark);
+
     protected:
         void closeEvent(QCloseEvent* event) override;
         void showEvent(QShowEvent* event) override;
         void hideEvent(QHideEvent* event) override;
 
     private:
-        void connentInit();
+        void initConnect();
         void setCaptionTexts();
         void setContent();
         void setTitleBar();
@@ -41,6 +45,7 @@ namespace doclife::ui {
         bool didCancel() const;
         void setDidCancel(bool newDidCancel);
 
+        fluent::basicinput::ToggleButton* m_toggle = nullptr;
         CentralView* m_content = nullptr;
         bool m_didCancel = false;
 

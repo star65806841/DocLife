@@ -25,7 +25,7 @@ namespace doclife::ui {
         setTitleBar();
         setCaptionTexts();
         setContent();
-        connentInit();
+        initConnect();
     }
 
     MyFluentWindow::~MyFluentWindow() = default;
@@ -39,6 +39,9 @@ namespace doclife::ui {
     void MyFluentWindow::setTitleBar()
     {
         fluent::windowing::TitleBar* titleBar = this->titleBar();
+        if(!titleBar){
+            return;
+        }
         // titleBar->setTitleBarHeight(48);
         // macOS reserves leading traffic-light controls;
         // Windows reserves trailing caption buttons.
@@ -68,12 +71,19 @@ namespace doclife::ui {
         QPixmap pixmap(":/icons/logo/logo.svg");
         icon->setPixmap(pixmap);
         icon->setFixedSize(28, 28);
+
         auto* titleLabel = new fluent::textfields::Label("xx公路资料管理软件", titleContent);
         titleLabel->setFluentTypography(Typography::FontRole::BodyStrong);
 
+        m_toggle = new fluent::basicinput::ToggleButton("",titleContent);
+        m_toggle->setFluentStyle(fluent::basicinput::ToggleButton::Standard);
+        m_toggle->setIconGlyph(
+            Typography::Icons::glyph(QStringLiteral("ic_fluent_brightness_high_32_regular"))
+        );
         layout->addWidget(icon);
         layout->addWidget(titleLabel);
         layout->addStretch();
+        layout->addWidget(m_toggle);
     }
 
     void MyFluentWindow::setCaptionTexts()
@@ -133,7 +143,7 @@ namespace doclife::ui {
     {
         if (!doclife::core::ProjectContext::instance()->hasOpenProject()) {
             // 没有打开过项目
-            return true; 
+            return true;
         }
         else if (doclife::core::ProjectContext::instance()->isUntitled() && !didCancel()) {
             // 项目尚未保存过
@@ -172,9 +182,26 @@ namespace doclife::ui {
         emit didCancelChanged();
     }
 
-    void MyFluentWindow::connentInit() {
+    void MyFluentWindow::initConnect() {
         connect(this, &MyFluentWindow::didCancelChanged, this, [this]() {
             QTimer::singleShot(300, this, &MyFluentWindow::close);
-        });
+            });
+        connect(m_toggle, &fluent::basicinput::ToggleButton::toggled, this, &MyFluentWindow::switchDarkLight);
+    }
+
+    void MyFluentWindow::switchDarkLight(bool dark)
+    {
+        if (dark) {
+            fluent::FluentElement::setTheme(fluent::FluentElement::Theme::Dark);
+            m_toggle->setIconGlyph(
+                Typography::Icons::glyph(QStringLiteral("ic_fluent_weather_moon_32_regular"))
+            );
+        }
+        else {
+            fluent::FluentElement::setTheme(fluent::FluentElement::Theme::Light);
+            m_toggle->setIconGlyph(
+                Typography::Icons::glyph(QStringLiteral("ic_fluent_brightness_high_32_regular"))
+            );
+        }
     }
 }
