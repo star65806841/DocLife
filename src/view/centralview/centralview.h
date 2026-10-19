@@ -26,7 +26,7 @@ namespace doclife::ui {
         void openProject();
         void onDrawerFileSetting();
 
-        void openProjectDialog();
+        void showProjectDialog();
         void showProjectNew();
         void showProjectsetting();
 

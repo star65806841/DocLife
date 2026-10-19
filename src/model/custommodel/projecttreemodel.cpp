@@ -1,123 +1,331 @@
 ﻿#include "ProjectTreeModel.h"
-#include <QIODevice>
-#include <QMimeData>
+#include "NodeTypeRegistry.h"
 
-namespace doclife::ui {
+#include <QIcon>
+#include <QList>
+#include <QtAlgorithms>
 
+#include <business/ProjectContext.h>   // 提供 ProjectNode 完整定义
+
+namespace doclife::model {
+
+using doclife::model::ProjectNode;
+
+// =====================================================================
+// 内部节点
+// =====================================================================
+struct ProjectTreeModel::Node
+{
+    ProjectNode data;
+    Node* parent = nullptr;
+    QList<Node*> children;
+
+    ~Node()
+    {
+        qDeleteAll(children);
+        children.clear();
+    }
+};
+
+namespace {
+
+QString titleForNode(const ProjectNode& n)
+{
+    QString title = n.name;
+    if (title.isEmpty())
+        title = n.attr(QStringLiteral("name"));
+    if (title.isEmpty())
+        title = NodeTypeRegistry::instance().displayLabel(n.type);
+    return title;
+}
+
+QString subtitleForNode(const ProjectNode& n)
+{
+    const auto* s = NodeTypeRegistry::instance().spec(n.type);
+    if (!s) return {};
+
+    if (s->role == NodeRole::Root)
+        return n.attr(QStringLiteral("docName"));
+
+    if (s->role == NodeRole::Container)
+        return QStringLiteral("%1 个子项").arg(n.children.size());
+
+    // Leaf：展示 sheetName | filePath
+    const QString sheet = n.attr(QStringLiteral("sheetName"));
+    const QString path  = n.attr(QStringLiteral("filePath"));
+    if (!sheet.isEmpty() && !path.isEmpty())
+        return QStringLiteral("%1 | %2").arg(sheet, path);
+    if (!sheet.isEmpty()) return sheet;
+    return path;
+}
+
+} // namespace
+
+// =====================================================================
 ProjectTreeModel::ProjectTreeModel(QObject* parent)
-    : QStandardItemModel(parent)
+    : QAbstractItemModel(parent)
 {
+    m_root = new Node;
 }
 
-// 除根节点外都能拖动，根节点不能拖动/放置
-Qt::ItemFlags ProjectTreeModel::flags(const QModelIndex &index) const
+ProjectTreeModel::~ProjectTreeModel()
 {
-    if (!index.isValid()) {
-        // 顶层（不可见根）不接收放置
-        Qt::ItemFlags f = QStandardItemModel::flags(index);
-        f &= ~Qt::ItemIsDropEnabled;
-        return f;
-    }
-    if (!index.isValid())
-        return QStandardItemModel::flags(index);
-
-    QString type = index.data(RoleNodeType).toString();
-    if (type == "project") {
-        // 根节点不可拖动/放置
-        return Qt::ItemIsEnabled | Qt::ItemIsSelectable;
-    }
-    // 其他节点可拖放
-    return QStandardItemModel::flags(index) | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled;
+    destroyTree();
 }
 
-// 拖放逻辑
-bool ProjectTreeModel::dropMimeData(const QMimeData *data, Qt::DropAction action,
-                                    int row, int column, const QModelIndex &parent)
+void ProjectTreeModel::destroyTree()
 {
-    // 获取拖动的节点类型
-    QByteArray encoded = data->data("application/x-qstandarditemmodeldatalist");
-    if (encoded.isEmpty())
-        return false;
-
-    QDataStream stream(&encoded, QIODevice::ReadOnly);
-    int r, c;
-    QMap<int, QVariant> roleData;
-    stream >> r >> c >> roleData;
-    QString draggedType = roleData.value(RoleNodeType).toString();
-
-    QString parentType = parent.data(RoleNodeType).toString();
-
-    // 根节点不能作为目标
-    if (parentType == "project" && draggedType != "unit")
-        return false;
-
-    // sheet 只能放在 item 节点下的末尾
-    if (draggedType == "sheet") {
-        if (parentType != "item")
-            return false;
-        row = -1; // 末尾
-    }
-
-    // sheet 不能作为父节点
-    if (parentType == "sheet")
-        return false;
-
-    return QStandardItemModel::dropMimeData(data, action, row, column, parent);
+    delete m_root;
+    m_root = nullptr;
+    m_idIndex.clear();
 }
 
-// 递归序列化
-QJsonArray ProjectTreeModel::serializeTree() const
+// =====================================================================
+// 索引辅助
+// =====================================================================
+ProjectTreeModel::Node*
+ProjectTreeModel::nodeFromIndex(const QModelIndex& index) const
 {
-    QJsonArray arr;
-    for (int i = 0; i < rowCount(); ++i) {
-        QStandardItem* item = this->item(i);
-        arr.append(serializeItem(item));
-    }
-    return arr;
+    if (!index.isValid()) return m_root;
+    return static_cast<Node*>(index.internalPointer());
 }
 
-QJsonObject ProjectTreeModel::serializeItem(QStandardItem* item) const
+QModelIndex ProjectTreeModel::createIndexForNode(Node* node) const
 {
-    QJsonObject obj;
-    obj["id"] = item->data(RoleNodeId).toString();
-    obj["type"] = item->data(RoleNodeType).toString();
-    obj["subtitle"] = item->data(RoleSubtitle).toString();
-    obj["text"] = item->text();
-
-    QJsonArray children;
-    for (int i = 0; i < item->rowCount(); ++i) {
-        children.append(serializeItem(item->child(i)));
-    }
-    obj["children"] = children;
-    return obj;
+    if (!node || !node->parent) return QModelIndex();
+    Node* p = node->parent;
+    const int row = p->children.indexOf(node);
+    if (row < 0) return QModelIndex();
+    return createIndex(row, 0, node);
 }
 
-// 递归反序列化
-void ProjectTreeModel::deserializeTree(const QJsonArray& arr)
+// =====================================================================
+// QAbstractItemModel
+// =====================================================================
+QModelIndex ProjectTreeModel::index(int row, int column,
+                                    const QModelIndex& parent) const
 {
-    clear();
-    for (const QJsonValue& v : arr) {
-        QStandardItem* item = deserializeItem(v.toObject());
-        if (item)
-            appendRow(item);
-    }
+    if (!hasIndex(row, column, parent)) return QModelIndex();
+    Node* parentNode = parent.isValid() ? nodeFromIndex(parent) : m_root;
+    if (!parentNode || row >= parentNode->children.size()) return QModelIndex();
+    return createIndex(row, column, parentNode->children[row]);
 }
 
-QStandardItem* ProjectTreeModel::deserializeItem(const QJsonObject& obj)
+QModelIndex ProjectTreeModel::parent(const QModelIndex& child) const
 {
-    auto* item = new QStandardItem(obj["text"].toString());
-    item->setData(obj["id"].toString(), RoleNodeId);
-    item->setData(obj["type"].toString(), RoleNodeType);
-    item->setData(obj["subtitle"].toString(), RoleSubtitle);
-    item->setEditable(false);
+    if (!child.isValid()) return QModelIndex();
+    Node* childNode = nodeFromIndex(child);
+    if (!childNode || !childNode->parent || childNode->parent == m_root)
+        return QModelIndex();
 
-    QJsonArray children = obj["children"].toArray();
-    for (const QJsonValue& v : children) {
-        QStandardItem* child = deserializeItem(v.toObject());
-        if (child)
-            item->appendRow(child);
+    Node* p  = childNode->parent;
+    Node* gp = p->parent;
+    if (!gp) return QModelIndex();
+    const int row = gp->children.indexOf(p);
+    if (row < 0) return QModelIndex();
+    return createIndex(row, 0, p);
+}
+
+int ProjectTreeModel::rowCount(const QModelIndex& parent) const
+{
+    if (parent.column() > 0) return 0;
+    Node* parentNode = parent.isValid() ? nodeFromIndex(parent) : m_root;
+    return parentNode ? parentNode->children.size() : 0;
+}
+
+int ProjectTreeModel::columnCount(const QModelIndex&) const
+{
+    return 1;
+}
+
+QVariant ProjectTreeModel::data(const QModelIndex& index, int role) const
+{
+    if (!index.isValid()) return {};
+    Node* node = nodeFromIndex(index);
+    if (!node) return {};
+
+    const ProjectNode& n = node->data;
+
+    if (index.column() == 0) {
+        switch (role) {
+        case Qt::DisplayRole:
+            return titleForNode(n);
+        case Qt::DecorationRole: {
+            const auto* s = NodeTypeRegistry::instance().spec(n.type);
+            return (s && !s->icon.isNull()) ? QVariant(s->icon) : QVariant();
+        }
+        case Qt::ToolTipRole:
+            return subtitleForNode(n);
+        case NodeTypeRole:
+            return n.type;
+        case NodeIdRole:
+            return n.id;
+        case SubtitleRole:
+            return subtitleForNode(n);
+        default:
+            break;
+        }
     }
-    return item;
+    return {};
+}
+
+QVariant ProjectTreeModel::headerData(int section, Qt::Orientation orientation,
+                                      int role) const
+{
+    if (orientation == Qt::Horizontal && role == Qt::DisplayRole && section == 0)
+        return QStringLiteral("名称");
+    return QAbstractItemModel::headerData(section, orientation, role);
+}
+
+Qt::ItemFlags ProjectTreeModel::flags(const QModelIndex& index) const
+{
+    if (!index.isValid()) return Qt::NoItemFlags;
+    Node* node = nodeFromIndex(index);
+    if (!node) return Qt::NoItemFlags;
+
+    Qt::ItemFlags f = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
+
+    // 能否成为 drop 目标由"角色"决定，与业务类型无关
+    if (NodeTypeRegistry::instance().canHaveChildren(node->data.type))
+        f |= Qt::ItemIsDropEnabled;
+
+    return f;
+}
+
+// =====================================================================
+// 全量
+// =====================================================================
+void ProjectTreeModel::setRootNode(const ProjectNode& root)
+{
+    beginResetModel();
+    destroyTree();
+    m_root = new Node;
+
+    Node* realRoot = new Node;
+    realRoot->data   = root;
+    realRoot->parent = m_root;
+    m_root->children.append(realRoot);
+    registerSubtree(realRoot);
+
+    endResetModel();
+}
+
+void ProjectTreeModel::clear()
+{
+    beginResetModel();
+    destroyTree();
+    m_root = new Node;
+    endResetModel();
+}
+
+// =====================================================================
+// 增量
+// =====================================================================
+bool ProjectTreeModel::insertNode(const QString& parentId,
+                                  const doclife::model::ProjectNode& node)
+{
+    Node* parentNode = parentId.isEmpty()
+    ? m_root
+    : m_idIndex.value(parentId, nullptr);
+    if (!parentNode) return false;
+
+    const int row        = parentNode->children.size();
+    const QModelIndex pi = (parentNode == m_root)
+                               ? QModelIndex()
+                               : createIndexForNode(parentNode);
+
+    beginInsertRows(pi, row, row);
+
+    Node* newNode   = new Node;
+    newNode->data   = node;
+    newNode->parent = parentNode;
+    parentNode->children.append(newNode);
+    registerSubtree(newNode);
+
+    endInsertRows();
+    return true;
+}
+
+bool ProjectTreeModel::removeNode(const QString& nodeId)
+{
+    Node* node = m_idIndex.value(nodeId, nullptr);
+    if (!node || !node->parent) return false;
+
+    Node* parentNode = node->parent;
+    const int row    = parentNode->children.indexOf(node);
+    if (row < 0) return false;
+
+    const QModelIndex pi = (parentNode == m_root)
+                               ? QModelIndex()
+                               : createIndexForNode(parentNode);
+
+    beginRemoveRows(pi, row, row);
+    unregisterSubtree(node);
+    parentNode->children.removeAt(row);
+    node->parent = nullptr;
+    delete node;
+    endRemoveRows();
+    return true;
+}
+
+bool ProjectTreeModel::updateNode(const QString& nodeId,
+                                  const doclife::model::ProjectNode& newNode)
+{
+    Node* node = m_idIndex.value(nodeId, nullptr);
+    if (!node) return false;
+
+    const QString oldId = node->data.id;      // QString，不再 QVariant 包装
+    node->data = newNode;
+    const QString newId = node->data.id;
+
+    if (oldId != newId) {
+        m_idIndex.remove(oldId);
+        if (!newId.isEmpty())
+            m_idIndex.insert(newId, node);
+    }
+
+    const QModelIndex idx = createIndexForNode(node);
+    if (idx.isValid())
+        emit dataChanged(idx, idx);
+    return true;
+}
+// =====================================================================
+// 索引维护
+// =====================================================================
+void ProjectTreeModel::registerSubtree(Node* node)
+{
+    if (!node) return;
+    const QString id = node->data.id;
+    if (!id.isEmpty())
+        m_idIndex.insert(id, node);           // ★ 不再 QVariant(id)
+    for (Node* c : node->children)
+        registerSubtree(c);
+}
+
+void ProjectTreeModel::unregisterSubtree(Node* node)
+{
+    if (!node) return;
+    for (Node* c : node->children)
+        unregisterSubtree(c);
+    const QString id = node->data.id;
+    if (!id.isEmpty())
+        m_idIndex.remove(id);
+}
+
+// =====================================================================
+// 查找
+// =====================================================================
+QModelIndex ProjectTreeModel::indexForId(const QString& nodeId) const
+{
+    Node* node = m_idIndex.value(nodeId, nullptr);
+    if (!node) return QModelIndex();
+    return createIndexForNode(node);
+}
+
+QString ProjectTreeModel::nodeTypeForId(const QString& nodeId) const
+{
+    Node* node = m_idIndex.value(nodeId, nullptr);
+    return node ? node->data.type : QString();
 }
 
 } // namespace doclife::ui

@@ -26,12 +26,15 @@ set(DOCLIFE_SRC
 
     src/view/fluentqt/application.h src/view/fluentqt/application.cpp
 
-
     src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp
 
-    src/view/leftview/lefttreeview/leftview.h src/view/leftview/lefttreeview/leftview.cpp
+    src/view/leftview/leftview.h src/view/leftview/leftview.cpp
+
+    src/view/leftview/lefttop.h src/view/leftview/lefttop.cpp
+
     src/view/leftview/lefttreeview/projecttreeview.h src/view/leftview/lefttreeview/projecttreeview.cpp
     src/view/leftview/lefttreeview/fluenttreeitemdelegate.h src/view/leftview/lefttreeview/fluenttreeitemdelegate.cpp
+    src/view/leftview/lefttreeview/projectcontextmenubuilder.h src/view/leftview/lefttreeview/projectcontextmenubuilder.cpp
 
     src/view/popWindow/projectnew.h src/view/popWindow/projectnew.cpp
     src/view/popWindow/projectsetting.h src/view/popWindow/projectsetting.cpp
@@ -48,7 +51,6 @@ set(DOCLIFE_SRC
 
 
 
-
     excelfile.h excelfile.cpp
 
     excelsheet.h excelsheet.cpp
@@ -62,11 +64,12 @@ set(DOCLIFE_MODEL
 
     src/business/projectcontext.h src/business/projectcontext.cpp
 
+
     src/model/projecmodel1.h
     src/model/projectInfomodel.h
     src/model/projectnode.h
     src/model/custommodel/projecttreemodel.h src/model/custommodel/projecttreemodel.cpp
-
+    src/model/custommodel/nodetyperegistry.h src/model/custommodel/nodetyperegistry.cpp
 )
 
 qt_add_resources(DOCLIFE_RESOURCES
@@ -78,7 +81,6 @@ qt_add_executable(DocLife
     ${DOCLIFE_SRC}
     ${DOCLIFE_MODEL}
     ${DOCLIFE_RESOURCES}
-
 )
 
 target_include_directories(DocLife

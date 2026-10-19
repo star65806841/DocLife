@@ -4,6 +4,7 @@
 
 #include <components/collections/DrawerView.h>
 #include <components/collections/SplitView.h>
+#include <components/layout/Divider.h>
 
 #include <popWindow/projectnew.h>
 #include <popWindow/projectsetting.h>
@@ -82,7 +83,7 @@ void CentralView::saveProject()
 void CentralView::openProject()
 {
     if (!doclife::core::ProjectContext::instance()->hasOpenProject()) {
-        openProjectDialog();
+        showProjectDialog();
         return;
     }
     else if (doclife::core::ProjectContext::instance()->isUntitled()) {
@@ -97,7 +98,7 @@ void CentralView::openProject()
             },
             [this]() {
                 qDebug() << "Open confirmation for newly open file that has not been saved. User clicks Cancel";
-                this->openProjectDialog();
+                this->showProjectDialog();
             }
         );
     }
@@ -107,7 +108,7 @@ void CentralView::openProject()
         popOpenedWarning->setFixedSize(400, 250);
         popOpenedWarning->setContentWidget(popConnect);
         popOpenedWarning->open();
-        connect(popOpenedWarning, &PopupBase::closed, [this]() {this->openProjectDialog(); });
+        connect(popOpenedWarning, &PopupBase::closed, [this]() {this->showProjectDialog(); });
     }
 }
 
@@ -135,6 +136,7 @@ void CentralView::init()
     v->setContentsMargins(0, 0, 0, 0);
     v->setSpacing(0);
     v->addWidget(topBar);       // 顶
+    v->addWidget(new fluent::layout::Divider(this));
     v->addWidget(splitter, 1);  // 余下空间全给 splitte
 
     initConnect();
@@ -147,13 +149,7 @@ void CentralView::showProjectsetting()
 
 void CentralView::popOpenedWarning()
 {
-    // auto* popOpenedWarning = new PopupBase(this);
-    // auto* popConnect = new DuplicateApp(this);
-    // popOpenedWarning->setFixedSize(400,250);
-    // popOpenedWarning->setContentWidget(popConnect);
-    // popOpenedWarning->open();
     AppToast::showInfo(this, "应用程序正在运行, 请先关闭后再启动。");
-
 }
 
 void CentralView::popProjectClosed()
@@ -216,7 +212,7 @@ void CentralView::initConnect()
     /******************状态提醒*****************************************/
 }
 
-void CentralView::openProjectDialog()
+void CentralView::showProjectDialog()
 {
     qDebug() << "start openProject-> open a fill diaog";
     QString filepath = doclife::core::Utils::openFileDialog();
