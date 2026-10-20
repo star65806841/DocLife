@@ -162,11 +162,39 @@ QVariant ProjectTreeModel::data(const QModelIndex& index, int role) const
             return n.id;
         case SubtitleRole:
             return subtitleForNode(n);
+        case Qt::EditRole:
+            return titleForNode(n);
         default:
             break;
         }
     }
     return {};
+}
+
+bool ProjectTreeModel::setData(const QModelIndex &index, const QVariant &value, int role)
+{
+    if (!index.isValid() || index.column() != 0)
+        return false;
+
+    if (role != Qt::EditRole)
+        return QAbstractItemModel::setData(index, value, role);
+
+    Node* node = nodeFromIndex(index);
+    if (!node) return false;
+
+    const QString newName = value.toString().trimmed();
+    if (newName.isEmpty())
+        return false;                       // 拒绝空名，Qt 会保持原值
+
+    // 业务层改名：会 markDirty() + emit nodeUpdated(nodeId)
+    // 视图层已连接 nodeUpdated → m_model->updateNode() → emit dataChanged()
+    // 因此这里不需要自己 emit dataChanged，避免双刷。
+    QString err;
+    const bool ok = doclife::core::ProjectContext::instance()
+                        ->renameNode(node->data.id, newName, &err);
+    if (!ok && !err.isEmpty())
+        qWarning() << "[ProjectTreeModel] rename failed:" << err;
+    return ok;
 }
 
 QVariant ProjectTreeModel::headerData(int section, Qt::Orientation orientation,
@@ -183,7 +211,7 @@ Qt::ItemFlags ProjectTreeModel::flags(const QModelIndex& index) const
     Node* node = nodeFromIndex(index);
     if (!node) return Qt::NoItemFlags;
 
-    Qt::ItemFlags f = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
+    Qt::ItemFlags f = Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable;
 
     // 能否成为 drop 目标由"角色"决定，与业务类型无关
     if (NodeTypeRegistry::instance().canHaveChildren(node->data.type))

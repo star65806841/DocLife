@@ -21,6 +21,7 @@ public:
 private slots:
     void rebuildAll();
     void onCustomContextMenuRequested(const QPoint& pos);
+    void beginRename(const QString& nodeId);
 
 private:
     doclife::model::ProjectTreeModel*m_model = nullptr;

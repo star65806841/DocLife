@@ -171,6 +171,11 @@ void CentralView::popProjectOpened()
     AppToast::showSuccess(this, "打开成功");
 }
 
+void CentralView::onToastWarning(const QString& msg)
+{
+    AppToast::showWarning(this, msg);
+}
+
 void CentralView::onDrawerFileSetting()
 {
     auto* drawer = new fluent::collections::DrawerView(this);
@@ -210,6 +215,7 @@ void CentralView::initConnect()
     // 工程打开提醒
     connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectOpened, this, &CentralView::popProjectOpened);
     /******************状态提醒*****************************************/
+    connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::errorOccurred, this, &CentralView::onToastWarning);
 }
 
 void CentralView::showProjectDialog()

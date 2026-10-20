@@ -7,6 +7,33 @@
 
 using namespace doclife::core;
 
+QString Utils::sanitizeFileName(const QString& name) {
+    QString s = name;
+    s.replace(QRegularExpression(R"([\\/:*?"<>|\x00-\x1F])"), QStringLiteral("_"));
+    s = s.trimmed();
+    while (s.endsWith('.')) s.chop(1);
+    s = s.trimmed();
+    if (s.isEmpty()) return {};
+
+    static const QSet<QString> reserved = {
+        QStringLiteral("CON"),  QStringLiteral("PRN"),
+        QStringLiteral("AUX"),  QStringLiteral("NUL"),
+        QStringLiteral("COM1"), QStringLiteral("COM2"),
+        QStringLiteral("COM3"), QStringLiteral("COM4"),
+        QStringLiteral("COM5"), QStringLiteral("COM6"),
+        QStringLiteral("COM7"), QStringLiteral("COM8"),
+        QStringLiteral("COM9"), QStringLiteral("LPT1"),
+        QStringLiteral("LPT2"), QStringLiteral("LPT3"),
+        QStringLiteral("LPT4"), QStringLiteral("LPT5"),
+        QStringLiteral("LPT6"), QStringLiteral("LPT7"),
+        QStringLiteral("LPT8"), QStringLiteral("LPT9"),
+    };
+    if (reserved.contains(s.toUpper())) s += QLatin1Char('_');
+
+    if (s.length() > 200) s.truncate(200);
+    return s;
+}
+
 QString Utils::makeProjectId()
 {
     // 形如 "proj-3f2a9b1c-4e5d-6f78-9abc-def012345678"

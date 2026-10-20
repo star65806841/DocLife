@@ -1,19 +1,20 @@
 ﻿#include "projectcontext.h"
 
-#include <QFile>
-#include <QFileInfo>
+#include <QSet>
 #include <QDir>
 #include <QUuid>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonParseError>
+#include <QFile>
 #include <QHash>
-#include <QVector>
 #include <QDebug>
-#include <QStandardPaths>
-#include <QCoreApplication>
+#include <QVector>
+#include <QFileInfo>
 #include <functional>
-
+#include <QJsonObject>
+#include <QJsonDocument>
+#include <QStandardPaths>
+#include <QJsonParseError>
+#include <QCoreApplication>
+#include <QRegularExpression>
 #ifdef Q_OS_WIN
 #  include <windows.h>
 #else
@@ -21,11 +22,13 @@
 #  include <errno.h>
 #endif
 
-#include <uisignalmanager.h>
+#include "uisignalmanager.h"
 
 #include "xlsxdocument.h"
 #include "xlsxworksheet.h"
 #include "xlsxcellrange.h"
+
+#include "model/custommodel/NodeTypeRegistry.h"
 
 namespace doclife::core {
 
@@ -200,6 +203,26 @@ namespace doclife::core {
     {
         return m_root.id;
     }
+    const doclife::model::ProjectNode* ProjectContext::findNodeById(const QString& id) const
+    {
+        if (id.isEmpty()) return nullptr;
+
+        QVector<const doclife::model::ProjectNode*> stack;
+        stack.append(&m_root);
+        while (!stack.isEmpty()) {
+            const auto* n = stack.takeLast();
+            if (n->id == id) return n;
+            for (const auto& c : n->children)
+                stack.append(&c);
+        }
+        return nullptr;
+    }
+
+    doclife::model::ProjectNode* ProjectContext::findNodeById(const QString& id)
+    {
+        return const_cast<doclife::model::ProjectNode*>(
+            static_cast<const ProjectContext*>(this)->findNodeById(id));
+    }
 
     void ProjectContext::setProjectInfo(model::ProjectInfoModel& projectInfo)
     {
@@ -210,6 +233,167 @@ namespace doclife::core {
         m_projectInfo.ownerUnitName = projectInfo.ownerUnitName.trimmed();
         // set 完成以后标记数据不同步就可以了，就不保存了
         markDirty();
+    }
+
+    bool ProjectContext::renameNode(const QString& nodeId,
+                                    const QString& newName,
+                                    QString* errorMsg,
+                                    RenameConflictPolicy policy)
+    {
+        auto* node = findNodeById(nodeId);
+        if (!node) {
+            if (errorMsg) *errorMsg = QStringLiteral("找不到节点: %1").arg(nodeId);
+            return false;
+        }
+
+        const QString trimmed = newName.trimmed();
+        if (trimmed.isEmpty()) {
+            if (errorMsg) *errorMsg = QStringLiteral("名称不能为空");
+            return false;
+        }
+        if (trimmed == node->name) return true;
+
+        const bool isRoot       = (nodeId == m_root.id);
+        const bool needFileMove = isRoot && !isUntitled() && !m_filePath.isEmpty();
+        const QString oldName   = node->name;
+
+        node->name = trimmed;
+
+        if (needFileMove) {
+            QString actualBase;
+            QString localErr;
+            if (!renameProjectFile(trimmed, policy, &actualBase, &localErr)) {
+                node->name = oldName;
+                if (errorMsg) *errorMsg = localErr;
+                emit errorOccurred(localErr);
+                return false;
+            }
+            if (!actualBase.isEmpty() && actualBase != trimmed)
+                node->name = actualBase;
+        } else {
+            markDirty();
+        }
+
+        emit nodeUpdated(nodeId);
+        return true;
+    }
+
+    bool ProjectContext::renameProjectFile(const QString& newBaseName,
+                                           RenameConflictPolicy policy,
+                                           QString* actualBaseName,
+                                           QString* errorMsg)
+    {
+        if (m_filePath.isEmpty() || isUntitled()) {
+            if (errorMsg) *errorMsg = QStringLiteral("当前项目尚未保存到用户路径");
+            return false;
+        }
+
+        const QFileInfo fi(m_filePath);
+        const QString dir     = fi.absolutePath();
+        const QString suffix  = fi.suffix();                 // "doclife" / "xlsx"
+        const QString base    = Utils::sanitizeFileName(newBaseName);
+        if (base.isEmpty()) {
+            if (errorMsg) *errorMsg = QStringLiteral("文件名包含非法字符或为空");
+            return false;
+        }
+
+        // ---- 1. 计算目标路径（含冲突处理） ----
+        QString finalBase = base;
+        QString newPath   = dir + QLatin1Char('/') + finalBase
+                          + (suffix.isEmpty() ? QString() : QLatin1Char('.') + suffix);
+
+        if (newPath == m_filePath) {
+            if (actualBaseName) *actualBaseName = finalBase;
+            return true;                                    // 名字未变
+        }
+
+        auto buildPath = [&](const QString& b) {
+            return dir + QLatin1Char('/') + b
+                   + (suffix.isEmpty() ? QString() : QLatin1Char('.') + suffix);
+        };
+
+        switch (policy) {
+        case RenameConflictPolicy::Fail:
+            if (QFile::exists(newPath)) {
+                if (errorMsg)
+                    *errorMsg = QStringLiteral("同目录已存在文件: %1").arg(newPath);
+                return false;
+            }
+            break;
+
+        case RenameConflictPolicy::AutoSuffix: {
+            if (QFile::exists(newPath)) {
+                int n = 2;
+                do {
+                    finalBase = QStringLiteral("%1 (%2)").arg(base).arg(n++);
+                    newPath   = buildPath(finalBase);
+                } while (QFile::exists(newPath) && n < 1000);
+                if (QFile::exists(newPath)) {
+                    if (errorMsg) *errorMsg = QStringLiteral("无法找到可用的文件名");
+                    return false;
+                }
+            }
+            break;
+        }
+
+        case RenameConflictPolicy::Overwrite:
+            break;                                          // 直接尝试覆盖
+        }
+
+        const QString oldPath = m_filePath;
+
+        // ---- 2. 给新路径加锁（失败即返回，不动旧文件） ----
+        if (policy != RenameConflictPolicy::Overwrite) {
+            if (!tryAcquireLockFile(newPath, errorMsg))
+                return false;
+        }
+        auto rollbackNewLock = [&]() {
+            if (policy != RenameConflictPolicy::Overwrite)
+                releaseLockFile(newPath);
+        };
+
+        // ---- 3. 把当前内存刷到旧路径（确保内容最新） ----
+        if (!writeMetadata(oldPath, errorMsg)) {
+            rollbackNewLock();
+            return false;
+        }
+
+        // ---- 4. Overwrite 时先删旧目标文件（Windows 上 rename 不覆盖） ----
+        if (policy == RenameConflictPolicy::Overwrite && QFile::exists(newPath)) {
+            if (!QFile::remove(newPath)) {
+                if (errorMsg) *errorMsg = QStringLiteral("无法覆盖: %1").arg(newPath);
+                rollbackNewLock();
+                return false;
+            }
+            // Overwrite 场景下也补一个锁，保证 rename 期间的独占
+            if (!tryAcquireLockFile(newPath, errorMsg)) {
+                rollbackNewLock();
+                return false;
+            }
+        }
+
+        // ---- 5. 改文件名 ----
+        if (!QFile::rename(oldPath, newPath)) {
+            if (errorMsg)
+                *errorMsg = QStringLiteral("文件重命名失败: %1 -> %2")
+                                .arg(oldPath, newPath);
+            rollbackNewLock();
+            // 注意：writeMetadata 已成功，磁盘内容是新名字，但路径没变。
+            // 回滚 node->name 由 renameNode 负责，这里只保证文件路径不变。
+            return false;
+        }
+
+        // ---- 6. 释放旧锁，更新状态 ----
+        releaseLockFile(oldPath);
+        m_lockedPath = newPath;
+        m_filePath   = newPath;
+        m_dirty      = false;
+
+        if (actualBaseName) *actualBaseName = finalBase;
+
+        emit dirtyChanged(false);
+        emit projectFilePathChanged(oldPath, newPath);
+        return true;
     }
 
     void ProjectContext::markDirty() {
@@ -618,6 +802,111 @@ namespace doclife::core {
         }
 
         qDebug() << "[print] 共处理" << printed << "张表";
+        return true;
+    }
+
+    bool ProjectContext::addChild(const QString& parentId,
+        const QString& childType,
+        QString* newId,
+        QString* errorMsg)
+    {
+        using doclife::model::NodeTypeRegistry;
+
+        if (!NodeTypeRegistry::instance().spec(childType)) {
+            if (errorMsg) *errorMsg = QStringLiteral("未知节点类型: %1").arg(childType);
+            return false;
+        }
+
+        auto* parent = findNodeById(parentId);
+        if (!parent) {
+            if (errorMsg) *errorMsg = QStringLiteral("找不到父节点: %1").arg(parentId);
+            return false;
+        }
+        if (NodeTypeRegistry::instance().isLeaf(parent->type)) {
+            if (errorMsg) *errorMsg = QStringLiteral("叶子节点不能添加子节点");
+            return false;
+        }
+
+        doclife::model::ProjectNode child;
+        child.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        child.type = childType;
+        child.name = NodeTypeRegistry::instance().displayLabel(childType);
+
+        parent->children.append(child);
+        markDirty();
+
+        emit nodeAdded(parentId, child.id);
+        if (newId) *newId = child.id;
+        return true;
+    }
+
+    bool ProjectContext::removeNode(const QString& nodeId, QString* errorMsg)
+    {
+        if (nodeId == m_root.id) {
+            if (errorMsg) *errorMsg = QStringLiteral("不能删除根节点");
+            return false;
+        }
+
+        doclife::model::ProjectNode* parent = nullptr;
+        int indexInParent = -1;
+
+        std::function<bool(doclife::model::ProjectNode&)> walk =
+            [&](doclife::model::ProjectNode& n) -> bool {
+            for (int i = 0; i < n.children.size(); ++i) {
+                if (n.children[i].id == nodeId) {
+                    parent = &n;
+                    indexInParent = i;
+                    return true;
+                }
+                if (walk(n.children[i])) return true;
+            }
+            return false;
+            };
+        walk(m_root);
+
+        if (!parent || indexInParent < 0) {
+            if (errorMsg) *errorMsg = QStringLiteral("找不到节点: %1").arg(nodeId);
+            return false;
+        }
+
+        const QString parentId = parent->id;
+        parent->children.removeAt(indexInParent);
+        markDirty();
+
+        emit nodeRemoved(parentId, nodeId);
+        return true;
+    }
+
+    bool ProjectContext::setNodeAttr(const QString& nodeId,
+        const QString& key,
+        const QVariant& value,
+        QString* errorMsg)
+    {
+        auto* node = findNodeById(nodeId);
+        if (!node) {
+            if (errorMsg) *errorMsg = QStringLiteral("找不到节点: %1").arg(nodeId);
+            return false;
+        }
+
+        QJsonValue jv;
+        const int t = value.typeId();
+        if (t == QMetaType::Bool)
+            jv = QJsonValue(value.toBool());
+        else if (t == QMetaType::Int || t == QMetaType::LongLong
+            || t == QMetaType::UInt || t == QMetaType::ULongLong)
+            jv = QJsonValue(value.toLongLong());
+        else if (t == QMetaType::Double || t == QMetaType::Float)
+            jv = QJsonValue(value.toDouble());
+        else if (value.canConvert<QJsonObject>())
+            jv = QJsonValue(value.toJsonObject());
+        else if (value.canConvert<QJsonArray>())
+            jv = QJsonValue(value.toJsonArray());
+        else
+            jv = QJsonValue(value.toString());
+
+        node->attrs.insert(key, jv);
+        markDirty();
+        emit nodeUpdated(nodeId);
         return true;
     }
 

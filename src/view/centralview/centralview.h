@@ -36,6 +36,7 @@ namespace doclife::ui {
         void popProjectSaved();
         void popProjectCreated();
         void popProjectOpened();
+        void onToastWarning(const QString &msg);
     private:
         //project context data
         doclife::core::ProjectContext* m_projectObject = nullptr;

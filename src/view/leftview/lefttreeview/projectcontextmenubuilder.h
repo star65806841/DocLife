@@ -16,10 +16,14 @@ namespace doclife::ui {
     class ProjectContextMenuBuilder
     {
     public:
+        // 重命名回调（View 提供，触发 m_tree->edit()）
+        using RenameHandler = std::function<void(const QString& nodeId)>;
+
         static fluent::menus_toolbars::CommandBarFlyout* build(
             QWidget* parent,
             const QString& nodeType,
-            const QVariant& nodeId);
+            const QVariant& nodeId,
+            RenameHandler onRename = nullptr);   // 默认 nullptr，保持向后兼容
     };
 
 } // namespace doclife::ui
