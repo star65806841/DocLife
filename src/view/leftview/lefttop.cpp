@@ -31,7 +31,7 @@ namespace doclife::ui {
 
         auto* infoAction = new QAction(QIcon(":/icons/menu/InfoFile.svg"), "工程信息", bar);
         infoAction->setPriority(QAction::HighPriority);
-        auto* shareAction = new QAction(QIcon(":/icons/logo/Flash.png"), "Share", bar);
+        auto* linearMeterSetting = new QAction(QIcon(":/icons/logo/Flash.png"), "延米设置", bar);
 
         auto* separator = new QAction(bar);
         separator->setSeparator(true);
@@ -48,7 +48,7 @@ namespace doclife::ui {
         bar->addPrimaryAction(actionOpenProject);
         bar->addPrimaryAction(actionSaveProject);
         bar->addPrimaryAction(infoAction);
-        bar->addPrimaryAction(shareAction);
+        bar->addPrimaryAction(linearMeterSetting);
 
         for (auto *btn : bar->findChildren<fluent::basicinput::Button*>()) {
             btn->setFocusVisual(false);

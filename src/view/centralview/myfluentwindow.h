@@ -1,9 +1,9 @@
 ﻿#ifndef MY_FLUENT_WINDOW_H
 #define MY_FLUENT_WINDOW_H
 
-#include <FluentQt/Windowing.h>
-#include <QCloseEvent>
 #include <QString>
+#include <QCloseEvent>
+#include <FluentQt/Windowing.h>
 #include <components/basicinput/ToggleButton.h>
 
 namespace fluent::windowing {
@@ -48,7 +48,6 @@ namespace doclife::ui {
         fluent::basicinput::ToggleButton* m_toggle = nullptr;
         CentralView* m_content = nullptr;
         bool m_didCancel = false;
-
     };
 }
 #endif // MY_FLUENT_WINDOW_H
