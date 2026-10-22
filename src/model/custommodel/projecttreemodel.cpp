@@ -38,12 +38,9 @@ ProjectTreeModel::ProjectTreeModel(QObject* parent)
 
     // ---- 视图重命名意图 → 业务层 ----
     connect(this, &ProjectTreeModel::renameRequested,
-            ctx, [ctx](const QString& id, const QString& newName) {
-                QString err;
-                if (!ctx->renameNode(id, newName, &err)) {
-                    qWarning() << "[ProjectTreeModel] rename failed:" << err;
-                }
-            });
+        ctx, [ctx](const QString& id, const QString& newName) {
+            ctx->renameNode(id, newName);
+        });
 
     // 构造时若项目已打开，直接同步（避免先开项目后建模型）
     if (ctx->hasOpenProject() && ctx->rootNode()) {
