@@ -46,6 +46,7 @@ public:
     bool saveProjectAs(const QString& filePath, QString* errorMsg = nullptr);
     bool closeProject(bool saveBeforeClose = true, QString* errorMsg = nullptr);
     bool printAllSheets(QString* errorMsg = nullptr);
+    void markClean();
     void markDirty();
 
     // ---- 增量操作 ----

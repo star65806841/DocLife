@@ -320,12 +320,15 @@ bool ProjectContext::renameProjectFile(const QString& newBaseName,
     releaseLockFile(oldPath);
     m_lockedPath = newPath;
     m_filePath   = newPath;
-    m_dirty      = false;
 
     if (actualBaseName) *actualBaseName = finalBase;
-    emit dirtyChanged(false);
+    markClean();
     emit projectFilePathChanged(oldPath, newPath);
     return true;
+}
+
+void ProjectContext::markClean() {
+    if (m_dirty) { m_dirty = false; emit dirtyChanged(false); }
 }
 
 void ProjectContext::markDirty() {
@@ -342,7 +345,7 @@ void ProjectContext::resetState() {
     m_root = nullptr;
     m_projectInfo = doclife::model::ProjectInfoModel{};
     m_filePath.clear();
-    if (m_dirty) { m_dirty = false; emit dirtyChanged(false); }
+    markClean();
 }
 
 // ============================================================
@@ -402,9 +405,7 @@ bool ProjectContext::newProject(QString* errorMsg)
 
     m_filePath     = tempPath;
     m_tempFilePath = tempPath;
-    m_dirty        = false;
-
-    emit dirtyChanged(false);
+    markClean();
     emit projectCreated(tempPath);
     emit projectOpened(tempPath);
     return true;
@@ -439,9 +440,7 @@ bool ProjectContext::openProject(const QString& filePath, QString* errorMsg) {
     m_lockedPath = cleanPath;
     m_filePath   = cleanPath;
     m_tempFilePath.clear();
-    m_dirty      = false;
-
-    emit dirtyChanged(false);
+    markClean();
     emit projectOpened(cleanPath);
     return true;
 }
@@ -457,8 +456,7 @@ bool ProjectContext::saveProject(QString* errorMsg) {
         emit errorOccurred(errorMsg ? *errorMsg : QString());
         return false;
     }
-    m_dirty = false;
-    emit dirtyChanged(false);
+    markClean();
     emit projectSaved(m_filePath);
     return true;
 }
@@ -512,9 +510,7 @@ bool ProjectContext::saveProjectAs(const QString& filePath, QString* errorMsg) {
 
     m_lockedPath = cleanPath;
     m_filePath   = cleanPath;
-    m_dirty      = false;
-
-    emit dirtyChanged(false);
+    markClean();
     emit projectSaved(cleanPath);
     return true;
 }
