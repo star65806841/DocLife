@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QString>
 #include <QVariant>
+#include <QJsonObject>
 
 #include "projectNode.h"
 #include "projectInfomodel.h"
@@ -58,7 +59,7 @@ namespace doclife::core {
             RenameConflictPolicy policy = RenameConflictPolicy::Fail);
         bool renameProjectFile(const QString& newBaseName,
             RenameConflictPolicy policy = RenameConflictPolicy::Fail,
-            QString* actualBaseName = nullptr);   // 保留：正常输出
+            QString* actualBaseName = nullptr);
         bool setNodeAttr(const QString& nodeId, const QString& key, const QVariant& value);
 
     signals:
@@ -83,17 +84,28 @@ namespace doclife::core {
 
         QString makeTempFilePath() const;
 
-        QString writeMetadata(const QString& filePath);
-        QString readMetadata(const QString& filePath);
+        // sidecar JSON 路径：<projectPath>.json
+        QString projectJsonPath(const QString& projectPath) const;
+
+        // 返回空=成功，否则=错误文本（不 emit）
+        QString writeProjectJson(const QString& projectPath);
+        QString readProjectJson(const QString& projectPath);
+
+        // 树 <-> JSON
+        QJsonObject nodeToJson(const doclife::model::Node& n) const;
+        doclife::model::Node* nodeFromJson(const QJsonObject& o) const;
+
         QString acquireLock(const QString& filePath);
-        QString doRenameProjectFile(const QString& newBaseName, RenameConflictPolicy policy, QString* actualBaseName);
+        QString doRenameProjectFile(const QString& newBaseName,
+            RenameConflictPolicy policy,
+            QString* actualBaseName);
 
         void releaseLock();
         void cleanupTempFile();
         void resetState();
 
     private:
-        doclife::model::Node* m_root = nullptr;   // 拥有
+        doclife::model::Node* m_root = nullptr;
         doclife::model::ProjectInfoModel  m_projectInfo;
         QString m_filePath;
         QString m_tempFilePath;
