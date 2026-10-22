@@ -651,23 +651,49 @@ namespace doclife::core {
     // ============================================================
     QString ProjectContext::writeMetadata(const QString& filePath) {
         qDebug() << "[ProjectContext] writeMetadata:" << filePath;
+
         const QString tmpPath = filePath + ".tmp";
+        QFile::remove(tmpPath);
+
+        QString lastRowStr;
+
         {
             QXlsx::Document doc(filePath);
-            if (doc.sheetNames().contains(kMetaSheetName))
-                doc.deleteSheet(kMetaSheetName);
-            doc.addSheet(kMetaSheetName);
+
+            // 1. 确保 _meta_ 存在（首次创建文件时）
+            if (!doc.sheetNames().contains(kMetaSheetName)) {
+                if (!doc.addSheet(kMetaSheetName)) {
+                    const QString err = QStringLiteral("无法创建元数据表 %1").arg(kMetaSheetName);
+                    qWarning() << "[ProjectContext]" << err;
+                    return err;
+                }
+            }
             doc.selectSheet(kMetaSheetName);
 
+            // 2. 先写节点（2..N），得到最后一行的行号
+            int row = 2;
+            if (m_root) writeNodeFlat(doc, row, *m_root, 0);
+            const int lastRow = row - 1;              // 最后一个有效数据行
+            lastRowStr = QString::number(lastRow);
+            // 3. 再写 head（含 lastRow，读取端用它限制范围）
             QJsonObject head;
-            head["version"] = 1;
+            head["version"] = 2;                    // 升级版本号，标记有 lastRow
             head["info"] = m_projectInfo.toJson();
+            head["lastRow"] = lastRow;              // ← 关键：有效数据行的最后一行
             doc.write(1, 1, QString::fromUtf8(
                 QJsonDocument(head).toJson(QJsonDocument::Compact)));
 
-            int row = 2;
-            if (m_root) writeNodeFlat(doc, row, *m_root, 0);
+            // 4. 写后裁剪：把 lastRow 之后的旧行清空（卫生，防止 Excel 里看到幽灵）
+            const QXlsx::CellRange range = doc.dimension();
+            if (range.isValid() && range.lastRow() > lastRow) {
+                qDebug() << "[ProjectContext] 裁剪 _meta_ 残留行"
+                    << (lastRow + 1) << "~" << range.lastRow();
+                for (int r = lastRow + 1; r <= range.lastRow(); ++r)
+                    for (int c = range.firstColumn(); c <= range.lastColumn(); ++c)
+                        doc.write(r, c, QVariant());
+            }
 
+            // 5. 保存
             if (!doc.saveAs(tmpPath)) {
                 const QString err = QStringLiteral("写临时文件失败: %1").arg(tmpPath);
                 qWarning() << "[ProjectContext]" << err;
@@ -676,7 +702,8 @@ namespace doclife::core {
         }
 
         if (QFile::exists(filePath) && !QFile::remove(filePath)) {
-            const QString err = QStringLiteral("无法删除原文件: %1").arg(filePath);
+            const QString err = QStringLiteral("无法删除原文件（可能被 Excel/WPS 占用）: %1")
+                .arg(filePath);
             qWarning() << "[ProjectContext]" << err;
             return err;
         }
@@ -685,7 +712,8 @@ namespace doclife::core {
             qWarning() << "[ProjectContext]" << err;
             return err;
         }
-        qDebug() << "[ProjectContext] writeMetadata 成功";
+
+        qDebug() << "[ProjectContext] writeMetadata 成功, lastRow =" << lastRowStr;
         return {};
     }
 
@@ -694,58 +722,64 @@ namespace doclife::core {
         QXlsx::Document doc(filePath);
 
         const QStringList sheets = doc.sheetNames();
-        if (sheets.isEmpty()) {
-            const QString err = QStringLiteral("Excel 文件为空");
-            qWarning() << "[ProjectContext]" << err;
-            return err;
-        }
-        if (!sheets.contains(kMetaSheetName)) {
-            const QString err = QStringLiteral("缺少元数据表 %1").arg(kMetaSheetName);
-            qWarning() << "[ProjectContext]" << err;
-            return err;
-        }
+        if (sheets.isEmpty())           return QStringLiteral("Excel 文件为空");
+        if (!sheets.contains(kMetaSheetName))
+            return QStringLiteral("缺少元数据表 %1").arg(kMetaSheetName);
         doc.selectSheet(kMetaSheetName);
 
-        QJsonParseError err{};
-        const auto headDoc = QJsonDocument::fromJson(doc.read(1, 1).toString().toUtf8(), &err);
-        if (err.error != QJsonParseError::NoError || !headDoc.isObject()) {
-            const QString msg = QStringLiteral("头部 JSON 解析失败: %1").arg(err.errorString());
+        // 头部解析
+        QJsonParseError parseErr{};
+        const auto headDoc = QJsonDocument::fromJson(
+            doc.read(1, 1).toString().toUtf8(), &parseErr);
+        if (parseErr.error != QJsonParseError::NoError || !headDoc.isObject()) {
+            const QString msg = QStringLiteral("头部 JSON 解析失败: %1")
+                .arg(parseErr.errorString());
             qWarning() << "[ProjectContext]" << msg;
             return msg;
         }
-
         const auto headObj = headDoc.object();
         m_projectInfo = doclife::model::ProjectInfoModel::fromJson(
             headObj.value(QStringLiteral("info")).toObject());
 
+        // ★ 关键：读取范围
+        //   新版文件：用 headObj["lastRow"]
+        //   老版文件（无此字段）：回退到 dimension().lastRow()
+        int lastRow = headObj.value(QStringLiteral("lastRow")).toInt(0);
+        if (lastRow <= 0) {
+            const QXlsx::CellRange range = doc.dimension();
+            lastRow = range.isValid() ? range.lastRow() : 0;
+            qDebug() << "[ProjectContext] 老版文件，回退 dimension, lastRow =" << lastRow;
+        }
+        else {
+            qDebug() << "[ProjectContext] 使用头部 lastRow =" << lastRow;
+        }
+
+        // 遍历 2..lastRow
         QHash<int, doclife::model::NodeAttributes> attrsByRow;
         QHash<int, QVector<int>>                   childrenOf;
         int                                        rootRow = -1;
 
-        const QXlsx::CellRange range = doc.dimension();
-        if (range.isValid()) {
-            for (int r = 2; r <= range.lastRow(); ++r) {
-                const QString s = doc.read(r, 1).toString();
-                if (s.isEmpty()) continue;
-                QJsonParseError e{};
-                const auto d = QJsonDocument::fromJson(s.toUtf8(), &e);
-                if (e.error != QJsonParseError::NoError || !d.isObject()) {
-                    qWarning() << "[ProjectContext] 第" << r << "行 JSON 解析失败，跳过";
-                    continue;
-                }
-                const auto o = d.object();
-
-                doclife::model::NodeAttributes a;
-                a.id = o.value(QStringLiteral("id")).toString();
-                a.type = o.value(QStringLiteral("type")).toString();
-                a.name = o.value(QStringLiteral("name")).toString();
-                a.attrs = o.value(QStringLiteral("attrs")).toObject();
-
-                attrsByRow.insert(r, a);
-                const int p = o.value(QStringLiteral("parentRow")).toInt(0);
-                if (p == 0) rootRow = r;
-                else        childrenOf[p].append(r);
+        for (int r = 2; r <= lastRow; ++r) {
+            const QString s = doc.read(r, 1).toString();
+            if (s.isEmpty()) continue;
+            QJsonParseError e{};
+            const auto d = QJsonDocument::fromJson(s.toUtf8(), &e);
+            if (e.error != QJsonParseError::NoError || !d.isObject()) {
+                qWarning() << "[ProjectContext] 第" << r << "行 JSON 解析失败，跳过";
+                continue;
             }
+            const auto o = d.object();
+
+            doclife::model::NodeAttributes a;
+            a.id = o.value(QStringLiteral("id")).toString();
+            a.type = o.value(QStringLiteral("type")).toString();
+            a.name = o.value(QStringLiteral("name")).toString();
+            a.attrs = o.value(QStringLiteral("attrs")).toObject();
+
+            attrsByRow.insert(r, a);
+            const int p = o.value(QStringLiteral("parentRow")).toInt(0);
+            if (p == 0) rootRow = r;
+            else        childrenOf[p].append(r);
         }
 
         if (rootRow < 0) {
@@ -768,7 +802,8 @@ namespace doclife::core {
 
         delete m_root;
         m_root = build(rootRow);
-        qDebug() << "[ProjectContext] readMetadata 成功，节点数 =" << attrsByRow.size();
+        qDebug() << "[ProjectContext] readMetadata 成功，节点数 =" << attrsByRow.size()
+            << "lastRow =" << lastRow;
         return {};
     }
 
