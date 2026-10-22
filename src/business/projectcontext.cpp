@@ -467,6 +467,12 @@ bool ProjectContext::saveProjectAs(const QString& filePath, QString* errorMsg) {
     if (!hasOpenProject()) { if (errorMsg) *errorMsg = QStringLiteral("没有打开的项目"); return false; }
 
     const QString cleanPath = QDir::cleanPath(filePath);
+    if(cleanPath.isEmpty())
+    {
+        emit errorOccurred("保存取消");
+        return false;
+    }
+
     if (cleanPath == m_filePath) return saveProject(errorMsg);
 
     if (!tryAcquireLockFile(cleanPath, errorMsg)) {
