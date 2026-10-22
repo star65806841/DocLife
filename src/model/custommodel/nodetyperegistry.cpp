@@ -65,4 +65,4 @@ QString NodeTypeRegistry::displayLabel(const QString& type) const
     return s ? s->displayLabel : type;
 }
 
-} // namespace doclife::ui
+} // namespace doclife::model

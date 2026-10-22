@@ -5,18 +5,18 @@
 #include <QHash>
 #include <QString>
 
+#include "projectNode.h"
+
 namespace doclife::model {
-struct ProjectNode;
-// 邻接表模型：内部持有 ProjectNode 树拷贝，任意深度、任意业务类型。
-// 结构约束（能否有子）由 NodeTypeRegistry 决定，模型自身不硬编码任何类型。
+
 class ProjectTreeModel : public QAbstractItemModel
 {
     Q_OBJECT
 public:
     enum Role {
-        NodeTypeRole = Qt::UserRole + 1,   // 业务类型字符串
-        NodeIdRole   = Qt::UserRole + 2,   // 节点 id（QString）
-        SubtitleRole = Qt::UserRole + 3,   // 副标题
+        NodeTypeRole = Qt::UserRole + 1,
+        NodeIdRole   = Qt::UserRole + 2,
+        SubtitleRole = Qt::UserRole + 3,
     };
     Q_ENUM(Role)
 
@@ -36,33 +36,36 @@ public:
                         int role = Qt::DisplayRole) const override;
     Qt::ItemFlags flags(const QModelIndex& index) const override;
 
-    // ---- 全量 ----
-    void setRootNode(const doclife::model::ProjectNode& root);
+    // ---- 根节点（非拥有，所有权在 ProjectContext） ----
+    void setRootNode(Node* root);
+    Node* rootNode() const { return m_root; }
     void clear();
-
-    // ---- 增量 ----
-    // parentId 无效时追加到虚拟根（即顶级）
-    bool insertNode(const QString& parentId,
-                    const doclife::model::ProjectNode& node);
-    bool removeNode(const QString& nodeId);
-    bool updateNode(const QString& nodeId,
-                    const doclife::model::ProjectNode& newNode);
 
     // ---- 查找 ----
     QModelIndex indexForId(const QString& nodeId) const;
-    QString nodeTypeForId(const QString& nodeId) const;
+    QString     nodeTypeForId(const QString& nodeId) const;
+
+public slots:
+    // 业务层同步入口（connect 到 ProjectContext 的信号）
+    void onNodeAdded(const QString& parentId, const QString& nodeId);
+    void onNodeRemoved(const QString& parentId, const QString& nodeId);
+    void onNodeUpdated(const QString& nodeId);
+
+signals:
+    // 视图触发重命名 → 业务层响应（业务层成功后 emit nodeUpdated 回来刷新）
+    void renameRequested(const QString& nodeId, const QString& newName);
 
 private:
-    struct Node;
+    Node*        nodeFromIndex(const QModelIndex& index) const;
+    QModelIndex  createIndexForNode(Node* node) const;
+    QString      titleForNode(const QModelIndex& index) const;
+    QString      subtitleForNode(const QModelIndex& index) const;
+    void         registerSubtree(Node* node);
+    void         unregisterSubtree(Node* node);
+    void         resetIndex();
 
-    Node* nodeFromIndex(const QModelIndex& index) const;
-    QModelIndex createIndexForNode(Node* node) const;
-    void destroyTree();
-    void registerSubtree(Node* node);
-    void unregisterSubtree(Node* node);
-
-    Node* m_root = nullptr;                 // 虚拟根，不显示
-    QHash<QString, Node*> m_idIndex;        // id → 节点
+    Node*                  m_root = nullptr;   // 非拥有
+    QHash<QString, Node*>  m_idIndex;
 };
 
-} // namespace doclife::ui
+} // namespace doclife::model

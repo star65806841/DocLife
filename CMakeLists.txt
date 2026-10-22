@@ -67,9 +67,11 @@ set(DOCLIFE_MODEL
 
     src/model/projecmodel1.h
     src/model/projectInfomodel.h
-    src/model/projectnode.h
+    src/model/ProjectNode.h
+
     src/model/custommodel/projecttreemodel.h src/model/custommodel/projecttreemodel.cpp
     src/model/custommodel/nodetyperegistry.h src/model/custommodel/nodetyperegistry.cpp
+
 )
 
 qt_add_resources(DOCLIFE_RESOURCES

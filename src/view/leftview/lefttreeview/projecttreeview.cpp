@@ -23,8 +23,8 @@ ProjectTreeView::ProjectTreeView(QWidget* parent)
     : QWidget(parent)
 {
     m_model = new doclife::model::ProjectTreeModel(this);
-
     m_tree = new fluent::collections::TreeView(this);
+
     m_tree->setModel(m_model);
     m_tree->setIndicatorMotionAnimationEnabled(true);
     m_tree->setSelectionMode(fluent::collections::SelectionMode::Single);
@@ -57,33 +57,35 @@ ProjectTreeView::ProjectTreeView(QWidget* parent)
     auto* ctx = doclife::core::ProjectContext::instance();
     connect(ctx, &doclife::core::ProjectContext::projectOpened,
             this, &ProjectTreeView::rebuildAll);
-    connect(ctx, &doclife::core::ProjectContext::projectCreated,
-            this, &ProjectTreeView::rebuildAll);
-    connect(ctx, &doclife::core::ProjectContext::projectClosed,
-            this, &ProjectTreeView::rebuildAll);
+     // (new open 都有 projectOpened发出)
+    // connect(ctx, &doclife::core::ProjectContext::projectCreated,
+    //         this, &ProjectTreeView::rebuildAll);
+    // (目前关闭App项目才会关闭多开再处理这里)
+    // connect(ctx, &doclife::core::ProjectContext::projectClosed,
+    //         this, &ProjectTreeView::rebuildAll);
 
     // ---- 增量信号：节点增删改，直接驱动模型 ----
     connect(ctx, &doclife::core::ProjectContext::nodeAdded,
             this, [this](const QString& parentId, const QString& nodeId) {
                 const auto* n = doclife::core::ProjectContext::instance()->findNodeById(nodeId);
                 if (!n) return;
-                m_model->insertNode(parentId, *n);
+                m_model->onNodeAdded(parentId, nodeId);
                 const QModelIndex pi = m_model->indexForId(parentId);
                 if (pi.isValid()) m_tree->expand(pi);
             });
     connect(ctx, &doclife::core::ProjectContext::nodeRemoved,
-            this, [this](const QString& /*parentId*/, const QString& nodeId) {
-                m_model->removeNode(nodeId);
+            this, [this](const QString& parentId, const QString& nodeId) {
+                m_model->onNodeRemoved(parentId, nodeId);
             });
     connect(ctx, &doclife::core::ProjectContext::nodeUpdated,
             this, [this](const QString& nodeId) {
                 const auto* n = doclife::core::ProjectContext::instance()->findNodeById(nodeId);
                 if (!n) return;
-                m_model->updateNode(nodeId, *n);
+                m_model->onNodeUpdated(nodeId);
             });
 
-    // 初始状态（可能已经打开着项目）
-    rebuildAll();
+    // 除非打开和新建否则不需要rebuild
+    // rebuildAll();
 }
 
 // ===============================================================
@@ -122,7 +124,7 @@ void ProjectTreeView::rebuildAll()
         return;
     }
     const auto& root = ctx->rootNode();
-    if (root.type.isEmpty()) {
+    if (root->data.type.isEmpty()) {
         m_model->clear();
         return;
     }

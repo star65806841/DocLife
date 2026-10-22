@@ -39,4 +39,4 @@ private:
     QMap<QString, NodeTypeSpec> m_specs;
 };
 
-} // namespace doclife::ui
+} // namespace doclife::model

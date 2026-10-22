@@ -27,6 +27,7 @@ namespace doclife::ui {
         setCaptionTexts();
         setContent();
         initConnect();
+
     }
 
     MyFluentWindow::~MyFluentWindow() = default;
