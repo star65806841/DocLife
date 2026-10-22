@@ -186,6 +186,12 @@ QVariant ProjectTreeModel::data(const QModelIndex& index, int role) const
         switch (role) {
         case Qt::DisplayRole:
             return titleForNode(index);
+
+        case Qt::EditRole:                       // ← 新增：编辑器初始文本
+            // 用真实名字，不用 titleForNode() 的 fallback，
+            // 否则首次编辑就会把"单位工程"这类占位文字写死成名字
+            return n.name;
+
         case Qt::DecorationRole: {
             const auto* s = NodeTypeRegistry::instance().spec(n.type);
             return (s && !s->icon.isNull()) ? QVariant(s->icon) : QVariant();
