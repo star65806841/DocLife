@@ -13,6 +13,7 @@
 #include <popWindow/dialog/popcontent.h>
 #include <popWindow/toast/apptoast.h>
 
+#include <leftview/templateview/templateview.h>
 #include <leftview/projecttreeview/projectview.h>
 
 #include <projectcontext.h>
@@ -123,7 +124,7 @@ void CentralView::init()
     // 中部区域
     // =========================================================
     // ----------- 左侧区域  -----------
-    m_templateView = new ProjectView(this);
+    m_templateView = new TemplateView(this);
     m_leftView = new ProjectView(this);
     // ----------- 右侧区域  -----------
     auto* m_mainContent = new QWidget(this);

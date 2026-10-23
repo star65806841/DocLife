@@ -50,6 +50,8 @@ set(DOCLIFE_SRC
     src/view/leftview/projecttreeview/fluenttreeitemdelegate.h src/view/leftview/projecttreeview/fluenttreeitemdelegate.cpp
     src/view/leftview/projecttreeview/projectcontextmenubuilder.h src/view/leftview/projecttreeview/projectcontextmenubuilder.cpp
 
+    src/view/leftview/templateview/templateview.h src/view/leftview/templateview/templateview.cpp
+
     src/view/popWindow/projectnew.h src/view/popWindow/projectnew.cpp
     src/view/popWindow/projectsetting.h src/view/popWindow/projectsetting.cpp
 
