@@ -44,13 +44,11 @@ set(DOCLIFE_SRC
 
     src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp
 
-    src/view/leftview/leftview.h src/view/leftview/leftview.cpp
-
-    src/view/leftview/lefttop.h src/view/leftview/lefttop.cpp
-
-    src/view/leftview/lefttreeview/projecttreeview.h src/view/leftview/lefttreeview/projecttreeview.cpp
-    src/view/leftview/lefttreeview/fluenttreeitemdelegate.h src/view/leftview/lefttreeview/fluenttreeitemdelegate.cpp
-    src/view/leftview/lefttreeview/projectcontextmenubuilder.h src/view/leftview/lefttreeview/projectcontextmenubuilder.cpp
+    src/view/leftview/projecttreeview/projectview.h src/view/leftview/projecttreeview/projectview.cpp
+    src/view/leftview/projecttreeview/lefttop.h src/view/leftview/projecttreeview/lefttop.cpp
+    src/view/leftview/projecttreeview/projecttreeview.h src/view/leftview/projecttreeview/projecttreeview.cpp
+    src/view/leftview/projecttreeview/fluenttreeitemdelegate.h src/view/leftview/projecttreeview/fluenttreeitemdelegate.cpp
+    src/view/leftview/projecttreeview/projectcontextmenubuilder.h src/view/leftview/projecttreeview/projectcontextmenubuilder.cpp
 
     src/view/popWindow/projectnew.h src/view/popWindow/projectnew.cpp
     src/view/popWindow/projectsetting.h src/view/popWindow/projectsetting.cpp
@@ -65,10 +63,7 @@ set(DOCLIFE_SRC
     src/view/popWindow/dialog/popupbase.h src/view/popWindow/dialog/popupbase.cpp
     src/view/popWindow/toast/apptoast.h src/view/popWindow/toast/apptoast.cpp
 
-
-
     excelfile.h excelfile.cpp
-
     excelsheet.h excelsheet.cpp
     exceltreewidget.h exceltreewidget.cpp
 )

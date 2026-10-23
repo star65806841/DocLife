@@ -9,7 +9,7 @@ namespace doclife::core
 }
 namespace doclife::ui {
 
-    class LeftView;
+    class ProjectView;
 
     class CentralView : public QWidget
     {
@@ -41,7 +41,8 @@ namespace doclife::ui {
         //project context data
         doclife::core::ProjectContext* m_projectObject = nullptr;
 
-        LeftView* m_leftView = nullptr;
+        ProjectView* m_leftView = nullptr;
+        ProjectView* m_templateView = nullptr;
 
     private:
 

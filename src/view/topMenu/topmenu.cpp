@@ -85,10 +85,10 @@ void TopMenu::init()
 
 void TopMenu::initConnect()
 {
-    connect(m_templateAction,&QAction::triggered,this,&TopMenu::changIcon);
+    connect(m_templateAction,&QAction::triggered,this,&TopMenu::templateActionClick);
 }
 
-void TopMenu::changIcon(bool checked)
+void TopMenu::templateActionClick(bool checked)
 {
     if(checked){
         m_templateAction->setIcon(QIcon(":/icons/menu/template-blue.svg"));
@@ -96,4 +96,5 @@ void TopMenu::changIcon(bool checked)
     else {
         m_templateAction->setIcon(QIcon(":/icons/menu/template-grey.svg"));
     }
+    emit UISignalManager::instance()->showTemplateView(checked);
 }

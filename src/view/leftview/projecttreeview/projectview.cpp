@@ -1,18 +1,18 @@
-﻿#include "leftview.h"
+﻿#include "projectview.h"
 
 #include <components/collections/SplitView.h>
 #include <components/layout/Divider.h>
 
 #include "lefttop.h"
-#include "leftview/lefttreeview/projecttreeview.h"
+#include "leftview/projecttreeview/projecttreeview.h"
 
 namespace doclife::ui {
-    LeftView::LeftView(QWidget* parent)
+    ProjectView::ProjectView(QWidget* parent)
         : QWidget{ parent }
     {
         init();
     }
-    void LeftView::init()
+    void ProjectView::init()
     {
         auto* leftTop = new LeftTop(this);
         auto* projectTree = new ProjectTreeView(this);

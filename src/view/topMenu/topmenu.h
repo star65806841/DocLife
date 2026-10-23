@@ -16,7 +16,7 @@ public:
 signals:
 
 private slots:
-    void changIcon(bool checked);
+    void templateActionClick(bool checked);
 private:
     fluent::basicinput::Button *m_mainNewBtn = nullptr;
     fluent::basicinput::Button *m_mainOpenBtn = nullptr;

@@ -13,11 +13,11 @@
 #include <popWindow/dialog/popcontent.h>
 #include <popWindow/toast/apptoast.h>
 
+#include <leftview/projecttreeview/projectview.h>
+
 #include <projectcontext.h>
 #include <uisignalmanager.h>
 #include <utils.h>
-
-#include <leftview/leftview.h>
 
 using namespace doclife::ui;
 
@@ -123,14 +123,17 @@ void CentralView::init()
     // 中部区域
     // =========================================================
     // ----------- 左侧区域  -----------
-    m_leftView = new LeftView(this);
+    m_templateView = new ProjectView(this);
+    m_leftView = new ProjectView(this);
     // ----------- 右侧区域  -----------
     auto* m_mainContent = new QWidget(this);
 
     auto* splitter = new fluent::collections::SplitView(this);
+    splitter->addPane(m_templateView, { 50,230,850,false });
+    m_templateView->setVisible(false);
     splitter->addPane(m_leftView, { 50,230,850,false });
     splitter->addPane(m_mainContent);
-    splitter->setPaneFill(1, true);
+    splitter->setPaneFill(m_mainContent, true);
     // ---------- 外层垂直布局：上按钮、下 splitter ----------
     auto* v = new QVBoxLayout(this);
     v->setContentsMargins(0, 0, 0, 0);
@@ -216,6 +219,8 @@ void CentralView::initConnect()
     connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectOpened, this, &CentralView::popProjectOpened);
     /******************状态提醒*****************************************/
     connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::errorOccurred, this, &CentralView::onToastWarning);
+    /******************模板窗口*****************************************/
+    connect(UISignalManager::instance(), &UISignalManager::showTemplateView, this,[this](bool show){m_templateView->setVisible(show);});
 }
 
 void CentralView::showProjectDialog()

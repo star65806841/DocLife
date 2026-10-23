@@ -27,6 +27,8 @@ Q_SIGNALS:
     void newProject();
     void saveProject();
     void openProject();
+    void showTemplateView(bool);
+
     // 项目设置
     void popProjectsetting();
     // 项目多开
