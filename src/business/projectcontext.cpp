@@ -1,22 +1,23 @@
 ﻿#include "ProjectContext.h"
 
 #include <QDir>
-#include <QUuid>
 #include <QFile>
 #include <QHash>
 #include <QDebug>
+#include <QBuffer>
+#include <QUuid>
 #include <QVector>
 #include <QSaveFile>
 #include <QDateTime>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonObject>
-#include <functional>
 #include <QJsonDocument>
 #include <QStandardPaths>
 #include <QJsonParseError>
 #include <QCoreApplication>
 #include <QRegularExpression>
+#include <functional>
 #ifdef Q_OS_WIN
 #include <projectNode.h>
 #  include <windows.h>
@@ -24,6 +25,11 @@
 #  include <signal.h>
 #  include <errno.h>
 #endif
+
+// QUaZip（路径按你本地的安装方式调整）
+#include <quazip/quazip.h>
+#include <quazip/quazipfile.h>
+#include <quazip/quazipnewinfo.h>
 
 #include "utils.h"
 #include "xlsxdocument.h"
@@ -34,6 +40,11 @@
 namespace doclife::core {
 
     namespace {
+
+        // ZIP 内的固定条目名
+        const QString kJsonEntry = QStringLiteral("project.json");
+        const QString kJsonBakEntry = QStringLiteral("project.json.bak");
+        const QString kBizEntry = QStringLiteral("business.xlsx");
 
         const QString kLockSuffix = QStringLiteral(".lock");
 
@@ -58,7 +69,6 @@ namespace doclife::core {
             return dir;
         }
 
-        // 返回空=成功，否则=错误文本
         QString tryAcquireLockFile(const QString& filePath) {
             const QString lockPath = filePath + kLockSuffix;
             QFile lock(lockPath);
@@ -98,8 +108,10 @@ namespace doclife::core {
             if (!QDir(dir).exists()) return 0;
             int removed = 0;
             QDir d(dir);
+            // 保留清理第一阶段残留（*.doclife.json*）以处理升级过渡
             const QStringList patterns{
                 QStringLiteral("*.doclife"),
+                QStringLiteral("*.doclife.tmp"),
                 QStringLiteral("*.doclife.json"),
                 QStringLiteral("*.doclife.json.bak"),
                 QStringLiteral("*.lock")
@@ -121,6 +133,78 @@ namespace doclife::core {
             return removed;
         }
 
+        // 从 ZIP 里读一个条目。ok 返回条目是否存在且读取成功。
+        QByteArray readZipEntry(const QString& zipPath,
+            const QString& entryName,
+            bool* ok)
+        {
+            if (ok) *ok = false;
+            QuaZip zip(zipPath);
+            if (!zip.open(QuaZip::mdUnzip)) {
+                return {};
+            }
+            if (!zip.setCurrentFile(entryName)) {
+                zip.close();
+                return {};
+            }
+            QuaZipFile f(&zip);
+            if (!f.open(QIODevice::ReadOnly)) {
+                zip.close();
+                return {};
+            }
+            const QByteArray data = f.readAll();
+            f.close();
+            zip.close();
+            if (ok) *ok = true;
+            return data;
+        }
+
+        // 把整个 ZIP 写到 device（必须已打开可写）
+        QString writeZipToDevice(QIODevice* device,
+            const QByteArray& jsonBytes,
+            const QByteArray& jsonBakBytes,
+            const QByteArray& bizBytes)
+        {
+            QuaZip zip(device);
+            if (!zip.open(QuaZip::mdCreate)) {
+                return QStringLiteral("无法创建 ZIP");
+            }
+
+            auto writeEntry = [&](const QString& name,
+                const QByteArray& data) -> bool {
+                    if (data.isEmpty()) return true;
+                    QuaZipNewInfo info(name);
+                    QuaZipFile f(&zip);
+                    if (!f.open(QIODevice::WriteOnly, info)) {
+                        qWarning() << "[ZIP] 打开条目失败:" << name << f.errorString();
+                        return false;
+                    }
+                    if (f.write(data) != data.size()) {
+                        qWarning() << "[ZIP] 写入不完整:" << name;
+                        f.close();
+                        return false;
+                    }
+                    f.close();
+                    return true;
+                };
+
+            if (!writeEntry(kJsonEntry, jsonBytes))
+            {
+                zip.close(); return QStringLiteral("写入 project.json 失败");
+            }
+            if (!writeEntry(kJsonBakEntry, jsonBakBytes))
+            {
+                zip.close(); return QStringLiteral("写入 project.json.bak 失败");
+            }
+            if (!writeEntry(kBizEntry, bizBytes))
+            {
+                zip.close(); return QStringLiteral("写入 business.xlsx 失败");
+            }
+
+            zip.close();
+            return {};
+        }
+
     } // namespace
 
     // ============================================================
@@ -139,6 +223,7 @@ namespace doclife::core {
 
     ProjectContext::~ProjectContext() {
         qDebug() << "[ProjectContext] 析构";
+        releaseBusinessDocument();
         releaseLock();
         cleanupTempFile();
         delete m_root;
@@ -192,6 +277,58 @@ namespace doclife::core {
         m_projectInfo.designUnitName = projectInfo.designUnitName.trimmed();
         m_projectInfo.supervisionUnitName = projectInfo.supervisionUnitName.trimmed();
         markDirty();
+    }
+
+    // ============================================================
+    // 业务文档懒加载
+    // ============================================================
+    QXlsx::Document* ProjectContext::businessDocument()
+    {
+        if (m_businessDoc) return m_businessDoc;
+
+        if (m_filePath.isEmpty()) {
+            qWarning() << "[ProjectContext] businessDocument: 没有打开的项目";
+            return nullptr;
+        }
+
+        bool ok = false;
+        const QByteArray bytes = readZipEntry(m_filePath, kBizEntry, &ok);
+        if (!ok) {
+            qWarning() << "[ProjectContext] businessDocument: ZIP 内无 business.xlsx";
+            return nullptr;
+        }
+        if (bytes.isEmpty()) {
+            qWarning() << "[ProjectContext] businessDocument: business.xlsx 内容为空";
+            return nullptr;
+        }
+
+        QBuffer buf;
+        buf.setData(bytes);
+        buf.open(QIODevice::ReadOnly);
+
+        m_businessDoc = new QXlsx::Document(&buf);
+        buf.close();
+
+        qDebug() << "[ProjectContext] businessDocument 懒加载完成,"
+            << bytes.size() << "bytes";
+        return m_businessDoc;
+    }
+
+    void ProjectContext::markBusinessDirty()
+    {
+        if (!m_businessDirty) {
+            m_businessDirty = true;
+            markDirty();
+        }
+    }
+
+    void ProjectContext::releaseBusinessDocument()
+    {
+        if (m_businessDoc) {
+            delete m_businessDoc;
+            m_businessDoc = nullptr;
+            qDebug() << "[ProjectContext] businessDocument 已释放";
+        }
     }
 
     // ============================================================
@@ -329,11 +466,10 @@ namespace doclife::core {
             if (policy != RenameConflictPolicy::Overwrite) releaseLockFile(newPath);
             };
 
-        // 1. 先把最新树结构写到旧路径的 sidecar JSON
-        const QString writeErr = writeProjectJson(oldPath);
+        // 先把最新内存内容写回旧路径 ZIP
+        const QString writeErr = writeZip(oldPath);
         if (!writeErr.isEmpty()) { rollbackNewLock(); return writeErr; }
 
-        // 2. Overwrite 情况：清理目标（xlsx + json + bak）
         if (policy == RenameConflictPolicy::Overwrite && QFile::exists(newPath)) {
             if (!QFile::remove(newPath)) {
                 rollbackNewLock();
@@ -341,37 +477,16 @@ namespace doclife::core {
                 qWarning() << "[ProjectContext]" << err;
                 return err;
             }
-            QFile::remove(newPath + ".json");
-            QFile::remove(newPath + ".json.bak");
             const QString lockErr = tryAcquireLockFile(newPath);
             if (!lockErr.isEmpty()) { rollbackNewLock(); return lockErr; }
         }
 
-        // 3. 重命名主 xlsx
         if (!QFile::rename(oldPath, newPath)) {
             rollbackNewLock();
             const QString err = QStringLiteral("文件重命名失败: %1 -> %2").arg(oldPath, newPath);
             qWarning() << "[ProjectContext]" << err;
             return err;
         }
-
-        // 4. 重命名 sidecar JSON（主文件已动，失败必须回滚主文件）
-        const QString oldJson = oldPath + ".json";
-        const QString newJson = newPath + ".json";
-        if (QFile::exists(oldJson)) {
-            if (!QFile::rename(oldJson, newJson)) {
-                QFile::rename(newPath, oldPath);        // 回滚主文件
-                rollbackNewLock();
-                const QString err = QStringLiteral("JSON 重命名失败: %1 -> %2")
-                    .arg(oldJson, newJson);
-                qWarning() << "[ProjectContext]" << err;
-                return err;
-            }
-        }
-
-        // 5. .bak 属于旧路径的残留，直接清理
-        QFile::remove(oldPath + ".json.bak");
-        QFile::remove(newPath + ".json.bak");
 
         releaseLockFile(oldPath);
         m_lockedPath = newPath;
@@ -384,9 +499,11 @@ namespace doclife::core {
         return {};
     }
 
+    // ============================================================
     void ProjectContext::markClean() {
-        if (m_dirty) {
+        if (m_dirty || m_businessDirty) {
             m_dirty = false;
+            m_businessDirty = false;
             qDebug() << "[ProjectContext] dirty false";
             emit dirtyChanged(false);
         }
@@ -407,6 +524,7 @@ namespace doclife::core {
 
     void ProjectContext::resetState() {
         qDebug() << "[ProjectContext] resetState";
+        releaseBusinessDocument();
         delete m_root;
         m_root = nullptr;
         m_projectInfo = doclife::model::ProjectInfoModel{};
@@ -429,8 +547,7 @@ namespace doclife::core {
         if (m_tempFilePath.isEmpty()) return;
         qDebug() << "[ProjectContext] 清理临时文件:" << m_tempFilePath;
         QFile::remove(m_tempFilePath);
-        QFile::remove(m_tempFilePath + ".json");
-        QFile::remove(m_tempFilePath + ".json.bak");
+        QFile::remove(m_tempFilePath + ".tmp");
         m_tempFilePath.clear();
     }
 
@@ -462,8 +579,7 @@ namespace doclife::core {
 
         const QString tempPath = makeTempFilePath();
         QFile::remove(tempPath);
-        QFile::remove(tempPath + ".json");
-        QFile::remove(tempPath + ".json.bak");
+        QFile::remove(tempPath + ".tmp");
 
         delete m_root;
         m_root = new doclife::model::Node;
@@ -474,23 +590,11 @@ namespace doclife::core {
         m_projectInfo = doclife::model::ProjectInfoModel{};
         m_projectInfo.projectnodeId = m_root->data.id;
 
-        // 创建空 xlsx（业务数据容器）
-        {
-            QXlsx::Document emptyDoc;
-            emptyDoc.addSheet(QStringLiteral("Sheet1"));
-            if (!emptyDoc.saveAs(tempPath)) {
-                resetState();
-                const QString err = QStringLiteral("创建空项目文件失败: %1").arg(tempPath);
-                qWarning() << "[ProjectContext]" << err;
-                emit errorOccurred(err);
-                return false;
-            }
-        }
+        releaseBusinessDocument();
 
-        // 写 sidecar JSON
-        const QString err = writeProjectJson(tempPath);
+        // writeZip 内部：旧 ZIP 不存在 → 自动创建空 business.xlsx
+        const QString err = writeZip(tempPath);
         if (!err.isEmpty()) {
-            QFile::remove(tempPath);
             resetState();
             emit errorOccurred(err);
             return false;
@@ -524,15 +628,27 @@ namespace doclife::core {
             return false;
         }
 
-        // 检查 sidecar JSON 存在性
-        const QString jsonPath = projectJsonPath(cleanPath);
-        if (!QFile::exists(jsonPath) && !QFile::exists(jsonPath + ".bak")) {
-            const QString err = QStringLiteral(
-                "项目缺少元数据文件（%1），可能是旧版本格式，请用旧版程序打开或迁移")
-                .arg(jsonPath);
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
-            return false;
+        // 快速校验：是有效 ZIP 且含 project.json
+        {
+            QuaZip zip(cleanPath);
+            if (!zip.open(QuaZip::mdUnzip)) {
+                const QString err = QStringLiteral(
+                    "文件不是有效的 .doclife（ZIP）格式，可能是旧版本文件: %1")
+                    .arg(cleanPath);
+                qWarning() << "[ProjectContext]" << err;
+                emit errorOccurred(err);
+                return false;
+            }
+            const bool hasJson = zip.setCurrentFile(kJsonEntry);
+            const bool hasJsonBak = hasJson ? true : zip.setCurrentFile(kJsonBakEntry);
+            zip.close();
+            if (!hasJson && !hasJsonBak) {
+                const QString err = QStringLiteral(
+                    "ZIP 内缺少 project.json 及备份: %1").arg(cleanPath);
+                qWarning() << "[ProjectContext]" << err;
+                emit errorOccurred(err);
+                return false;
+            }
         }
 
         if (hasOpenProject()) {
@@ -545,7 +661,7 @@ namespace doclife::core {
             return false;
         }
 
-        const QString readErr = readProjectJson(cleanPath);
+        const QString readErr = readZip(cleanPath);
         if (!readErr.isEmpty()) {
             releaseLockFile(cleanPath);
             emit errorOccurred(readErr);
@@ -567,19 +683,15 @@ namespace doclife::core {
     bool ProjectContext::saveProject() {
         qDebug() << "[ProjectContext] saveProject:" << m_filePath;
         if (!hasOpenProject()) {
-            const QString err = QStringLiteral("没有打开的项目");
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
+            emit errorOccurred(QStringLiteral("没有打开的项目"));
             return false;
         }
         if (isUntitled()) {
-            const QString err = QStringLiteral("项目尚未保存过，请使用「另存为」");
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
+            emit errorOccurred(QStringLiteral("项目尚未保存过，请使用「另存为」"));
             return false;
         }
 
-        const QString err = writeProjectJson(m_filePath);
+        const QString err = writeZip(m_filePath);
         if (!err.isEmpty()) {
             emit errorOccurred(err);
             return false;
@@ -593,15 +705,12 @@ namespace doclife::core {
     bool ProjectContext::saveProjectAs(const QString& filePath) {
         qDebug() << "[ProjectContext] saveProjectAs:" << filePath;
         if (!hasOpenProject()) {
-            const QString err = QStringLiteral("没有打开的项目");
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
+            emit errorOccurred(QStringLiteral("没有打开的项目"));
             return false;
         }
 
         const QString cleanPath = QDir::cleanPath(filePath);
         if (cleanPath.isEmpty()) {
-            qDebug() << "[ProjectContext] saveProjectAs 取消";
             emit errorOccurred(QStringLiteral("保存取消"));
             return false;
         }
@@ -615,45 +724,41 @@ namespace doclife::core {
         }
         auto rollbackLock = [&]() { releaseLockFile(cleanPath); };
 
-        // 1. 先复制 xlsx（业务数据）
+        // 1. 确保当前项目 ZIP 是最新的
+        if (m_dirty || m_businessDirty) {
+            const QString saveErr = writeZip(m_filePath);
+            if (!saveErr.isEmpty()) {
+                rollbackLock();
+                emit errorOccurred(saveErr);
+                return false;
+            }
+        }
+
+        // 2. 拷贝到目标路径
         QDir().mkpath(QFileInfo(cleanPath).absolutePath());
         if (QFile::exists(cleanPath) && !QFile::remove(cleanPath)) {
             rollbackLock();
-            const QString err = QStringLiteral("无法覆盖目标文件: %1").arg(cleanPath);
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
+            emit errorOccurred(QStringLiteral("无法覆盖目标文件: %1").arg(cleanPath));
             return false;
         }
         if (!QFile::copy(m_filePath, cleanPath)) {
             rollbackLock();
-            const QString err = QStringLiteral("拷贝到目标路径失败: %1").arg(cleanPath);
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
+            emit errorOccurred(QStringLiteral("拷贝到目标路径失败: %1").arg(cleanPath));
             return false;
         }
 
-        // 2. 再写 JSON 到新路径
-        const QString writeErr = writeProjectJson(cleanPath);
-        if (!writeErr.isEmpty()) {
-            QFile::remove(cleanPath);
-            rollbackLock();
-            emit errorOccurred(writeErr);
-            return false;
-        }
-
-        // 3. 清理旧路径 sidecar（项目已迁到新路径）
+        // 3. 清理旧路径
         if (!m_lockedPath.isEmpty() && m_lockedPath != cleanPath)
             releaseLockFile(m_lockedPath);
 
         if (isUntitled()) {
             QFile::remove(m_tempFilePath);
-            QFile::remove(m_tempFilePath + ".json");
-            QFile::remove(m_tempFilePath + ".json.bak");
+            QFile::remove(m_tempFilePath + ".tmp");
             m_tempFilePath.clear();
         }
         else {
-            QFile::remove(m_filePath + ".json");
-            QFile::remove(m_filePath + ".json.bak");
+            QFile::remove(m_filePath);
+            QFile::remove(m_filePath + ".tmp");
         }
 
         m_lockedPath = cleanPath;
@@ -669,14 +774,12 @@ namespace doclife::core {
     // ============================================================
     bool ProjectContext::closeProject(bool saveBeforeClose) {
         qDebug() << "[ProjectContext] closeProject, saveBeforeClose =" << saveBeforeClose
-            << ", dirty =" << m_dirty;
+            << ", dirty =" << isDirty();
         if (!hasOpenProject()) return true;
 
-        if (saveBeforeClose && m_dirty) {
+        if (saveBeforeClose && isDirty()) {
             if (isUntitled()) {
-                const QString err = QStringLiteral("项目尚未保存，请先另存为");
-                qWarning() << "[ProjectContext]" << err;
-                emit errorOccurred(err);
+                emit errorOccurred(QStringLiteral("项目尚未保存，请先另存为"));
                 return false;
             }
             if (!saveProject()) return false;
@@ -691,13 +794,8 @@ namespace doclife::core {
     }
 
     // ============================================================
-    // JSON sidecar 路径 / 树 <-> JSON
+    // 树 <-> JSON
     // ============================================================
-    QString ProjectContext::projectJsonPath(const QString& projectPath) const {
-        // "MyProject.doclife" -> "MyProject.doclife.json"
-        return projectPath + QStringLiteral(".json");
-    }
-
     QJsonObject ProjectContext::nodeToJson(const doclife::model::Node& n) const {
         QJsonObject o;
         o["id"] = n.data.id;
@@ -722,8 +820,7 @@ namespace doclife::core {
         n->data.name = o.value(QStringLiteral("name")).toString();
         n->data.attrs = o.value(QStringLiteral("attrs")).toObject();
 
-        const auto arr = o.value(QStringLiteral("children")).toArray();
-        for (const auto& v : arr) {
+        for (const auto& v : o.value(QStringLiteral("children")).toArray()) {
             auto* c = nodeFromJson(v.toObject());
             c->parent = n;
             n->children.append(c);
@@ -732,144 +829,147 @@ namespace doclife::core {
     }
 
     // ============================================================
-    // 元数据读写：原子写 + 备份 + 容错
+    // ZIP 读写
     // ============================================================
-    QString ProjectContext::writeProjectJson(const QString& projectPath) {
-        const QString jsonPath = projectJsonPath(projectPath);
-        const QString bakPath = jsonPath + ".bak";
+    QString ProjectContext::writeZip(const QString& targetPath)
+    {
+        qDebug() << "[ProjectContext] writeZip:" << targetPath;
 
-        qDebug() << "[ProjectContext] writeProjectJson:" << jsonPath;
-
-        // 1. 序列化
+        // 1. 序列化树
         QJsonObject head;
         head["version"] = 2;
         head["info"] = m_projectInfo.toJson();
         head["modified"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+        if (m_root) head["root"] = nodeToJson(*m_root);
+        const QByteArray jsonBytes = QJsonDocument(head).toJson(QJsonDocument::Indented);
 
-        QJsonObject rootObj;
-        if (m_root) rootObj = nodeToJson(*m_root);
-        head["root"] = rootObj;
-
-        const QByteArray bytes = QJsonDocument(head).toJson(QJsonDocument::Indented);
-
-        // 2. 备份旧文件（只保留 1 份）
-        if (QFile::exists(jsonPath)) {
-            QFile::remove(bakPath);
-            if (!QFile::copy(jsonPath, bakPath)) {
-                qWarning() << "[ProjectContext] 备份失败（不阻断保存）:" << bakPath;
+        // 2. 从旧 ZIP 读出：旧 json（做备份）+ 旧 business.xlsx（保留）
+        QByteArray oldJsonBytes;
+        QByteArray oldBizBytes;
+        {
+            QuaZip oldZip(targetPath);
+            if (oldZip.open(QuaZip::mdUnzip)) {
+                if (oldZip.setCurrentFile(kJsonEntry)) {
+                    QuaZipFile f(&oldZip);
+                    if (f.open(QIODevice::ReadOnly)) {
+                        oldJsonBytes = f.readAll();
+                        f.close();
+                    }
+                }
+                if (oldZip.setCurrentFile(kBizEntry)) {
+                    QuaZipFile f(&oldZip);
+                    if (f.open(QIODevice::ReadOnly)) {
+                        oldBizBytes = f.readAll();
+                        f.close();
+                    }
+                }
+                oldZip.close();
             }
-            else {
-                qDebug() << "[ProjectContext] 已备份:" << bakPath;
+        }
+
+        // 3. 决定 business.xlsx 内容
+        QByteArray bizBytes;
+        if (m_businessDirty && m_businessDoc) {
+            QBuffer buf(&bizBytes);
+            buf.open(QIODevice::WriteOnly);
+            if (!m_businessDoc->saveAs(&buf)) {
+                return QStringLiteral("序列化业务文档失败");
             }
+            buf.close();
+            qDebug() << "[ProjectContext] 序列化内存业务文档" << bizBytes.size() << "bytes";
+        }
+        else if (!oldBizBytes.isEmpty()) {
+            bizBytes = oldBizBytes;
+            qDebug() << "[ProjectContext] 沿用旧 business.xlsx" << bizBytes.size() << "bytes";
+        }
+        else {
+            QXlsx::Document emptyDoc;
+            emptyDoc.addSheet(QStringLiteral("Sheet1"));
+            QBuffer buf(&bizBytes);
+            buf.open(QIODevice::WriteOnly);
+            if (!emptyDoc.saveAs(&buf)) {
+                return QStringLiteral("创建空业务文档失败");
+            }
+            buf.close();
+            qDebug() << "[ProjectContext] 创建空 business.xlsx" << bizBytes.size() << "bytes";
         }
 
-        // 3. 原子写
-        QSaveFile f(jsonPath);
-        if (!f.open(QIODevice::WriteOnly)) {
-            const QString err = QStringLiteral("无法打开临时文件: %1 (%2)")
-                .arg(jsonPath, f.errorString());
-            qWarning() << "[ProjectContext]" << err;
-            return err;
-        }
-        const qint64 written = f.write(bytes);
-        if (written != bytes.size()) {
-            const QString err = QStringLiteral("写入不完整: %1 (%2/%3)")
-                .arg(jsonPath).arg(written).arg(bytes.size());
-            qWarning() << "[ProjectContext]" << err;
-            f.cancelWriting();
-            return err;
-        }
-        if (!f.commit()) {
-            const QString err = QStringLiteral("提交失败: %1 (%2)")
-                .arg(jsonPath, f.errorString());
-            qWarning() << "[ProjectContext]" << err;
-            return err;
+        // 4. 在内存里构建完整 ZIP
+        QByteArray zipBytes;
+        {
+            QBuffer zipBuffer(&zipBytes);
+            zipBuffer.open(QIODevice::WriteOnly);
+            const QString zipErr = writeZipToDevice(&zipBuffer, jsonBytes,
+                oldJsonBytes, bizBytes);
+            zipBuffer.close();
+            if (!zipErr.isEmpty()) return zipErr;
         }
 
-        qDebug() << "[ProjectContext] writeProjectJson 成功:" << jsonPath;
+        // 5. QSaveFile 原子写
+        QSaveFile saveFile(targetPath);
+        if (!saveFile.open(QIODevice::WriteOnly)) {
+            return QStringLiteral("无法打开临时文件: %1 (%2)")
+                .arg(targetPath, saveFile.errorString());
+        }
+        if (saveFile.write(zipBytes) != zipBytes.size()) {
+            saveFile.cancelWriting();
+            return QStringLiteral("写入不完整: %1").arg(targetPath);
+        }
+        if (!saveFile.commit()) {
+            return QStringLiteral("提交失败: %1 (%2)")
+                .arg(targetPath, saveFile.errorString());
+        }
+
+        qDebug() << "[ProjectContext] writeZip 成功" << zipBytes.size() << "bytes";
         return {};
     }
 
-    QString ProjectContext::readProjectJson(const QString& projectPath) {
-        const QString jsonPath = projectJsonPath(projectPath);
-        const QString bakPath = jsonPath + ".bak";
+    QString ProjectContext::readZip(const QString& zipPath)
+    {
+        qDebug() << "[ProjectContext] readZip:" << zipPath;
 
-        qDebug() << "[ProjectContext] readProjectJson:" << jsonPath;
+        bool ok = false;
+        QByteArray jsonBytes = readZipEntry(zipPath, kJsonEntry, &ok);
 
-        // 内部：从某个文件读取并解析
-        auto tryRead = [this](const QString& path, QString* outErr) -> bool {
-            QFile f(path);
-            if (!f.open(QIODevice::ReadOnly)) {
-                *outErr = QStringLiteral("无法打开: %1 (%2)")
-                    .arg(path, f.errorString());
-                return false;
+        if (!ok || jsonBytes.isEmpty()) {
+            qWarning() << "[ProjectContext] 主 project.json 读取失败，尝试 .bak";
+            jsonBytes = readZipEntry(zipPath, kJsonBakEntry, &ok);
+            if (!ok || jsonBytes.isEmpty()) {
+                return QStringLiteral("ZIP 内无可用的 project.json");
             }
-            const QByteArray bytes = f.readAll();
-            f.close();
-
-            QJsonParseError err{};
-            const auto doc = QJsonDocument::fromJson(bytes, &err);
-            if (err.error != QJsonParseError::NoError || !doc.isObject()) {
-                *outErr = QStringLiteral("JSON 解析失败: %1 (offset %2)")
-                    .arg(err.errorString()).arg(err.offset);
-                return false;
-            }
-
-            const auto head = doc.object();
-            const int version = head.value(QStringLiteral("version")).toInt(0);
-            if (version <= 0) {
-                *outErr = QStringLiteral("缺少 version 字段");
-                return false;
-            }
-            if (version > 2) {
-                *outErr = QStringLiteral("文件版本过高（%1），请升级程序").arg(version);
-                return false;
-            }
-
-            m_projectInfo = doclife::model::ProjectInfoModel::fromJson(
-                head.value(QStringLiteral("info")).toObject());
-
-            const auto rootObj = head.value(QStringLiteral("root")).toObject();
-            if (rootObj.isEmpty()
-                || rootObj.value(QStringLiteral("id")).toString().isEmpty()) {
-                *outErr = QStringLiteral("root 节点缺失或无效");
-                return false;
-            }
-
-            delete m_root;
-            m_root = nodeFromJson(rootObj);
-            return true;
-            };
-
-        // 1. 先读主文件
-        QString mainErr;
-        if (tryRead(jsonPath, &mainErr)) {
-            qDebug() << "[ProjectContext] readProjectJson 成功（主文件）";
-            return {};
-        }
-        qWarning() << "[ProjectContext] 主文件读取失败:" << mainErr;
-
-        // 2. 主文件失败 → 试备份
-        if (QFile::exists(bakPath)) {
-            qWarning() << "[ProjectContext] 尝试从备份恢复:" << bakPath;
-            QString bakErr;
-            if (tryRead(bakPath, &bakErr)) {
-                // 恢复成功：把 bak 内容回写成主文件，避免下次再走这条路径
-                const QString saveErr = writeProjectJson(projectPath);
-                if (!saveErr.isEmpty()) {
-                    qWarning() << "[ProjectContext] 从备份恢复后回写失败:" << saveErr;
-                }
-                emit errorOccurred(QStringLiteral(
-                    "上次保存可能异常，已从备份恢复。原始错误：%1").arg(mainErr));
-                return {};
-            }
-            qWarning() << "[ProjectContext] 备份也读取失败:" << bakErr;
-            return QStringLiteral("主文件与备份均损坏。主文件：%1；备份：%2")
-                .arg(mainErr, bakErr);
+            // 从 bak 恢复：标脏，下次 save 时正常写回主 JSON
+            markDirty();
+            emit errorOccurred(QStringLiteral("上次保存可能异常，已从备份恢复"));
         }
 
-        // 3. 主文件失败且无备份
-        return QStringLiteral("读取失败且无可用备份：%1").arg(mainErr);
+        QJsonParseError parseErr{};
+        const auto doc = QJsonDocument::fromJson(jsonBytes, &parseErr);
+        if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
+            return QStringLiteral("project.json 解析失败: %1").arg(parseErr.errorString());
+        }
+
+        const auto head = doc.object();
+        const int version = head.value(QStringLiteral("version")).toInt(0);
+        if (version <= 0) return QStringLiteral("project.json 缺少 version 字段");
+        if (version > 2) return QStringLiteral("project.json 版本过高（%1）").arg(version);
+
+        m_projectInfo = doclife::model::ProjectInfoModel::fromJson(
+            head.value(QStringLiteral("info")).toObject());
+
+        const auto rootObj = head.value(QStringLiteral("root")).toObject();
+        if (rootObj.isEmpty()
+            || rootObj.value(QStringLiteral("id")).toString().isEmpty()) {
+            return QStringLiteral("project.json 缺少有效 root 节点");
+        }
+
+        delete m_root;
+        m_root = nodeFromJson(rootObj);
+
+        // 业务文档懒加载，不在这里读
+        releaseBusinessDocument();
+
+        qDebug() << "[ProjectContext] readZip 成功";
+        return {};
     }
 
     // ============================================================
@@ -878,18 +978,21 @@ namespace doclife::core {
     bool ProjectContext::printAllSheets() {
         qDebug() << "[ProjectContext] printAllSheets";
         if (!hasOpenProject()) {
-            const QString err = QStringLiteral("没有打开的项目");
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
+            emit errorOccurred(QStringLiteral("没有打开的项目"));
             return false;
         }
 
-        QXlsx::Document doc(m_filePath);
-        const QStringList allSheets = doc.sheetNames();
+        QXlsx::Document* doc = businessDocument();
+        if (!doc) {
+            emit errorOccurred(QStringLiteral("无法加载业务文档"));
+            return false;
+        }
+
+        const QStringList allSheets = doc->sheetNames();
         int printed = 0;
         for (const QString& sheetName : allSheets) {
-            doc.selectSheet(sheetName);
-            QXlsx::CellRange range = doc.dimension();
+            doc->selectSheet(sheetName);
+            QXlsx::CellRange range = doc->dimension();
             if (!range.isValid()) { qDebug() << "[print] 空表:" << sheetName; continue; }
             qDebug() << "[print] 表:" << sheetName
                 << "行:" << range.firstRow() << "~" << range.lastRow()
@@ -910,28 +1013,20 @@ namespace doclife::core {
         using doclife::model::NodeTypeRegistry;
 
         if (!m_root) {
-            const QString err = QStringLiteral("没有打开的项目");
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
+            emit errorOccurred(QStringLiteral("没有打开的项目"));
             return false;
         }
         if (!NodeTypeRegistry::instance().spec(childType)) {
-            const QString err = QStringLiteral("未知节点类型: %1").arg(childType);
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
+            emit errorOccurred(QStringLiteral("未知节点类型: %1").arg(childType));
             return false;
         }
         auto* parent = findNodeById(parentId);
         if (!parent) {
-            const QString err = QStringLiteral("找不到父节点: %1").arg(parentId);
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
+            emit errorOccurred(QStringLiteral("找不到父节点: %1").arg(parentId));
             return false;
         }
         if (NodeTypeRegistry::instance().isLeaf(parent->data.type)) {
-            const QString err = QStringLiteral("叶子节点不能添加子节点");
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
+            emit errorOccurred(QStringLiteral("叶子节点不能添加子节点"));
             return false;
         }
 
@@ -952,30 +1047,22 @@ namespace doclife::core {
     bool ProjectContext::removeNode(const QString& nodeId) {
         qDebug() << "[ProjectContext] removeNode:" << nodeId;
         if (!m_root) {
-            const QString err = QStringLiteral("没有打开的项目");
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
+            emit errorOccurred(QStringLiteral("没有打开的项目"));
             return false;
         }
         if (nodeId == m_root->data.id) {
-            const QString err = QStringLiteral("不能删除根节点");
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
+            emit errorOccurred(QStringLiteral("不能删除根节点"));
             return false;
         }
 
         auto* target = findNodeById(nodeId);
         if (!target) {
-            const QString err = QStringLiteral("找不到节点: %1").arg(nodeId);
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
+            emit errorOccurred(QStringLiteral("找不到节点: %1").arg(nodeId));
             return false;
         }
         auto* parent = target->parent;
         if (!parent) {
-            const QString err = QStringLiteral("找不到父节点");
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
+            emit errorOccurred(QStringLiteral("找不到父节点"));
             return false;
         }
         const QString parentId = parent->data.id;
@@ -999,9 +1086,7 @@ namespace doclife::core {
         qDebug() << "[ProjectContext] setNodeAttr:" << nodeId << "key =" << key;
         auto* node = findNodeById(nodeId);
         if (!node) {
-            const QString err = QStringLiteral("找不到节点: %1").arg(nodeId);
-            qWarning() << "[ProjectContext]" << err;
-            emit errorOccurred(err);
+            emit errorOccurred(QStringLiteral("找不到节点: %1").arg(nodeId));
             return false;
         }
 

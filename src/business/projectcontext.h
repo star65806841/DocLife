@@ -8,6 +8,9 @@
 #include "projectNode.h"
 #include "projectInfomodel.h"
 
+// 只前向声明，避免把 QXlsx 头文件拖进所有包含者
+namespace QXlsx { class Document; }
+
 namespace doclife::core {
 
     enum class RenameConflictPolicy { Fail, AutoSuffix, Overwrite };
@@ -23,13 +26,13 @@ namespace doclife::core {
         // ---- 状态 ----
         bool    hasOpenProject() const { return !m_filePath.isEmpty(); }
         bool    isUntitled()     const { return !m_tempFilePath.isEmpty(); }
-        bool    isDirty()        const { return m_dirty; }
+        bool    isDirty()        const { return m_dirty || m_businessDirty; }
         QString filePath()       const { return m_filePath; }
         QString projectName()    const;
         QString displayName()    const;
         QString getUuid()        const;
 
-        // ---- 数据访问（非拥有视图） ----
+        // ---- 树访问 ----
         const doclife::model::Node* rootNode() const { return m_root; }
         doclife::model::Node* rootNode() { return m_root; }
 
@@ -39,6 +42,14 @@ namespace doclife::core {
         const doclife::model::ProjectInfoModel& projectInfo() const { return m_projectInfo; }
         doclife::model::ProjectInfoModel& projectInfo() { return m_projectInfo; }
         void setProjectInfo(doclife::model::ProjectInfoModel& projectInfo);
+
+        // ---- 业务表格（懒加载，打开项目时不读取） ----
+        // 首次调用：解压 business.xlsx，构造 QXlsx::Document 并缓存
+        // 后续调用：直接返回缓存
+        // 修改文档后需调用 markBusinessDirty() 通知保存
+        QXlsx::Document* businessDocument();
+        void             markBusinessDirty();
+        void             releaseBusinessDocument();
 
         // ---- 生命周期 ----
         bool newProject();
@@ -84,12 +95,9 @@ namespace doclife::core {
 
         QString makeTempFilePath() const;
 
-        // sidecar JSON 路径：<projectPath>.json
-        QString projectJsonPath(const QString& projectPath) const;
-
-        // 返回空=成功，否则=错误文本（不 emit）
-        QString writeProjectJson(const QString& projectPath);
-        QString readProjectJson(const QString& projectPath);
+        // ZIP 整体读写（返回空=成功）
+        QString writeZip(const QString& targetPath);
+        QString readZip(const QString& zipPath);
 
         // 树 <-> JSON
         QJsonObject nodeToJson(const doclife::model::Node& n) const;
@@ -111,6 +119,10 @@ namespace doclife::core {
         QString m_tempFilePath;
         QString m_lockedPath;
         bool    m_dirty = false;
+
+        // 业务文档缓存（懒加载）
+        QXlsx::Document* m_businessDoc = nullptr;
+        bool             m_businessDirty = false;
     };
 
 } // namespace doclife::core

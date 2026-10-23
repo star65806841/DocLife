@@ -4,3 +4,9 @@
 [submodule "3rdparty/glog"]
 	path = 3rdparty/glog
 	url = https://github.com/google/glog.git
+[submodule "3rdparty/quazip"]
+	path = 3rdparty/quazip
+	url = git@github.com:stachenov/quazip.git
+[submodule "3rdparty/zlib"]
+	path = 3rdparty/zlib
+	url = git@github.com:madler/zlib.git

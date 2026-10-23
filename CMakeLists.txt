@@ -6,6 +6,18 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools Svg GuiPriva
 qt_standard_project_setup()
 
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
+
+set(CMAKE_DISABLE_FIND_PACKAGE_Qt5 TRUE)
+
+add_subdirectory(
+    ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zlib
+    ${CMAKE_CURRENT_BINARY_DIR}/zlib_build
+)
+
+# 帮助 QuaZip 内部的 find_package(ZLIB) 定位到刚引入的 zlib
+set(ZLIB_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zlib)
+set(ZLIB_LIBRARY zlibstatic) # zlib 静态库的 CMake target 名
+
 add_subdirectory(
     ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/QXlsx/QXlsx
     ${CMAKE_CURRENT_BINARY_DIR}/QXlsx_build
@@ -13,6 +25,10 @@ add_subdirectory(
 add_subdirectory(
     ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/Fluent-Qt
     ${CMAKE_CURRENT_BINARY_DIR}/fluent_build
+)
+add_subdirectory(
+    ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/quazip
+    ${CMAKE_CURRENT_BINARY_DIR}/quazip_build
 )
 # add_subdirectory(
 #     ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/glog
@@ -104,6 +120,7 @@ target_link_libraries(DocLife
 
         QXlsx::QXlsx
         FluentQt::FluentQt
+        QuaZip::QuaZip
 )
 
 install(TARGETS DocLife
