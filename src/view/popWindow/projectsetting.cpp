@@ -71,7 +71,7 @@ void ProjectSetting::init()
     layout->setContentsMargins(55, 25, 45, 25);
     layout->setSpacing(18);
 
-    QString proName = "项目信息:" + doclife::core::ProjectContext::instance()->getUuid();
+    QString proName = "项目信息:";
     auto* titleLabel = new fluent::textfields::Label(proName);
     titleLabel->setFluentTypography(Typography::FontRole::Subtitle);
 

@@ -47,9 +47,8 @@ void TopMenu::init()
     auto* syncAction = new QAction(
         QIcon(":/icons/logo/Flash.png"), "Sync", bar);
     syncAction->setPriority(QAction::LowPriority);
-    auto* pinAction = new QAction(
-        QIcon(":/icons/logo/Flash.png"), "Pin", bar);
-    pinAction->setCheckable(true);
+    m_templateAction = new QAction(QIcon(":/icons/menu/template-grey.svg"), "模板", bar);
+    m_templateAction->setCheckable(true);
 
     bar->addPrimaryAction(actionFile);
     bar->addPrimaryAction(actionAddBlank);
@@ -60,7 +59,7 @@ void TopMenu::init()
     bar->addPrimaryAction(shareAction);
     bar->addPrimaryAction(separator);//|
     bar->addPrimaryAction(syncAction);
-    bar->addPrimaryAction(pinAction);
+    bar->addPrimaryAction(m_templateAction);
     bar->addPrimaryAction(new QAction(
         QIcon(Typography::Icons::Document), "Settings", this));
     bar->addPrimaryAction(new QAction(
@@ -86,5 +85,15 @@ void TopMenu::init()
 
 void TopMenu::initConnect()
 {
+    connect(m_templateAction,&QAction::triggered,this,&TopMenu::changIcon);
+}
 
+void TopMenu::changIcon(bool checked)
+{
+    if(checked){
+        m_templateAction->setIcon(QIcon(":/icons/menu/template-blue.svg"));
+    }
+    else {
+        m_templateAction->setIcon(QIcon(":/icons/menu/template-grey.svg"));
+    }
 }

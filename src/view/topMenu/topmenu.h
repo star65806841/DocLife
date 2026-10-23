@@ -15,13 +15,17 @@ public:
 
 signals:
 
+private slots:
+    void changIcon(bool checked);
 private:
     fluent::basicinput::Button *m_mainNewBtn = nullptr;
     fluent::basicinput::Button *m_mainOpenBtn = nullptr;
     fluent::basicinput::Button *m_mainSaveBtn = nullptr;
+    QAction *m_templateAction = nullptr;
     /*************************/
     void init();
     void initConnect();
+
 };
 }
 #endif // TOPMENU_H

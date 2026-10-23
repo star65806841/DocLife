@@ -7,5 +7,7 @@
         <file>icons/menu/InfoFile.svg</file>
         <file>icons/menu/file_open.svg</file>
         <file>icons/menu/file_save.svg</file>
+        <file>icons/menu/template-blue.svg</file>
+        <file>icons/menu/template-grey.svg</file>
     </qresource>
 </RCC>
