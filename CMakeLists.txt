@@ -36,11 +36,13 @@ add_subdirectory(
 # )
 set(DOCLIFE_SRC
     src/main.cpp
-
-    src/view/centralview/myfluentwindow.h src/view/centralview/myfluentwindow.cpp
-    src/view/centralview/centralview.h src/view/centralview/centralview.cpp
-
     src/view/fluentqt/application.h src/view/fluentqt/application.cpp
+    src/view/fluentqt/myfluentwindow.h src/view/fluentqt/myfluentwindow.cpp
+
+    src/view/centralview/maincontentview.h src/view/centralview/maincontentview.cpp
+    src/view/centralview/centralview.h src/view/centralview/centralview.cpp
+    src/view/centralview/centralviewitem/templatepreviewview.h src/view/centralview/centralviewitem/templatepreviewview.cpp
+
 
     src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp
 
@@ -51,6 +53,7 @@ set(DOCLIFE_SRC
     src/view/leftview/projecttreeview/projectcontextmenubuilder.h src/view/leftview/projecttreeview/projectcontextmenubuilder.cpp
 
     src/view/leftview/templateview/templateview.h src/view/leftview/templateview/templateview.cpp
+    src/view/leftview/templateview/catalogview.h src/view/leftview/templateview/catalogview.cpp
 
     src/view/popWindow/projectnew.h src/view/popWindow/projectnew.cpp
     src/view/popWindow/projectsetting.h src/view/popWindow/projectsetting.cpp

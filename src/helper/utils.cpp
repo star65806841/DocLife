@@ -45,7 +45,7 @@ QString Utils::formatName(const QString& name) {
     return name.trimmed();
 }
 
-QString Utils::saveFileDialog(const QString& headName,QWidget *parent)
+QString Utils::saveFileDialog(const QString& headName, QWidget* parent)
 {
     QFileDialog dlg(parent, QObject::tr("保存文件"));
     // 设置为保存模式
@@ -153,7 +153,7 @@ bool Utils::loadProject(const QString& filePath, doclife::model::ProjectHead& ou
 inline QString Utils::jsonToStr(const QJsonObject& o, bool pretty) {
     return QString::fromUtf8(
         QJsonDocument(o).toJson(pretty ? QJsonDocument::Indented
-                                       : QJsonDocument::Compact));
+            : QJsonDocument::Compact));
 }
 
 inline QJsonObject Utils::jsonToStr(const QString& s) {
@@ -164,4 +164,17 @@ inline QJsonObject Utils::jsonToStr(const QString& s) {
         return QJsonObject{};
     }
     return doc.object();
+}
+
+QString Utils::displayNameForFile(const QString& fileName)
+{
+    static const QHash<QString, QString> kMap = {
+        { QStringLiteral("sichuan"),    QStringLiteral("四川省公路工程施工监理统一用表") },
+        { QStringLiteral("tunnel"), QStringLiteral("隧道工程质检用表") },
+        { QStringLiteral("sub_project"), QStringLiteral("分部工程") },
+        { QStringLiteral("item_project"), QStringLiteral("分项工程") },
+        { QStringLiteral("tunnel_qualityinspectionform.xlsx"), QStringLiteral("隧道工程分项工程质量检验评定表") },
+        // { QStringLiteral("population.xlsx"), QStringLiteral("隧道工程分项工程质量检验评定表") },现场质量检验表
+    };
+    return kMap.value(fileName, fileName);   // 未映射则回退文件名
 }

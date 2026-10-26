@@ -1,10 +1,11 @@
 ﻿#include "templateview.h"
 
 #include <QVBoxLayout>
-
 #include <components/layout/Divider.h>
 #include <components/navigation/SelectorBar.h>
 #include <components/navigation/StackContentHost.h>
+
+#include "catalogview.h"
 
 namespace doclife::ui {
     TemplateView::TemplateView(QWidget* parent)
@@ -15,12 +16,13 @@ namespace doclife::ui {
     void TemplateView::init()
     {
         auto* selectorBar = new fluent::navigation::SelectorBar(this);
-        selectorBar->addItem({ "模板", Typography::Icons::glyph(QStringLiteral("ic_fluent_building_desktop_24_regular")) });
+        selectorBar->addItem({ "目录", Typography::Icons::glyph(QStringLiteral("ic_fluent_building_desktop_24_regular")) });
         selectorBar->addItem({ "搜索", Typography::Icons::glyph(QStringLiteral("ic_fluent_document_search_24_regular")) });
         selectorBar->setOverflowBehavior(fluent::navigation::SelectorBar::OverflowBehavior::MoreButton);
 
         auto* host = new fluent::navigation::StackContentHost(this);
-        auto* wid1 = new QWidget();
+        auto* wid1 = new CatalogView(this);          // 替换原来的占位 QWidget
+        wid1->setRootPath(QStringLiteral(":/data")); // 按实际 qrc 前缀调整
         wid1->setStyleSheet("background-color: #a1a1Ba;");
         auto* wid2 = new QWidget();
         wid2->setStyleSheet("background-color: #F1F1Ba;");

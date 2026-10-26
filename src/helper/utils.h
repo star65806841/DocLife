@@ -18,6 +18,7 @@ namespace doclife::core {
         static QString saveFileDialog(const QString& headName,QWidget *parent);
         static QString openFileDialog(QWidget* parent = nullptr);
         static QString sanitizeFileName(const QString &name);
+        static QString displayNameForFile(const QString &fileName);
 
         static QJsonObject jsonToStr(const QString &s);
         static QJsonArray strListToJson(const QStringList& list);

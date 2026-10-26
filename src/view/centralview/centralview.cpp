@@ -1,5 +1,7 @@
 ﻿#include "centralview.h"
 
+#include "maincontentview.h"
+
 #include <topMenu/topmenu.h>
 
 #include <components/collections/DrawerView.h>
@@ -127,7 +129,7 @@ void CentralView::init()
     m_templateView = new TemplateView(this);
     m_leftView = new ProjectView(this);
     // ----------- 右侧区域  -----------
-    auto* m_mainContent = new QWidget(this);
+    m_mainContent = new MainContentView(this);
 
     auto* splitter = new fluent::collections::SplitView(this);
     splitter->addPane(m_templateView, { 50,230,850,false });

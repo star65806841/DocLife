@@ -8,7 +8,7 @@ namespace doclife::core
     class ProjectContext;
 }
 namespace doclife::ui {
-
+    class MainContentView;
     class ProjectView;
     class TemplateView;
 
@@ -42,6 +42,7 @@ namespace doclife::ui {
         //project context data
         doclife::core::ProjectContext* m_projectObject = nullptr;
 
+        MainContentView* m_mainContent = nullptr;
         ProjectView* m_leftView = nullptr;
         TemplateView* m_templateView = nullptr;
 

@@ -33,6 +33,8 @@ Q_SIGNALS:
     void popProjectsetting();
     // 项目多开
     void duplicateInstanceDetected();
+    // 激活了某个xlsx的某个sheet
+    void excelSheetActivated(const QString &xlsxPath, const QString &sheetName);
     // 日志
     void logMessage(const QString &msg);
     void logError(const QString &msg);

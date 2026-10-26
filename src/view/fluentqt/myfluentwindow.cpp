@@ -1,6 +1,6 @@
 ﻿#include "MyFluentWindow.h"
 
-#include "centralview.h"
+#include "centralview/centralview.h"
 #include "business/projectcontext.h"
 #include "view/popWindow/dialog/dialogbase.h"
 
