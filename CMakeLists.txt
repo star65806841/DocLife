@@ -42,6 +42,8 @@ set(DOCLIFE_SRC
     src/view/centralview/maincontentview.h src/view/centralview/maincontentview.cpp
     src/view/centralview/centralview.h src/view/centralview/centralview.cpp
     src/view/centralview/centralviewitem/templatepreviewview.h src/view/centralview/centralviewitem/templatepreviewview.cpp
+    src/view/centralview/centralviewitem/excelcelldelegate.h src/view/centralview/centralviewitem/excelcelldelegate.cpp
+    src/view/centralview/centralviewitem/excelsheetmodel.h src/view/centralview/centralviewitem/excelsheetmodel.cpp
 
 
     src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp

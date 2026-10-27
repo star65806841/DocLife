@@ -5,7 +5,7 @@
 #include <singleinstanceguard.h>
 #include <FluentQt/FluentQt.h>
 
-#include "centralview/MyFluentWindow.h"
+#include "view/fluentqt/MyFluentWindow.h"
 
 namespace fluentqtApplication {
 
