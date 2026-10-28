@@ -150,7 +150,7 @@ void CentralView::init()
 void CentralView::showProjectsetting()
 {
     ProjectSetting* pop = new ProjectSetting(this);
-    pop->show();
+    pop->open();
 }
 
 void CentralView::popOpenedWarning()

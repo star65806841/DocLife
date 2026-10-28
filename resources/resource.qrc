@@ -9,6 +9,8 @@
         <file>icons/menu/file_save.svg</file>
         <file>icons/menu/template-blue.svg</file>
         <file>icons/menu/template-grey.svg</file>
-        <file>data/highway/2026/sichuan/tunnel/tunnel_qualityinspectionform.xlsx</file>
+        <file>data/highway/2026/sichuan/subgradeandpavementworks/subgrade__qualityinspectionform.xlsx</file>
+        <file>data/highway/2026/sichuan/tunnelworks/tunnel_qualityinspectionform.xlsx</file>
+        <file>data/highway/2026/sichuan/tunnelworks/tunnel_recordform.xlsx</file>
     </qresource>
 </RCC>

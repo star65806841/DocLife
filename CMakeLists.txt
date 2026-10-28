@@ -1,7 +1,7 @@
 ﻿cmake_minimum_required(VERSION 3.17)
 project(DocLife LANGUAGES CXX)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools Svg GuiPrivate Network)
+find_package(Qt6 6.12 REQUIRED COMPONENTS Core Widgets LinguistTools Svg GuiPrivate Network Concurrent)
 
 qt_standard_project_setup()
 
@@ -123,6 +123,7 @@ target_link_libraries(DocLife
         QXlsx::QXlsx
         FluentQt::FluentQt
         QuaZip::QuaZip
+        Qt6::Concurrent
 )
 
 install(TARGETS DocLife

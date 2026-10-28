@@ -25,6 +25,7 @@ void ProjectInfo::init()
     navView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     // 内容区域
     auto* contentHost = new fluent::navigation::StackContentHost(this);
+    // StackContentHost的进入或者退出动画
     contentHost->setTransitionEffect(fluent::navigation::StackContentHost::TransitionEffect::SlideFromBottom);
 
     // auto* projectNamePage = new ProjectInfoPage("工程名称",this);
