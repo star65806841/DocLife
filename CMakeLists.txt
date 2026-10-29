@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.17)
+﻿cmake_minimum_required(VERSION 3.20)
 
 project(DocLife LANGUAGES CXX)
 
@@ -121,6 +121,7 @@ set(DOCLIFE_HELPER
 set(DOCLIFE_BUSINESS
     src/business/projectcontext.h                                            src/business/projectcontext.cpp
     src/business/templatecatalog.h                                           src/business/templatecatalog.cpp
+    src/business/templateinstaller.h                                         src/business/templateinstaller.cpp
 )
 
 # ---------------------------------------------------------------------------
@@ -198,14 +199,38 @@ target_link_libraries(DocLife
 # 构建期：种子数据复制（示例模板 zip）
 # ===========================================================================
 
-add_custom_target(DocLifeSeedData ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_CURRENT_SOURCE_DIR}/resources/data/examples.zip
-        $<TARGET_FILE_DIR:DocLife>/data/examples.zip
+# --- 1. 推导 DocLife 可执行文件所在目录 ---------------------
+# add_custom_command(OUTPUT) 里不能用 $<TARGET_FILE_DIR:DocLife>，
+# 因此按 CMake 默认输出规则推导：
+#   单配置生成器（Ninja / Makefiles）：<current_binary_dir>/
+#   多配置生成器（VS / Xcode）       ：<current_binary_dir>/<CONFIG>/
+if(CMAKE_CONFIGURATION_TYPES)
+    set(DOCLIFE_BIN_DIR "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>")
+else()
+    set(DOCLIFE_BIN_DIR "${CMAKE_CURRENT_BINARY_DIR}")
+endif()
+
+# --- 2. 声明"应该存在的产物"路径 ----------------------------
+set(DOCLIFE_SEED_DEST "${DOCLIFE_BIN_DIR}/data/examples.zip")
+
+# --- 3. 声明"如何生成这个产物" ------------------------------
+add_custom_command(
+    OUTPUT  "${DOCLIFE_SEED_DEST}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${DOCLIFE_BIN_DIR}/data"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${DOCLIFE_SEED_ZIP}"
+            "${DOCLIFE_SEED_DEST}"
+    DEPENDS "${DOCLIFE_SEED_ZIP}"
     COMMENT "Copying seed template zip"
     VERBATIM
 )
-add_dependencies(DocLifeSeedData DocLife)
+
+# --- 4. 把产物挂进默认构建（缺失 / 过期时自动重建）----------
+add_custom_target(DocLifeSeed ALL DEPENDS "${DOCLIFE_SEED_DEST}")
+
+# --- 5. 保证在 DocLife 链接完成之后再执行复制 ----------------
+add_dependencies(DocLifeSeed DocLife)
 
 # ===========================================================================
 # 安装
