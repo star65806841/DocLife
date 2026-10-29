@@ -1,11 +1,12 @@
 ﻿cmake_minimum_required(VERSION 3.17)
+
 project(DocLife LANGUAGES CXX)
 
-find_package(Qt6 6.12 REQUIRED COMPONENTS Core Widgets LinguistTools Svg GuiPrivate Network Concurrent)
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
+
+find_package(Qt6 6.12 REQUIRED COMPONENTS Core Widgets LinguistTools Svg GuiPrivate Network Concurrent Pdf PdfWidgets)
 
 qt_standard_project_setup()
-
-set(QT_NO_PRIVATE_MODULE_WARNING ON)
 
 set(CMAKE_DISABLE_FIND_PACKAGE_Qt5 TRUE)
 
@@ -44,6 +45,7 @@ set(DOCLIFE_SRC
     src/view/centralview/centralviewitem/templatepreviewview.h src/view/centralview/centralviewitem/templatepreviewview.cpp
     src/view/centralview/centralviewitem/excelcelldelegate.h src/view/centralview/centralviewitem/excelcelldelegate.cpp
     src/view/centralview/centralviewitem/excelsheetmodel.h src/view/centralview/centralviewitem/excelsheetmodel.cpp
+    src/view/centralview/centralviewitem/templatepdfpreviewview.h src/view/centralview/centralviewitem/templatepdfpreviewview.cpp
 
 
     src/view/topMenu/topmenu.h src/view/topMenu/topmenu.cpp
@@ -56,6 +58,7 @@ set(DOCLIFE_SRC
 
     src/view/leftview/templateview/templateview.h src/view/leftview/templateview/templateview.cpp
     src/view/leftview/templateview/catalogview.h src/view/leftview/templateview/catalogview.cpp
+    src/view/leftview/templateview/catalogsearchview.h src/view/leftview/templateview/catalogsearchview.cpp
 
     src/view/popWindow/projectnew.h src/view/popWindow/projectnew.cpp
     src/view/popWindow/projectsetting.h src/view/popWindow/projectsetting.cpp
@@ -81,6 +84,7 @@ set(DOCLIFE_MODEL
     src/helper/singleinstanceguard.h src/helper/singleinstanceguard.cpp
 
     src/business/projectcontext.h src/business/projectcontext.cpp
+    src/business/templatecatalog.h src/business/templatecatalog.cpp
 
 
     src/model/projecmodel1.h
@@ -119,11 +123,13 @@ target_link_libraries(DocLife
         Qt::Svg
         Qt::Network
         Qt::Widgets
+        Qt::Concurrent
+        Qt::Pdf
+        Qt::PdfWidgets
 
         QXlsx::QXlsx
         FluentQt::FluentQt
         QuaZip::QuaZip
-        Qt6::Concurrent
 )
 
 install(TARGETS DocLife
@@ -137,4 +143,14 @@ qt_generate_deploy_app_script(
     OUTPUT_SCRIPT deploy_script
     NO_UNSUPPORTED_PLATFORM_ERROR
 )
+
+add_custom_target(DocLifeSeedData ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_CURRENT_SOURCE_DIR}/resources/data/examples.zip
+        $<TARGET_FILE_DIR:DocLife>/data/examples.zip
+    COMMENT "Copying seed template zip"
+    VERBATIM
+)
+add_dependencies(DocLifeSeedData DocLife)
+
 install(SCRIPT ${deploy_script})
