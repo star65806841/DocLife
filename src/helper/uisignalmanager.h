@@ -39,6 +39,8 @@ Q_SIGNALS:
     void sheetNamesLoaded(const QString &xlsxPath, const QStringList &sheetNames);
     // 激活了某个xlsx的某个sheet
     void excelSheetActivated(const QString &xlsxPath, const QString &sheetName);
+    void pdfPreviewRequested(const QString& pdfPath, int index = 0);
+    void templateSheetActivated(const QString& dbPath, int sheetId, const QString& title);
     // 日志
     void logMessage(const QString &msg);
     void logError(const QString &msg);

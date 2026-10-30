@@ -5,6 +5,7 @@
 #include <components/navigation/SelectorBar.h>
 #include <components/navigation/StackContentHost.h>
 
+#include "catalogsearchview.h"
 #include "catalogview.h"
 
 namespace doclife::ui {
@@ -21,16 +22,17 @@ namespace doclife::ui {
         selectorBar->setOverflowBehavior(fluent::navigation::SelectorBar::OverflowBehavior::MoreButton);
 
         auto* host = new fluent::navigation::StackContentHost(this);
-        auto* wid1 = new CatalogView(this);          // 替换原来的占位 QWidget
-        wid1->setRootPath(QStringLiteral(":/data")); // 按实际 qrc 前缀调整
-        wid1->setStyleSheet("background-color: #a1a1Ba;");
-        auto* wid2 = new QWidget();
-        wid2->setStyleSheet("background-color: #F1F1Ba;");
-        host->insertPage(0, wid1);
-        host->insertPage(1, wid2);
+
+        auto* dirPage    = new CatalogView(this);        // 目录页（TreeView）
+        auto* searchPage = new CatalogSearchView(this);  // 搜索页（ListView）
+
+        host->insertPage(0, dirPage);
+        host->insertPage(1, searchPage);
         host->setCurrentIndex(0, 0, false);
+
         connect(selectorBar, &fluent::navigation::SelectorBar::currentChanged,
-            host, [host](int index) { host->setCurrentIndex(index, 0, true); });
+                host, [host](int index) { host->setCurrentIndex(index, 0, true); });
+
         auto* layout = new QVBoxLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
         layout->setSpacing(0);

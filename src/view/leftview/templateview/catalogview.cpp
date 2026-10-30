@@ -1,133 +1,87 @@
 ﻿#include "catalogview.h"
-#include <QTreeWidget>
-#include <QTreeWidgetItem>
-#include <QVBoxLayout>
-#include <QDir>
-#include <QFileInfo>
-#include <uisignalmanager.h>
+#include "templatecatalog.h"
+#include "uisignalmanager.h"
 
-namespace {
-    enum NodeType { NodeDir = 0, NodeFile = 1, NodeSheet = 2, NodePlaceholder = -1 };
-    inline QString nodePath(const QTreeWidgetItem* item) { return item->data(0, Qt::UserRole).toString(); }
-    inline int nodeType(const QTreeWidgetItem* item) { return item->data(0, Qt::UserRole + 1).toInt(); }
-    inline QString nodeSheet(const QTreeWidgetItem* item) { return item->data(0, Qt::UserRole + 2).toString(); }
-}
+#include <QVBoxLayout>
+#include <QMessageBox>
+#include <QFile>
+#include <components/collections/TreeView.h>
 
 namespace doclife::ui {
 
-    CatalogView::CatalogView(QWidget* parent) : QWidget(parent) {
-        initUi();
-        reload();
-        connect(UISignalManager::instance(), &UISignalManager::sheetNamesLoaded, this, &CatalogView::onSheetNamesLoaded);
-        connect(m_tree, &QTreeWidget::itemExpanded, this, &CatalogView::onItemExpanded);
+    // 保留：外部通过文件路径激活（PDF / Excel），供未来其他入口复用
+    void activateTemplateFile(const QString& filePath, const QString& suffix)
+    {
+        if (filePath.isEmpty()) return;
+        auto* sig = UISignalManager::instance();
+        if (suffix == QLatin1String("pdf")) {
+            sig->pdfPreviewRequested(filePath, 0);
+        }
+        else if (suffix == QLatin1String("xlsx")
+            || suffix == QLatin1String("xls")) {
+            sig->excelSheetActivated(filePath, QString());
+        }
     }
 
-    void CatalogView::setRootPath(const QString& qrcRoot) { m_rootPath = qrcRoot; reload(); }
-    void CatalogView::reload() { buildTree(); }
+    static void activateSheet(const doclife::ui::TemplateFileInfo& info)
+    {
+        auto* sig = UISignalManager::instance();
 
-    void CatalogView::initUi() {
-        m_tree = new QTreeWidget(this);
-        m_tree->setHeaderHidden(true);
-        m_tree->setColumnCount(1);
-        m_tree->setUniformRowHeights(true);
+        qDebug() << "[activateSheet] dbPath=" << info.dbPath
+                 << "sheetId=" << info.sheetId
+                 << "pdfPath=" << info.pdfPath
+                 << "xlsxPath=" << info.xlsxPath;
+
+        // ★ 首选 db
+        if (!info.dbPath.isEmpty() && info.sheetId >= 0 && QFile::exists(info.dbPath)) {
+            sig->templateSheetActivated(info.dbPath, info.sheetId, info.displayName());
+            return;
+        }
+        if (!info.pdfPath.isEmpty() && QFile::exists(info.pdfPath)) {
+            sig->pdfPreviewRequested(info.pdfPath, qMax(0, info.sheetPage));
+            return;
+        }
+        if (!info.xlsxPath.isEmpty() && QFile::exists(info.xlsxPath)) {
+            sig->excelSheetActivated(info.xlsxPath, info.sheetName);
+            return;
+        }
+        QMessageBox::information(nullptr, QStringLiteral("提示"),
+                                 QStringLiteral("该模板没有可用的数据源。"));
+    }
+
+    CatalogView::CatalogView(QWidget* parent)
+        : QWidget(parent)
+    {
+        TemplateCatalog::instance()->load();
+
         auto* layout = new QVBoxLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
-        layout->addWidget(m_tree);
-        connect(m_tree, &QTreeWidget::itemClicked, this, &CatalogView::onItemClicked);
+        layout->setSpacing(0);
+
+        m_tree = new fluent::collections::TreeView(this);
+        m_tree->setModel(TemplateCatalog::instance()->treeModel());
+        m_tree->setHeaderHidden(true);
+        m_tree->setUniformRowHeights(true);
+        m_tree->setSelectionMode(fluent::collections::SelectionMode::Single);
+        m_tree->expandAll();
+
+        layout->addWidget(m_tree, 1);
+
+        connect(m_tree, &QTreeView::clicked,
+            this, &CatalogView::onItemActivated);
     }
 
-    void CatalogView::buildTree() {
-        m_tree->clear();
-        if (m_rootPath.isEmpty()) return;
-        auto* root = new QTreeWidgetItem(m_tree);
-        root->setText(0, QStringLiteral("资料库"));
-        root->setData(0, Qt::UserRole, m_rootPath);
-        root->setData(0, Qt::UserRole + 1, NodeDir);
-        fillTreeItem(root, m_rootPath);
-        root->setExpanded(true);
-        m_tree->expandToDepth(1);
+    void CatalogView::onItemActivated(const QModelIndex& index)
+    {
+        if (!index.isValid()) return;
+        if (index.data(Qt::UserRole + 1).toString() != QLatin1String("sheet"))
+            return;
+
+        const int leafIndex = index.data(Qt::UserRole + 5).toInt();
+        const auto& leaves = TemplateCatalog::instance()->leafFiles();
+        if (leafIndex < 0 || leafIndex >= leaves.size()) return;
+
+        activateSheet(leaves[leafIndex]);
     }
 
-    void CatalogView::fillTreeItem(QTreeWidgetItem* parent, const QString& path) {
-        const QDir dir(path);
-        const auto entries = dir.entryInfoList(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot, QDir::DirsFirst | QDir::Name);
-        for (const QFileInfo& fi : entries) {
-            if (fi.isDir()) {
-                auto* child = new QTreeWidgetItem(parent);
-                child->setText(0, fi.fileName());
-                child->setData(0, Qt::UserRole, fi.filePath());
-                child->setData(0, Qt::UserRole + 1, NodeDir);
-                fillTreeItem(child, fi.filePath());
-            }
-            else if (fi.suffix().compare(QLatin1String("xlsx"), Qt::CaseInsensitive) == 0) {
-                auto* fileItem = new QTreeWidgetItem(parent);
-                fileItem->setText(0, fi.fileName());
-                fileItem->setData(0, Qt::UserRole, fi.filePath());
-                fileItem->setData(0, Qt::UserRole + 1, NodeFile);
-                auto* ph = new QTreeWidgetItem(fileItem);
-                ph->setText(0, QStringLiteral("加载中..."));
-                ph->setData(0, Qt::UserRole + 1, NodePlaceholder);
-            }
-        }
-    }
-
-    void CatalogView::onItemClicked(QTreeWidgetItem* item, int) {
-        if (!item) return;
-        qDebug() << "[CatalogView] Item clicked:" << item->text(0) << "Type:" << nodeType(item);
-        const int type = nodeType(item);
-
-        if (type == NodeFile) {
-            qDebug() << "[CatalogView] File clicked, emitting signal:" << nodePath(item);
-            emit UISignalManager::instance()->excelFileActivated(nodePath(item));
-            if (!item->isExpanded()) item->setExpanded(true);
-        }
-        else if (type == NodeSheet) {
-            qDebug() << "[CatalogView] Sheet clicked, emitting signal:" << nodePath(item) << nodeSheet(item);
-            emit UISignalManager::instance()->excelSheetActivated(nodePath(item), nodeSheet(item));
-        }
-    }
-
-    void CatalogView::onItemExpanded(QTreeWidgetItem* item) {
-        if (!item) return;
-
-        // 只有当展开的是文件节点，且它下面还挂着“加载中...”占位符时，才发起真正的加载请求
-        if (nodeType(item) == NodeFile) {
-            if (item->childCount() > 0 && nodeType(item->child(0)) == NodePlaceholder) {
-                qDebug() << "[CatalogView] Expanded file, emitting signal:" << nodePath(item);
-                emit UISignalManager::instance()->excelFileActivated(nodePath(item));
-            }
-        }
-    }
-
-    void CatalogView::onSheetNamesLoaded(const QString& xlsxPath, const QStringList& sheetNames) {
-        QTreeWidgetItemIterator it(m_tree);
-        while (*it) {
-            if (nodeType(*it) == NodeFile && nodePath(*it) == xlsxPath) {
-                QTreeWidgetItem* fileItem = *it;
-
-                // 防重复
-                if (fileItem->childCount() > 0) {
-                    if (nodeType(fileItem->child(0)) != NodePlaceholder) {
-                        break;
-                    }
-                }
-
-                // 移除占位符
-                if (fileItem->childCount() == 1 && nodeType(fileItem->child(0)) == NodePlaceholder) {
-                    delete fileItem->takeChild(0);
-                }
-
-                // 👇 添加这里：生成真正的 Sheet 节点
-                for (const QString& name : sheetNames) {
-                    auto* sheetItem = new QTreeWidgetItem(fileItem);
-                    sheetItem->setText(0, name);
-                    sheetItem->setData(0, Qt::UserRole, xlsxPath);
-                    sheetItem->setData(0, Qt::UserRole + 1, NodeSheet);
-                    sheetItem->setData(0, Qt::UserRole + 2, name);
-                }
-                break;
-            }
-            ++it;
-        }
-    }
 } // namespace doclife::ui

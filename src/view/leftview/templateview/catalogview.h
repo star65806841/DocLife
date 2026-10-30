@@ -1,29 +1,25 @@
 ﻿#pragma once
-#include <QWidget>
-#include <QString>
-#include <QStringList>
 
-class QTreeWidget;
-class QTreeWidgetItem;
+#include <QWidget>
+#include <QModelIndex>
+
+namespace fluent::collections { class TreeView; }
 
 namespace doclife::ui {
-    class CatalogView : public QWidget {
+
+    // 公共分发：json/pdf → pdf 预览；xlsx → excel 预览
+    void activateTemplateFile(const QString& filePath, const QString& suffix);
+
+    class CatalogView : public QWidget
+    {
         Q_OBJECT
     public:
         explicit CatalogView(QWidget* parent = nullptr);
-        void setRootPath(const QString& qrcRoot);
-        void reload();
-
-    private slots:
-        void onItemClicked(QTreeWidgetItem* item, int column);
-        void onItemExpanded(QTreeWidgetItem* item);
-        void onSheetNamesLoaded(const QString& xlsxPath, const QStringList& sheetNames);
 
     private:
-        void initUi();
-        void buildTree();
-        void fillTreeItem(QTreeWidgetItem* parent, const QString& path);
-        QTreeWidget* m_tree = nullptr;
-        QString m_rootPath = QStringLiteral(":/data");
+        void onItemActivated(const QModelIndex& index);
+
+        fluent::collections::TreeView* m_tree = nullptr;
     };
-}
+
+} // namespace doclife::ui

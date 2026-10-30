@@ -10,12 +10,20 @@
 #include <QHideEvent>
 #include <QWidget>
 #include <uisignalmanager.h>
+#include <templateinstaller.h>
 // #include <item/TabViewItem.h>
 
 namespace doclife::ui {
     MyFluentWindow::MyFluentWindow(QWidget* parent)
         : fluent::windowing::Window(parent)
     {
+        QString err;
+        if (!TemplateInstaller::ensureSeedInstalled(&err))
+        {
+            qWarning() << "[main] 种子模板安装失败:" << err;
+        }
+
+
         setBackdropEffect(fluent::windowing::BackdropEffect::Mica);
         setCustomWindowChromeEnabled(true);
         // setAttribute(Qt::WA_DeleteOnClose); // 关闭后自动 delete
@@ -60,7 +68,7 @@ namespace doclife::ui {
 #endif
         titleBar->setSystemReservedLeadingWidth(platformLeadingWidth);
         titleBar->setSystemReservedTrailingWidth(platformTrailingWidth);
-        int titleBarHeight = titleBar->height();
+
         // 创建标题栏内容
         auto* titleContent = new QWidget(titleBar); // 父对象设为 titleBar，随其销毁
         titleBar->setContentWidget(titleContent);
@@ -68,17 +76,6 @@ namespace doclife::ui {
         auto* layout = new QHBoxLayout(titleContent);
         layout->setContentsMargins(8, 0, 8, 0);
         layout->setSpacing(8);
-
-        // auto* tabs = new fluent::navigation::TabView(titleContent);
-        // tabs->setFixedHeight(titleBarHeight);
-        // tabs->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-        // tabs->setTabWidthMode(fluent::navigation::TabView::TabWidthMode::SizeToContent);
-        // tabs->setTabReorderEnabled(true);
-        // tabs->setTabsClosable(false);
-        // tabs->setAddTabButtonVisible(false);
-
-        // tabs->addTab(fluent::navigation::TabViewItem("主页", Typography::Icons::Home));
-        // tabs->addTab(fluent::navigation::TabViewItem("编辑", Typography::Icons::Document));
 
         auto* icon = new QLabel("", titleContent);
         QPixmap pixmap(":/icons/logo/logo.svg");

@@ -5,7 +5,7 @@ project(DocLife LANGUAGES CXX)
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
 
 find_package(Qt6 6.12 REQUIRED COMPONENTS
-    Core Widgets LinguistTools Svg GuiPrivate Network Concurrent Pdf PdfWidgets)
+    Core Widgets LinguistTools Svg GuiPrivate Network Concurrent Pdf PdfWidgets Sql)
 
 qt_standard_project_setup()
 
@@ -64,6 +64,7 @@ set(DOCLIFE_VIEW_CENTRAL
     src/view/centralview/centralviewitem/templatepdfpreviewview.h            src/view/centralview/centralviewitem/templatepdfpreviewview.cpp
     src/view/centralview/centralviewitem/excelcelldelegate.h                 src/view/centralview/centralviewitem/excelcelldelegate.cpp
     src/view/centralview/centralviewitem/excelsheetmodel.h                   src/view/centralview/centralviewitem/excelsheetmodel.cpp
+    src/view/centralview/centralviewitem/templatesheetview.h                 src/view/centralview/centralviewitem/templatesheetview.cpp
 )
 
 # ---------------------------------------------------------------------------
@@ -189,6 +190,7 @@ target_link_libraries(DocLife
         Qt::Concurrent
         Qt::Pdf
         Qt::PdfWidgets
+        Qt::Sql
 
         QXlsx::QXlsx
         FluentQt::FluentQt
@@ -199,38 +201,23 @@ target_link_libraries(DocLife
 # 构建期：种子数据复制（示例模板 zip）
 # ===========================================================================
 
-# --- 1. 推导 DocLife 可执行文件所在目录 ---------------------
-# add_custom_command(OUTPUT) 里不能用 $<TARGET_FILE_DIR:DocLife>，
-# 因此按 CMake 默认输出规则推导：
-#   单配置生成器（Ninja / Makefiles）：<current_binary_dir>/
-#   多配置生成器（VS / Xcode）       ：<current_binary_dir>/<CONFIG>/
-if(CMAKE_CONFIGURATION_TYPES)
-    set(DOCLIFE_BIN_DIR "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>")
-else()
-    set(DOCLIFE_BIN_DIR "${CMAKE_CURRENT_BINARY_DIR}")
+set(DOCLIFE_SEED_ZIP "${CMAKE_CURRENT_SOURCE_DIR}/resources/data/examples.zip")
+
+if(NOT EXISTS "${DOCLIFE_SEED_ZIP}")
+    message(FATAL_ERROR "示例模板 zip 不存在: ${DOCLIFE_SEED_ZIP}")
 endif()
 
-# --- 2. 声明"应该存在的产物"路径 ----------------------------
-set(DOCLIFE_SEED_DEST "${DOCLIFE_BIN_DIR}/data/examples.zip")
+message(STATUS "DocLife seed zip: ${DOCLIFE_SEED_ZIP}")
 
-# --- 3. 声明"如何生成这个产物" ------------------------------
-add_custom_command(
-    OUTPUT  "${DOCLIFE_SEED_DEST}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "${DOCLIFE_BIN_DIR}/data"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+add_custom_command(TARGET DocLife POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:DocLife>/data"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${DOCLIFE_SEED_ZIP}"
-            "${DOCLIFE_SEED_DEST}"
-    DEPENDS "${DOCLIFE_SEED_ZIP}"
+            "$<TARGET_FILE_DIR:DocLife>/data/examples.zip"
     COMMENT "Copying seed template zip"
     VERBATIM
 )
-
-# --- 4. 把产物挂进默认构建（缺失 / 过期时自动重建）----------
-add_custom_target(DocLifeSeed ALL DEPENDS "${DOCLIFE_SEED_DEST}")
-
-# --- 5. 保证在 DocLife 链接完成之后再执行复制 ----------------
-add_dependencies(DocLifeSeed DocLife)
 
 # ===========================================================================
 # 安装

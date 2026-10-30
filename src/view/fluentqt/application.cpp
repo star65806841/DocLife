@@ -13,19 +13,22 @@ namespace fluentqtApplication {
     {
         fluent::prepareHighDpiApplication();
         QApplication application(argc, argv);
-        fluent::initializeResources();
-        // C:/Users/admin/AppData/Local/DocLife/themes/fluent.json
-        const QString themePath = fluent::UserTheme::filePath();
-        if (!QFile::exists(themePath)) {
-            fluent::UserTheme::exportTemplate();
-        }
 
-        // 从文件加载全局主题。这会替换之前任何 applyOverrides 的内存配置。
+        // ★★★ 必须放在任何 QStandardPaths / UserTheme 调用之前 ★★★
+        QCoreApplication::setOrganizationName(QStringLiteral("OnePoint"));
+        QCoreApplication::setApplicationName(QStringLiteral("DocLife"));
+
+        // 从这里往下才允许访问 QStandardPaths / 用户主题
+        fluent::initializeResources();
+
+        const QString themePath = fluent::UserTheme::filePath();
+        if (!QFile::exists(themePath))
+            fluent::UserTheme::exportTemplate();
         fluent::UserTheme::apply();
 
-        application.setFont(
-            Typography::fontStyle(Typography::FontRole::Body).toQFont());
+        application.setFont(Typography::fontStyle(Typography::FontRole::Body).toQFont());
         application.setWindowIcon(QIcon(":/icons/logo/logo.svg"));
+
         application.setApplicationDisplayName(QStringLiteral("DocLife"));
 
         doclife::core::SingleInstanceGuard guard;
@@ -33,7 +36,6 @@ namespace fluentqtApplication {
             return 0;
 
         doclife::ui::MyFluentWindow window;
-
         window.showAndActivate();
         return application.exec();
     }
