@@ -32,6 +32,7 @@ namespace doclife::ui {
     {
         m_treeModel->removeRows(0, m_treeModel->rowCount());
         m_leaves.clear();
+        m_processRules.clear();
 
         const QStringList codes = TemplateInstaller::installedCollections();
         qDebug() << "[TemplateCatalog] dataRoot =" << TemplateInstaller::dataRoot()
@@ -68,20 +69,18 @@ namespace doclife::ui {
         }
 
         const QString connName = QStringLiteral("catalog_") + collectionCode;
-
-        // 获取或新建连接（不用 removeDatabase，连接长期保留复用）
-        QSqlDatabase db = QSqlDatabase::contains(connName)
-                              ? QSqlDatabase::database(connName)
-                              : QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connName);
-
-        if (db.isOpen()) db.close();
+        {
+            QSqlDatabase old = QSqlDatabase::database(connName, false);
+            if (old.isOpen()) old.close();
+        }
+        QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connName);
         db.setDatabaseName(dbPath);
         if (!db.open()) {
             qWarning() << "[TemplateCatalog] db 打开失败:" << db.lastError().text();
+            QSqlDatabase::removeDatabase(connName);
             return nullptr;
         }
 
-        // ★ 整个查询阶段用 { } 包起来，保证所有 QSqlQuery 在 db.close 前析构
         QStandardItem* collectionItem = nullptr;
         {
             // ---- catalogs ----
@@ -91,6 +90,7 @@ namespace doclife::ui {
             if (!q.exec() || !q.next()) {
                 qWarning() << "[TemplateCatalog] catalogs 查询失败";
                 db.close();
+                QSqlDatabase::removeDatabase(connName);
                 return nullptr;
             }
             const QString displayName = q.value(1).toString();
@@ -112,6 +112,7 @@ namespace doclife::ui {
                 if (!folderQ.exec()) {
                     qWarning() << "[TemplateCatalog] folders 查询失败";
                     db.close();
+                    QSqlDatabase::removeDatabase(connName);
                     delete collectionItem;
                     return nullptr;
                 }
@@ -120,11 +121,10 @@ namespace doclife::ui {
                         folderQ.value(0).toInt(),
                         folderQ.value(1).toString(),
                         folderQ.value(2).toString()
-                    });
+                        });
                 }
-            }  // folderQ 析构
+            }
 
-            // ---- 每个 folder 的 templates + sheets ----
             for (const auto& fr : folders) {
                 auto* folderItem = new QStandardItem(fr.display);
                 folderItem->setEditable(false);
@@ -132,57 +132,45 @@ namespace doclife::ui {
                 folderItem->setData(QStringLiteral("folder"), Qt::UserRole + 1);
                 folderItem->setToolTip(fr.key);
 
+                // ★ 精简：去除路径字段
                 struct TemplateRow {
                     int id;
                     QString code;
                     QString title;
-                    QString jsonPath;
-                    QString pdfPath;
-                    QString xlsxPath;
                 };
                 QList<TemplateRow> templates;
 
                 {
                     QSqlQuery tq(db);
+                    // ★ 精简：不再查询 json_path, pdf_path, xlsx_path
                     tq.prepare(QStringLiteral(
-                        "SELECT id, code, title, json_path, pdf_path, xlsx_path"
+                        "SELECT id, code, title"
                         " FROM templates WHERE folder_id = ?"
                         " ORDER BY sort_order, id"));
                     tq.addBindValue(fr.id);
                     if (!tq.exec()) {
                         qWarning() << "[TemplateCatalog] templates 查询失败:"
-                                   << tq.lastError().text();
+                            << tq.lastError().text();
                         delete folderItem;
                         continue;
                     }
 
-                    auto absPath = [&](const QVariant& v) -> QString {
-                        const QString rel = v.toString();
-                        return rel.isEmpty() ? QString()
-                                             : collectionRoot + QLatin1Char('/') + rel;
-                    };
-
                     while (tq.next()) {
                         TemplateRow tr;
-                        tr.id       = tq.value(0).toInt();
-                        tr.code     = tq.value(1).toString();
-                        tr.title    = tq.value(2).toString();
-                        tr.jsonPath = absPath(tq.value(3));
-                        tr.pdfPath  = absPath(tq.value(4));
-                        tr.xlsxPath = absPath(tq.value(5));
+                        tr.id = tq.value(0).toInt();
+                        tr.code = tq.value(1).toString();
+                        tr.title = tq.value(2).toString();
                         templates.append(tr);
                     }
-                }  // tq 析构
+                }
 
                 for (const auto& tr : templates) {
                     auto* jsonItem = new QStandardItem(
                         tr.title.isEmpty() ? tr.code : tr.title);
                     jsonItem->setEditable(false);
-                    jsonItem->setData(tr.jsonPath, Qt::UserRole);
                     jsonItem->setData(QStringLiteral("json"), Qt::UserRole + 1);
                     jsonItem->setToolTip(tr.code);
 
-                    // sheets
                     {
                         QSqlQuery sq(db);
                         sq.prepare(QStringLiteral(
@@ -193,37 +181,35 @@ namespace doclife::ui {
                             while (sq.next()) {
                                 TemplateFileInfo info;
                                 info.collectionCode = collectionCode;
-                                info.folderKey      = fr.key;
-                                info.folderDisplay  = fr.display;
-                                info.jsonPath       = tr.jsonPath;
-                                info.pdfPath        = tr.pdfPath;
-                                info.xlsxPath       = tr.xlsxPath;
-                                info.dbPath         = dbPath;
-                                info.sheetId        = sq.value(0).toInt();
-                                info.sheetPage      = sq.value(1).toInt();
-                                info.sheetName      = sq.value(2).toString();
-                                info.sheetTitle     = sq.value(3).toString();
+                                info.folderKey = fr.key;
+                                info.folderDisplay = fr.display;
+                                // ★ 精简：不再赋值 jsonPath, pdfPath, xlsxPath
+                                info.dbPath = dbPath;
+                                info.sheetId = sq.value(0).toInt();
+                                info.sheetPage = sq.value(1).toInt();
+                                info.sheetName = sq.value(2).toString();
+                                info.sheetTitle = sq.value(3).toString();
 
                                 const int leafIndex = m_leaves.size();
                                 m_leaves.append(info);
 
                                 auto* sheetItem = new QStandardItem(info.displayName());
                                 sheetItem->setEditable(false);
-                                sheetItem->setData(info.jsonPath,          Qt::UserRole);
+                                // ★ 精简：原先这里存的是 info.jsonPath，现在直接留空或者不存
                                 sheetItem->setData(QStringLiteral("sheet"), Qt::UserRole + 1);
-                                sheetItem->setData(info.sheetPage,         Qt::UserRole + 2);
-                                sheetItem->setData(info.sheetName,         Qt::UserRole + 3);
-                                sheetItem->setData(info.sheetTitle,        Qt::UserRole + 4);
-                                sheetItem->setData(leafIndex,              Qt::UserRole + 5);
+                                sheetItem->setData(info.sheetPage, Qt::UserRole + 2);
+                                sheetItem->setData(info.sheetName, Qt::UserRole + 3);
+                                sheetItem->setData(info.sheetTitle, Qt::UserRole + 4);
+                                sheetItem->setData(leafIndex, Qt::UserRole + 5);
                                 sheetItem->setToolTip(
                                     QStringLiteral("编号：%1\n序号：%2\n名称：%3")
-                                        .arg(info.sheetName)
-                                        .arg(info.sheetPage)
-                                        .arg(info.sheetTitle));
+                                    .arg(info.sheetName)
+                                    .arg(info.sheetPage)
+                                    .arg(info.sheetTitle));
                                 jsonItem->appendRow(sheetItem);
                             }
                         }
-                    }  // sq 析构
+                    }
 
                     if (jsonItem->rowCount() > 0)
                         folderItem->appendRow(jsonItem);
@@ -236,11 +222,62 @@ namespace doclife::ui {
                 else
                     delete folderItem;
             }
-        }  // ★ 所有 QSqlQuery 已析构
+
+            // ★★★ 关键：在这里调用工序加载 ★★★
+            loadProcessRules(db);
+        }
 
         db.close();
-        // ★ 不调用 removeDatabase！连接长期保留，下次 load 直接复用
+        QSqlDatabase::removeDatabase(connName);
         return collectionItem;
+    }
+
+    void TemplateCatalog::loadProcessRules(QSqlDatabase& db)
+    {
+        m_processRules.clear();
+        QSqlQuery q(db);
+        // 联表查询，利用 LEFT JOIN 把真实的 sheet_id 找出来
+        q.prepare("SELECT DISTINCT p.process_name, p.sheet_code, p.sheet_title, t.id "
+            "FROM process_rules p "
+            "LEFT JOIN template_sheets t ON p.sheet_code = t.name");
+
+        if (!q.exec()) {
+            qWarning() << "[TemplateCatalog] process_rules 查询失败:" << q.lastError().text();
+            return;
+        }
+
+        int count = 0;
+        while (q.next()) {
+            ProcessRuleInfo info;
+            info.processName = q.value(0).toString();
+            info.sheetCode = q.value(1).toString();
+            info.sheetTitle = q.value(2).toString();
+            info.sheetId = q.value(3).isNull() ? -1 : q.value(3).toInt();
+            m_processRules[info.processName].append(info);
+            count++;
+        }
+        qDebug() << "[TemplateCatalog] 成功加载工序规则条数:" << count
+            << " 涉及的工序种类数:" << m_processRules.size();
+    }
+
+    QStringList TemplateCatalog::getAllProcessNames() const
+    {
+        return m_processRules.keys();
+    }
+
+    QList<ProcessRuleInfo> TemplateCatalog::getRulesByProcess(const QString& processName) const
+    {
+        return m_processRules.value(processName);
+    }
+
+    const TemplateFileInfo* TemplateCatalog::findSheetByNameAndCode(const QString& title, const QString& code) const
+    {
+        for (const auto& f : m_leaves) {
+            if (f.sheetTitle == title && f.sheetName == code) {
+                return &f;
+            }
+        }
+        return nullptr;
     }
 
 } // namespace doclife::ui

@@ -4,8 +4,9 @@
 build_catalog_db.py
 用法:
     python -u build_catalog_db.py --collection examples
+1、模板层级：.json 与 .xlsx 的“同名绑定”读取 JSON 里的 sheets 数组，然后去 Excel 里找同名的 worksheet
+2、特殊目标（工序规则）：全局递归扫描 PFQIEE.xlsx
 """
-
 
 import sys
 import os
@@ -36,21 +37,19 @@ except ImportError as e:
 # Config & Schema
 # ============================================================================
 DISPLAY_NAME_MAP = {
-    "sub_project":                  "分部工程",
-    "item_project":                 "分项工程",
+    "sub_project":                   "分部工程",
+    "item_project":                  "分项工程",
 
-    "examples":                     "示例表",
-    "sichuan":                      "四川省",
-    "guangdong":                    "广东省",
-    "examples":                     "示例表",
-
-    "subgradeandpavementworks":     "路基路面工程质检用表",    
-    "tunnelworks":                  "隧道工程质检用表",
-    "tunnel_qualityinspectionform": "隧道工程质量检验评定表",
+    "examples":                      "示例合集",
+    "sichuan":                       "四川省",
+    "guangdong":                     "广东省",
+    
+    "subgradeandpavementworks":      "路基路面工程质检用表",
+    "tunnelworks":                   "隧道工程质检用表",
 }
 
-VIRTUAL_ROW_LIMIT = 5000
-VIRTUAL_COL_LIMIT = 500
+VIRTUAL_ROW_LIMIT = 500
+VIRTUAL_COL_LIMIT = 50
 
 def display_name_for(name):
     return DISPLAY_NAME_MAP.get(name, name)
@@ -58,7 +57,10 @@ def display_name_for(name):
 SCHEMA_SQL = """
 CREATE TABLE catalogs (id INTEGER PRIMARY KEY, code TEXT UNIQUE NOT NULL, display_name TEXT NOT NULL);
 CREATE TABLE folders (id INTEGER PRIMARY KEY, catalog_id INTEGER NOT NULL, key TEXT NOT NULL, display_name TEXT NOT NULL, sort_order INTEGER DEFAULT 0);
-CREATE TABLE templates (id INTEGER PRIMARY KEY, folder_id INTEGER NOT NULL, code TEXT NOT NULL, title TEXT NOT NULL, json_path TEXT, pdf_path TEXT, xlsx_path TEXT, sort_order INTEGER DEFAULT 0);
+
+-- ★ 精简：templates 表不再需要 pdf_path, xlsx_path, json_path
+CREATE TABLE templates (id INTEGER PRIMARY KEY, folder_id INTEGER NOT NULL, code TEXT NOT NULL, title TEXT NOT NULL, sort_order INTEGER DEFAULT 0);
+
 CREATE TABLE template_sheets (
     id INTEGER PRIMARY KEY, template_id INTEGER NOT NULL, page INTEGER NOT NULL, name TEXT NOT NULL, title TEXT NOT NULL, sort_order INTEGER DEFAULT 0,
     row_count INTEGER DEFAULT 0, col_count INTEGER DEFAULT 0, default_row_height REAL DEFAULT 14.25, default_col_width REAL DEFAULT 8.43,
@@ -74,6 +76,14 @@ CREATE TABLE sheet_cells (
 );
 CREATE TABLE sheet_row_heights (sheet_id INTEGER NOT NULL, row INTEGER NOT NULL, height REAL NOT NULL, PRIMARY KEY (sheet_id, row));
 CREATE TABLE sheet_col_widths (sheet_id INTEGER NOT NULL, col INTEGER NOT NULL, width REAL NOT NULL, PRIMARY KEY (sheet_id, col));
+
+CREATE TABLE process_rules (
+    id INTEGER PRIMARY KEY,
+    process_name TEXT NOT NULL,
+    sheet_code TEXT NOT NULL,
+    sheet_title TEXT NOT NULL
+);
+CREATE UNIQUE INDEX idx_process_sheet ON process_rules(process_name, sheet_code);
 """
 
 # ============================================================================
@@ -295,10 +305,6 @@ def convert_xlsx_to_db(cur, xlsx_path, sheet_rows):
                 row_span, col_span = merges.get((r0, c0), (1, 1))
                 style = style or {}
 
-                # ★ 强力诊断日志：打印第 4、5 行（r0=3,4）有内容的单元格字体
-                if r0 in (3, 4) and value.strip():
-                    print(f"       [DEBUG FONT] 行{r0} 列{c0} 值:'{value[:5]}' -> openpyxl读取的字号: {cell.font.sz}")
-
                 cur.execute(
                     "INSERT OR REPLACE INTO sheet_cells "
                     "(sheet_id,row,col,row_span,col_span,value,formula,font_family,font_size,font_bold,font_italic,font_underline,font_color,bg_color,h_align,v_align,border_top,border_bottom,border_left,border_right,wrap_text) "
@@ -311,6 +317,34 @@ def convert_xlsx_to_db(cur, xlsx_path, sheet_rows):
                      style.get("border_right", 0), style.get("wrap_text", 1)))
                 cell_count += 1
         print(f"       done, {cell_count} cells", flush=True)
+
+# ============================================================================
+# 解析 PFQIEE.xlsx 工序规则
+# ============================================================================
+def parse_pfqiee(cur, file_path):
+    print(f"  -> parsing PFQIEE rules: {file_path}", flush=True)
+    try:
+        wb = load_workbook(file_path, data_only=True)
+        ws = wb.worksheets[0]
+        current_process = ""
+        n_rules = 0
+        for row in ws.iter_rows(min_row=2): 
+            process_cell = row[0].value   # A列
+            title_cell = row[3].value     # D列
+            code_cell = row[4].value      # E列
+            
+            if process_cell:
+                current_process = str(process_cell).strip()
+            
+            if current_process and code_cell and title_cell:
+                cur.execute(
+                    "INSERT OR IGNORE INTO process_rules (process_name, sheet_code, sheet_title) VALUES (?,?,?)",
+                    (current_process, str(code_cell).strip(), str(title_cell).strip())
+                )
+                n_rules += 1
+        print(f"     写入 {n_rules} 条工序映射规则", flush=True)
+    except Exception as e:
+        print(f"     [WARN] 解析失败: {e}", flush=True)
 
 # ============================================================================
 # Build db & zip
@@ -343,12 +377,11 @@ def build_db(collection_dir, collection_code, display_name, output_db):
             except Exception as e: continue
 
             base = os.path.splitext(json_file)[0]
-            pdf_rel, xlsx_rel = f"{folder_name}/{base}.pdf", f"{folder_name}/{base}.xlsx"
+            xlsx_rel = f"{folder_name}/{base}.xlsx"
 
-            cur.execute("INSERT INTO templates (folder_id, code, title, json_path, pdf_path, xlsx_path, sort_order) VALUES (?,?,?,?,?,?,?)",
-                (folder_id, base, data.get("title", base), f"{folder_name}/{json_file}",
-                 pdf_rel if os.path.exists(os.path.join(collection_dir, pdf_rel)) else None,
-                 xlsx_rel if os.path.exists(os.path.join(collection_dir, xlsx_rel)) else None, tpl_order))
+            # ★ 精简：不再记录 pdf_path, xlsx_path, json_path
+            cur.execute("INSERT INTO templates (folder_id, code, title, sort_order) VALUES (?,?,?,?)",
+                (folder_id, base, data.get("title", base), tpl_order))
             template_id = cur.lastrowid
             tpl_order += 1
             n_tpl += 1
@@ -360,35 +393,45 @@ def build_db(collection_dir, collection_code, display_name, output_db):
                 sheet_rows.append((cur.lastrowid, str(sheet.get("name", "")), str(sheet.get("title", ""))))
                 n_sheet += 1
 
+            # ★ 仍然需要读取 xlsx 来提取样式和数据写入 sheet_cells
             xlsx_full = os.path.join(collection_dir, xlsx_rel)
             if os.path.exists(xlsx_full):
                 before = cur.execute("SELECT COUNT(*) FROM sheet_cells").fetchone()[0]
                 convert_xlsx_to_db(cur, xlsx_full, sheet_rows)
                 after = cur.execute("SELECT COUNT(*) FROM sheet_cells").fetchone()[0]
                 n_cell += (after - before)
+            else:
+                print(f"    [WARN] 缺少对应的 Excel 文件，无法提取样式: {xlsx_full}", flush=True)
+
+    # 递归查找所有的 PFQIEE.xlsx 并解析
+    print("[build_db] 开始扫描 PFQIEE.xlsx ...", flush=True)
+    found_any = False
+    for root, dirs, files in os.walk(collection_dir):
+        if "PFQIEE.xlsx" in files:
+            found_any = True
+            full_path = os.path.join(root, "PFQIEE.xlsx")
+            parse_pfqiee(cur, full_path)
+    
+    if not found_any:
+        print("[WARN] 未找到任何 PFQIEE.xlsx 文件，跳过工序规则解析。", flush=True)
 
     conn.commit()
     conn.close()
     print(f"[OK] db: {output_db}\n     templates={n_tpl}  sheets={n_sheet}  cells={n_cell}", flush=True)
     return 0
 
+# ★ 核心瘦身：打包时只放 catalog.db，不再放入 PDF/Excel/JSON
 def build_zip(collection_dir, output_zip, extra_files):
     if os.path.exists(output_zip): os.remove(output_zip)
-    skip = {".DS_Store", "Thumbs.db", "desktop.ini"}
-    files = []
-    for root, dirs, names in os.walk(collection_dir):
-        dirs[:] = [d for d in dirs if not d.startswith(".")]
-        for name in names:
-            if name in skip or name.startswith("."): continue
-            full = os.path.join(root, name)
-            files.append((full, os.path.relpath(full, collection_dir).replace(os.sep, "/")))
-    files.extend(extra_files)
+    
     with zipfile.ZipFile(output_zip, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
-        for full, rel in files:
+        for full, rel in extra_files:
             info = zipfile.ZipInfo.from_file(full, rel)
             info.flag_bits |= 0x800
             info.external_attr = (0o644 << 16)
             with open(full, "rb") as f: zf.writestr(info, f.read())
+            
+    print(f"[OK] zip: {output_zip}  大小 {os.path.getsize(output_zip)/1024:.1f} KB (仅包含 catalog.db)", flush=True)
 
 def main():
     ap = argparse.ArgumentParser()
