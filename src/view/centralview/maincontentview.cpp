@@ -24,7 +24,7 @@ namespace doclife::ui {
         m_blankPage = new QWidget(m_host);
         m_pdfPreview = new TemplatePdfPreviewView(m_host);
         m_sheetView = new TemplateSheetView(m_host);
-
+        m_sheetView->setContentsMargins(0,0,9,9);
         m_host->insertPage(0, m_preview);
         m_host->insertPage(1, m_blankPage);
         m_host->insertPage(2, m_pdfPreview);

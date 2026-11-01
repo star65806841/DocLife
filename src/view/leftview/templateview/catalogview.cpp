@@ -6,10 +6,10 @@
 #include <QMessageBox>
 #include <QFile>
 #include <components/collections/TreeView.h>
+#include <leftview/projecttreeview/fluenttreeitemdelegate.h>
 
 namespace doclife::ui {
 
-    // 保留：外部通过文件路径激活（PDF / Excel），供未来其他入口复用
     void activateTemplateFile(const QString& filePath, const QString& suffix)
     {
         if (filePath.isEmpty()) return;
@@ -27,26 +27,15 @@ namespace doclife::ui {
     {
         auto* sig = UISignalManager::instance();
 
-        qDebug() << "[activateSheet] dbPath=" << info.dbPath
-                 << "sheetId=" << info.sheetId
-                 << "pdfPath=" << info.pdfPath
-                 << "xlsxPath=" << info.xlsxPath;
-
-        // ★ 首选 db
+        // ★ 唯一路径：只认 DB 快速渲染，废弃 PDF/Excel 兜底
         if (!info.dbPath.isEmpty() && info.sheetId >= 0 && QFile::exists(info.dbPath)) {
             sig->templateSheetActivated(info.dbPath, info.sheetId, info.displayName());
             return;
         }
-        if (!info.pdfPath.isEmpty() && QFile::exists(info.pdfPath)) {
-            sig->pdfPreviewRequested(info.pdfPath, qMax(0, info.sheetPage));
-            return;
-        }
-        if (!info.xlsxPath.isEmpty() && QFile::exists(info.xlsxPath)) {
-            sig->excelSheetActivated(info.xlsxPath, info.sheetName);
-            return;
-        }
-        QMessageBox::information(nullptr, QStringLiteral("提示"),
-                                 QStringLiteral("该模板没有可用的数据源。"));
+
+        QMessageBox::warning(nullptr, QStringLiteral("提示"),
+            QStringLiteral("该模板的数据库未找到或已损坏，无法预览。\n\n路径：%1")
+            .arg(info.dbPath));
     }
 
     CatalogView::CatalogView(QWidget* parent)
@@ -59,10 +48,17 @@ namespace doclife::ui {
         layout->setSpacing(0);
 
         m_tree = new fluent::collections::TreeView(this);
+        auto* delegate = new FluentTreeItemDelegate(this);
+        m_tree->setItemDelegate(delegate);
         m_tree->setModel(TemplateCatalog::instance()->treeModel());
         m_tree->setHeaderHidden(true);
         m_tree->setUniformRowHeights(true);
         m_tree->setSelectionMode(fluent::collections::SelectionMode::Single);
+
+        // 保留像素级滚动
+        m_tree->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+        m_tree->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+
         m_tree->expandAll();
 
         layout->addWidget(m_tree, 1);

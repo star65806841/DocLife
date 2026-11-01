@@ -2,7 +2,10 @@
 # -*- coding: utf-8 -*-
 """
 build_catalog_db.py
+用法:
+    python -u build_catalog_db.py --collection examples
 """
+
 
 import sys
 import os
@@ -33,12 +36,16 @@ except ImportError as e:
 # Config & Schema
 # ============================================================================
 DISPLAY_NAME_MAP = {
-    "examples":    "示例表格合集",
-    "sichuan":     "四川省",
-    "guangdong":   "广东省",
-    "tunnel":      "隧道工程质检用表",
-    "sub_project": "分部工程",
-    "item_project": "分项工程",
+    "sub_project":                  "分部工程",
+    "item_project":                 "分项工程",
+
+    "examples":                     "示例表",
+    "sichuan":                      "四川省",
+    "guangdong":                    "广东省",
+    "examples":                     "示例表",
+
+    "subgradeandpavementworks":     "路基路面工程质检用表",    
+    "tunnelworks":                  "隧道工程质检用表",
     "tunnel_qualityinspectionform": "隧道工程质量检验评定表",
 }
 

@@ -38,7 +38,7 @@ ProjectTreeView::ProjectTreeView(QWidget* parent)
     // 将右键菜单策略设置为自定义上下文菜单 右键发出customContextMenuRequested
     m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
 
-    auto* delegate = new FluentTreeItemDelegate();
+    auto* delegate = new FluentTreeItemDelegate(this);
     m_tree->setItemDelegate(delegate);
 
     auto* layout = new QVBoxLayout(this);
