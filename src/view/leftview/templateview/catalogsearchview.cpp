@@ -4,20 +4,23 @@
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QListView>
 #include <QStackedWidget>
 #include <QLabel>
 #include <QMessageBox>
 #include <QDebug>
 #include <QEvent>
 #include <QMouseEvent>
+
 #include <FluentQt/TextFields.h>
+#include <FluentQt/Collections.h> 
+#include <components/textfields/Label.h>
+
+#include "leftview/projecttreeview/fluenttreeitemdelegate.h"
 
 using namespace fluent::textfields;
 
 namespace doclife::ui {
 
-    // 内部用来保存全量数据，方便过滤
     static QStringList s_allSuggestions;
 
     CatalogSearchView::CatalogSearchView(QWidget* parent)
@@ -29,27 +32,20 @@ namespace doclife::ui {
 
         TemplateCatalog::instance()->load();
 
-        // 1. 搜索框
         m_searchBox = new AutoSuggestBox(this);
         m_searchBox->setPlaceholderText("搜索表格名称，或输入工序（如：明洞浇筑）...");
-
-        // 安装事件过滤器，用于监听鼠标点击
         m_searchBox->installEventFilter(this);
 
-        // 构建全量联想列表
         s_allSuggestions.clear();
         for (const auto& f : TemplateCatalog::instance()->leafFiles()) {
             s_allSuggestions << QStringLiteral("[表格] %1 | %2").arg(f.sheetTitle, f.sheetName);
         }
-        QStringList processes = TemplateCatalog::instance()->getAllProcessNames();
-        for (const QString& proc : processes) {
+        for (const QString& proc : TemplateCatalog::instance()->getAllProcessNames()) {
             s_allSuggestions << QStringLiteral("[工序] %1").arg(proc);
         }
-
         m_searchBox->setSuggestions(s_allSuggestions);
         layout->addWidget(m_searchBox);
 
-        // 动态过滤与排序逻辑
         auto doFilter = [this](const QString& inputText) {
             QString input = inputText.trimmed();
             if (input.isEmpty()) {
@@ -60,7 +56,7 @@ namespace doclife::ui {
             QStringList startsWithList;
             QStringList containsList;
 
-            for (const QString& s : s_allSuggestions) {
+            for (const QString& s : qAsConst(s_allSuggestions)) {
                 QString realText = s.mid(s.indexOf(" ") + 1);
                 if (realText.contains(input, Qt::CaseInsensitive)) {
                     if (realText.startsWith(input, Qt::CaseInsensitive)) {
@@ -77,27 +73,26 @@ namespace doclife::ui {
             m_searchBox->setSuggestions(startsWithList);
             };
 
-        // 监听用户手动输入
         connect(m_searchBox, &AutoSuggestBox::textChangedWithReason, this,
             [doFilter](const QString& text, AutoSuggestBox::TextChangeReason reason) {
                 if (reason != AutoSuggestBox::TextChangeReason::UserInput) return;
                 doFilter(text);
             });
 
-        // 2. 堆栈页面
         m_stack = new QStackedWidget(this);
         layout->addWidget(m_stack, 1);
 
-        // --- 页面 0：提示页 ---
+        // --- 页面 0 ---
         auto* page0 = new QWidget();
-        auto* hint = new QLabel("请输入关键字。\n\n搜索结果不仅支持预览单张表格，\n还支持直接搜索工序，一键推荐整套表格。", page0);
+        auto* hint = new QLabel(page0);
+        hint->setText("请输入关键字。\n\n搜索结果不仅支持预览单张表格，\n还支持直接搜索工序，一键推荐整套表格。");
         hint->setStyleSheet("color: #888888; font-size: 14px; line-height: 24px;");
         hint->setAlignment(Qt::AlignCenter);
         auto* p0Layout = new QVBoxLayout(page0);
         p0Layout->addWidget(hint);
         m_stack->addWidget(page0);
 
-        // --- 页面 1：单表信息页 ---
+        // --- 页面 1 ---
         auto* page1 = new QWidget();
         auto* p1Layout = new QVBoxLayout(page1);
         p1Layout->setContentsMargins(0, 20, 0, 0);
@@ -105,6 +100,7 @@ namespace doclife::ui {
         m_singleTitle = new QLabel("表格名称");
         m_singleTitle->setStyleSheet("font-size: 18px; font-weight: bold; color: #0078D4;");
         m_singleTitle->setWordWrap(true);
+
         m_singleCode = new QLabel("表格编号");
         m_singleCode->setStyleSheet("font-size: 14px; color: #666;");
 
@@ -112,14 +108,14 @@ namespace doclife::ui {
         p1Layout->addSpacing(8);
         p1Layout->addWidget(m_singleCode);
         p1Layout->addSpacing(20);
+
         auto* autoHint = new QLabel("✓ 已在右侧打开预览");
         autoHint->setStyleSheet("color: #28A745; font-weight: bold;");
         p1Layout->addWidget(autoHint);
-
         p1Layout->addStretch();
         m_stack->addWidget(page1);
 
-        // --- 页面 2：工序成套推荐页 ---
+        // --- 页面 2 ---
         auto* page2 = new QWidget();
         auto* p2Layout = new QVBoxLayout(page2);
         p2Layout->setContentsMargins(0, 20, 0, 0);
@@ -127,13 +123,16 @@ namespace doclife::ui {
         m_processTitle = new QLabel("工序推荐清单");
         m_processTitle->setStyleSheet("font-size: 18px; font-weight: bold; color: #333;");
 
-        m_checkList = new QListView();
-        m_checkList->setStyleSheet("QListView { border: 1px solid #E0E0E0; border-radius: 4px; padding: 4px; }");
+        m_checkList = new fluent::collections::ListView(this);
+        m_checkList->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
+        auto* delegate = new FluentTreeItemDelegate(m_checkList);
+        delegate->setCheckBoxVisible(false); // 搜索页不画复选框
+        m_checkList->setItemDelegate(delegate);
+
         m_checkModel = new QStandardItemModel(this);
         m_checkList->setModel(m_checkModel);
-
-        // ★ 防护 1：从视图层面彻底禁止用户双击或按键触发编辑
-        m_checkList->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        m_checkList->setBackgroundVisible(false);
 
         connect(m_checkList, &QListView::clicked, this, &CatalogSearchView::onCheckListItemClicked);
 
@@ -142,7 +141,6 @@ namespace doclife::ui {
         p2Layout->addWidget(m_checkList, 1);
         m_stack->addWidget(page2);
 
-        // 3. 下拉选中信号
         connect(m_searchBox, &AutoSuggestBox::suggestionChosen, this, [this](const QVariant& item) {
             const QString text = item.toString();
             if (text.startsWith("[表格] ")) {
@@ -157,7 +155,6 @@ namespace doclife::ui {
             });
     }
 
-    // 重写事件过滤器：点击输入框，剥离前缀并触发推荐
     bool CatalogSearchView::eventFilter(QObject* watched, QEvent* event)
     {
         if (watched == m_searchBox && event->type() == QEvent::MouseButtonPress) {
@@ -166,9 +163,8 @@ namespace doclife::ui {
                 QString realText = currentText.mid(5).split(" | ")[0];
                 m_searchBox->setText(realText);
 
-                QStringList startsWithList;
-                QStringList containsList;
-                for (const QString& s : s_allSuggestions) {
+                QStringList startsWithList, containsList;
+                for (const QString& s : qAsConst(s_allSuggestions)) {
                     QString rt = s.mid(s.indexOf(" ") + 1);
                     if (rt.contains(realText, Qt::CaseInsensitive)) {
                         if (rt.startsWith(realText, Qt::CaseInsensitive)) startsWithList << s;
@@ -208,17 +204,13 @@ namespace doclife::ui {
         const auto rules = TemplateCatalog::instance()->getRulesByProcess(processName);
         for (const auto& r : rules) {
             auto* item = new QStandardItem(QStringLiteral("%1 (%2)").arg(r.sheetTitle, r.sheetCode));
-            item->setCheckable(true);
-            item->setCheckState(Qt::Checked);
-            item->setData(r.sheetId, Qt::UserRole);
-
-            // ★ 防护 2：从数据模型层面禁止该单元格被编辑
+            // ★ 移除 setCheckable 和 setCheckState，保持纯列表的干净
             item->setEditable(false);
+            item->setData(r.sheetId, Qt::UserRole);
 
             if (r.sheetId < 0) {
                 item->setEnabled(false);
                 item->setText(item->text() + " [系统暂缺此模板]");
-                item->setForeground(QBrush(QColor("#999999")));
             }
             m_checkModel->appendRow(item);
         }
@@ -239,5 +231,4 @@ namespace doclife::ui {
             }
         }
     }
-
 } // namespace doclife::ui

@@ -3,12 +3,12 @@
 #include <QWidget>
 #include <QStandardItemModel>
 
-class QListView;
 class QStackedWidget;
 class QLabel;
 class QEvent;
 
 namespace fluent::textfields { class AutoSuggestBox; }
+namespace fluent::collections { class ListView; }
 
 namespace doclife::ui {
 
@@ -19,7 +19,6 @@ namespace doclife::ui {
         explicit CatalogSearchView(QWidget* parent = nullptr);
 
     protected:
-        // 重写事件过滤器，用于清空点击文字
         bool eventFilter(QObject* watched, QEvent* event) override;
 
     private:
@@ -31,13 +30,14 @@ namespace doclife::ui {
         fluent::textfields::AutoSuggestBox* m_searchBox = nullptr;
         QStackedWidget* m_stack = nullptr;
 
-        // 单表页 (无需按钮，仅做提示)
+        // 单表页
         QLabel* m_singleTitle = nullptr;
         QLabel* m_singleCode = nullptr;
 
         // 工序页
         QLabel* m_processTitle = nullptr;
-        QListView* m_checkList = nullptr;
+        // ★ 替换为 Fluent 的 ListView
+        fluent::collections::ListView* m_checkList = nullptr;
         QStandardItemModel* m_checkModel = nullptr;
     };
 

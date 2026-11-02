@@ -5,12 +5,13 @@
 #include <components/dialogs_flyouts/Dialog.h>
 #include "business/projectcontext.h"
 
-// 前向声明
 namespace fluent::textfields { class AutoSuggestBox; class Label; }
 namespace fluent::basicinput { class Button; }
 class QLineEdit;
-class QListView;
 class QStandardItemModel;
+
+// 引入 Fluent 的列表视图
+namespace fluent::collections { class ListView; }
 
 namespace doclife::ui {
 
@@ -21,22 +22,22 @@ namespace doclife::ui {
         explicit ProjectWizardDialog(const QString& parentNodeId, QWidget* parent = nullptr);
         ~ProjectWizardDialog() override = default;
 
-        // 获取用户填写的实例名称
         QString itemName() const;
-
-        // 获取用户勾选的表格数据
         QList<doclife::core::SheetNodeData> selectedSheets() const;
 
     private:
         void onProcessChanged(const QString& processName);
         void updateOkButtonState();
+        void updateSuggestions(const QString& text);
 
         QString m_parentNodeId;
 
         QLineEdit* m_nameEdit = nullptr;
         fluent::textfields::AutoSuggestBox* m_processBox = nullptr;
-        QListView* m_listView = nullptr;
+
+        fluent::collections::ListView* m_listView = nullptr;
         QStandardItemModel* m_listModel = nullptr;
+
         fluent::basicinput::Button* m_okBtn = nullptr;
     };
 

@@ -7,7 +7,7 @@
 
 namespace fluent::textfields { class Label; }
 namespace fluent::basicinput { class Button; }
-class QTreeView;
+namespace fluent::collections { class TreeView; }
 
 namespace doclife::ui {
 
@@ -23,7 +23,7 @@ namespace doclife::ui {
     private:
         void updateOkButtonState();
 
-        QTreeView* m_tree = nullptr;
+        fluent::collections::TreeView* m_tree = nullptr;
         fluent::basicinput::Button* m_okBtn = nullptr;
     };
 
