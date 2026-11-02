@@ -4,6 +4,7 @@
 #include <QString>
 #include <QVariant>
 #include <QJsonObject>
+#include <QList>
 
 #include "projectNode.h"
 #include "projectInfomodel.h"
@@ -14,6 +15,14 @@ namespace QXlsx { class Document; }
 namespace doclife::core {
 
     enum class RenameConflictPolicy { Fail, AutoSuffix, Overwrite };
+
+    // 用于批量挂载表格的数据结构
+    struct SheetNodeData {
+        QString displayName;  // 实例名（默认用模板名）
+        QString templateName; // 模板表名（如：明洞浇筑现场质量检验表）
+        int sheetId = -1;
+        QString dbPath;
+    };
 
     class ProjectContext : public QObject
     {
@@ -43,10 +52,7 @@ namespace doclife::core {
         doclife::model::ProjectInfoModel& projectInfo() { return m_projectInfo; }
         void setProjectInfo(doclife::model::ProjectInfoModel& projectInfo);
 
-        // ---- 业务表格（懒加载，打开项目时不读取） ----
-        // 首次调用：解压 business.xlsx，构造 QXlsx::Document 并缓存
-        // 后续调用：直接返回缓存
-        // 修改文档后需调用 markBusinessDirty() 通知保存
+        // ---- 业务表格（懒加载） ----
         QXlsx::Document* businessDocument();
         void             markBusinessDirty();
         void             releaseBusinessDocument();
@@ -65,6 +71,10 @@ namespace doclife::core {
         // ---- 增量操作 ----
         bool addChild(const QString& parentId, const QString& childType,
             QString* newId = nullptr);
+
+        // ★ 新增：批量添加表格实例到指定节点
+        bool addSheetsToNode(const QString& parentId, const QList<SheetNodeData>& sheets);
+
         bool removeNode(const QString& nodeId);
         bool renameNode(const QString& nodeId, const QString& newName,
             RenameConflictPolicy policy = RenameConflictPolicy::Fail);
@@ -94,12 +104,9 @@ namespace doclife::core {
         void initConnect();
 
         QString makeTempFilePath() const;
-
-        // ZIP 整体读写（返回空=成功）
         QString writeZip(const QString& targetPath);
         QString readZip(const QString& zipPath);
 
-        // 树 <-> JSON
         QJsonObject nodeToJson(const doclife::model::Node& n) const;
         doclife::model::Node* nodeFromJson(const QJsonObject& o) const;
 
@@ -120,7 +127,6 @@ namespace doclife::core {
         QString m_lockedPath;
         bool    m_dirty = false;
 
-        // 业务文档缓存（懒加载）
         QXlsx::Document* m_businessDoc = nullptr;
         bool             m_businessDirty = false;
     };

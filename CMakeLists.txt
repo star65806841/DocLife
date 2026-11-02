@@ -137,12 +137,10 @@ set(DOCLIFE_MODEL
 )
 
 # ---------------------------------------------------------------------------
-# 遗留代码（暂未迁移，建议未来 git mv 到 src/legacy/excel/）
+# 遗留代码
 # ---------------------------------------------------------------------------
 set(DOCLIFE_LEGACY
-    excelfile.h                                                              excelfile.cpp
-    excelsheet.h                                                             excelsheet.cpp
-    exceltreewidget.h                                                        exceltreewidget.cpp
+
 )
 
 # ===========================================================================
