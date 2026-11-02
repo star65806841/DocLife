@@ -36,7 +36,7 @@ namespace doclife::ui {
 
         const QStringList codes = TemplateInstaller::installedCollections();
         qDebug() << "[TemplateCatalog] dataRoot =" << TemplateInstaller::dataRoot()
-            << "collections =" << codes;
+                 << "collections =" << codes;
 
         if (codes.isEmpty()) {
             qWarning() << "[TemplateCatalog] 未安装任何模板集合";
@@ -46,8 +46,9 @@ namespace doclife::ui {
         }
 
         for (const QString& code : codes) {
-            const QString root = TemplateInstaller::collectionRoot(code);
-            auto* item = buildCollectionFromDb(root, code);
+            // ★ 直接获取 .dlt 文件的绝对路径
+            const QString dbPath = TemplateInstaller::collectionFilePath(code);
+            auto* item = buildCollectionFromDb(dbPath, code);
             if (item && item->rowCount() > 0)
                 m_treeModel->appendRow(item);
             else
@@ -60,11 +61,11 @@ namespace doclife::ui {
     }
 
     QStandardItem* TemplateCatalog::buildCollectionFromDb(
-        const QString& collectionRoot, const QString& collectionCode)
+        const QString& dbPath, const QString& collectionCode)
     {
-        const QString dbPath = collectionRoot + QStringLiteral("/catalog.db");
+        // ★ 直接检查传入的文件路径是否存在，不再拼接 "/catalog.db"
         if (!QFile::exists(dbPath)) {
-            qWarning() << "[TemplateCatalog] catalog.db 不存在:" << dbPath;
+            qWarning() << "[TemplateCatalog] 模板数据库不存在:" << dbPath;
             return nullptr;
         }
 
@@ -121,7 +122,7 @@ namespace doclife::ui {
                         folderQ.value(0).toInt(),
                         folderQ.value(1).toString(),
                         folderQ.value(2).toString()
-                        });
+                    });
                 }
             }
 
@@ -132,7 +133,6 @@ namespace doclife::ui {
                 folderItem->setData(QStringLiteral("folder"), Qt::UserRole + 1);
                 folderItem->setToolTip(fr.key);
 
-                // ★ 精简：去除路径字段
                 struct TemplateRow {
                     int id;
                     QString code;
@@ -142,7 +142,6 @@ namespace doclife::ui {
 
                 {
                     QSqlQuery tq(db);
-                    // ★ 精简：不再查询 json_path, pdf_path, xlsx_path
                     tq.prepare(QStringLiteral(
                         "SELECT id, code, title"
                         " FROM templates WHERE folder_id = ?"
@@ -150,7 +149,7 @@ namespace doclife::ui {
                     tq.addBindValue(fr.id);
                     if (!tq.exec()) {
                         qWarning() << "[TemplateCatalog] templates 查询失败:"
-                            << tq.lastError().text();
+                                   << tq.lastError().text();
                         delete folderItem;
                         continue;
                     }
@@ -183,8 +182,7 @@ namespace doclife::ui {
                                 info.collectionCode = collectionCode;
                                 info.folderKey = fr.key;
                                 info.folderDisplay = fr.display;
-                                // ★ 精简：不再赋值 jsonPath, pdfPath, xlsxPath
-                                info.dbPath = dbPath;
+                                info.dbPath = dbPath; // ★ 这里就是 .dlt 的文件路径
                                 info.sheetId = sq.value(0).toInt();
                                 info.sheetPage = sq.value(1).toInt();
                                 info.sheetName = sq.value(2).toString();
@@ -195,7 +193,6 @@ namespace doclife::ui {
 
                                 auto* sheetItem = new QStandardItem(info.displayName());
                                 sheetItem->setEditable(false);
-                                // ★ 精简：原先这里存的是 info.jsonPath，现在直接留空或者不存
                                 sheetItem->setData(QStringLiteral("sheet"), Qt::UserRole + 1);
                                 sheetItem->setData(info.sheetPage, Qt::UserRole + 2);
                                 sheetItem->setData(info.sheetName, Qt::UserRole + 3);
@@ -203,9 +200,9 @@ namespace doclife::ui {
                                 sheetItem->setData(leafIndex, Qt::UserRole + 5);
                                 sheetItem->setToolTip(
                                     QStringLiteral("编号：%1\n序号：%2\n名称：%3")
-                                    .arg(info.sheetName)
-                                    .arg(info.sheetPage)
-                                    .arg(info.sheetTitle));
+                                        .arg(info.sheetName)
+                                        .arg(info.sheetPage)
+                                        .arg(info.sheetTitle));
                                 jsonItem->appendRow(sheetItem);
                             }
                         }

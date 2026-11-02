@@ -4,8 +4,15 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <projecmodel1.h>
+#include <QDir>
+#include <QFileInfo>
+#include <QUuid>
 
 namespace doclife::core {
+
+    // 可以在全局定义常量，方便以后统一修改
+    static const QString kProjectSuffix = QStringLiteral("dlf");
+    static const QString kProjectFilter = QStringLiteral("DocLife 项目文件 (*.dlf)");
 
     QString Utils::sanitizeFileName(const QString& name) {
         QString s = name;
@@ -47,38 +54,27 @@ namespace doclife::core {
 
     QString Utils::saveFileDialog(const QString& headName, QWidget* parent)
     {
-        QFileDialog dlg(parent, QObject::tr("保存文件"));
-        // 设置为保存模式
+        QFileDialog dlg(parent, QObject::tr("保存项目文件"));
         dlg.setAcceptMode(QFileDialog::AcceptSave);
-        // 允许输入一个不存在的文件名
         dlg.setFileMode(QFileDialog::AnyFile);
-        // 文件过滤器
-        dlg.setNameFilter(QObject::tr("文档 (*.doclife)"));
 
-        // 如果用户没有输入后缀，自动添加 .doclife
-        dlg.setDefaultSuffix("doclife");
+        // ★ 使用全局配置
+        dlg.setNameFilter(QObject::tr(AppConfig::ProjectFilter));
+        dlg.setDefaultSuffix(AppConfig::ProjectSuffix);
+        dlg.selectFile(headName + "." + AppConfig::ProjectSuffix);
 
-        // 默认文件名
-        dlg.selectFile(headName + ".doclife");
-
-        // 弹出对话框
-        if (dlg.exec() != QDialog::Accepted)
-            return QString(); // 用户取消
+        if (dlg.exec() != QDialog::Accepted) return QString();
 
         QStringList files = dlg.selectedFiles();
-        if (files.isEmpty())
-            return QString();
+        if (files.isEmpty()) return QString();
 
         QString fileName = files.first();
-
-        // 强制固定格式：检查后缀是不是 .json
         QFileInfo fi(fileName);
 
-        // compare 忽略大小写
-        if (fi.suffix().compare("doclife", Qt::CaseInsensitive) != 0) {
-
-            // 方案 A：自动改成
-            fileName = QDir(fi.absolutePath()).filePath(fi.completeBaseName() + ".doclife");
+        // ★ 强制后缀纠正
+        if (fi.suffix().compare(AppConfig::ProjectSuffix, Qt::CaseInsensitive) != 0) {
+            fileName = QDir(fi.absolutePath()).filePath(
+                fi.completeBaseName() + "." + AppConfig::ProjectSuffix);
         }
 
         return fileName;
@@ -86,23 +82,11 @@ namespace doclife::core {
 
     QString Utils::openFileDialog(QWidget* parent)
     {
-        // QMessageBox::StandardButton choice = QMessageBox::question(
-        //     parent,
-        //     "Information",
-        //     "If the xlsx file is large, opening it may take a significant amount of time.\n\n"
-        //     "Do you want to continue and select a file?",
-        //     QMessageBox::Yes | QMessageBox::No,
-        //     QMessageBox::Yes
-        // );
-
-        // if (choice != QMessageBox::Yes)
-        //     return QString();
-
         return QFileDialog::getOpenFileName(
             parent,
-            "Select doclife File",
+            "打开 DocLife 项目",
             QString(),
-            "DocLife File (*.doclife)"
+            QObject::tr(AppConfig::ProjectFilter) // ★ 使用全局配置
         );
     }
 
@@ -117,6 +101,7 @@ namespace doclife::core {
         for (const auto& s : list) arr.append(s);
         return arr;
     }
+
     QStringList Utils::jsonToStrList(const QJsonArray& arr) {
         QStringList list;
         list.reserve(arr.size());
@@ -178,18 +163,15 @@ namespace doclife::core {
             { QStringLiteral("subgrade__qualityinspectionform"), QStringLiteral("路基工程分项工程质量检验评定表") },
         };
 
-        // 1) 完整文件名匹配
         auto it = kMap.constFind(fileName);
         if (it != kMap.constEnd())
             return it.value();
 
-        // 2) 去掉扩展名后再匹配
         const QString base = QFileInfo(fileName).completeBaseName();
         it = kMap.constFind(base);
         if (it != kMap.constEnd())
             return it.value();
 
-        // 3) 大小写兜底
         for (auto i = kMap.constBegin(); i != kMap.constEnd(); ++i) {
             if (i.key().compare(fileName, Qt::CaseInsensitive) == 0 ||
                 i.key().compare(base, Qt::CaseInsensitive) == 0)

@@ -9,6 +9,9 @@
 #include <FluentQt/MenusToolbars.h>
 #include <business/ProjectContext.h>
 
+#include "view/popWindow/projectwizarddialog.h"
+#include "view/popWindow/addsheetdialog.h"
+
 namespace doclife::ui {
 
     using Flyout = fluent::menus_toolbars::CommandBarFlyout;
@@ -34,13 +37,12 @@ namespace doclife::ui {
             const doclife::model::NodeTypeSpec* spec,
             const ProjectContextMenuBuilder::RenameHandler& onRename)
         {
-            if (!spec->defaultChildType.isEmpty()) {
-                const QString childType = spec->defaultChildType;
-                addCommand(flyout, QStringLiteral("添加%1").arg(displayLabelOf(childType)),
-                    [nodeId, childType] {
-                        doclife::core::ProjectContext::instance()->addChild(nodeId, childType);
-                    });
-            }
+            addCommand(flyout, QStringLiteral("添加单位工程"), [nodeId] {
+                doclife::core::ProjectContext::instance()->addChild(nodeId, QStringLiteral("unit"));
+                });
+            addCommand(flyout, QStringLiteral("新建资料分类"), [nodeId] {
+                doclife::core::ProjectContext::instance()->addChild(nodeId, QStringLiteral("folder"));
+                });
             addCommand(flyout, QStringLiteral("重命名"), [nodeId, onRename] {
                 if (onRename) onRename(nodeId);
                 });
@@ -49,31 +51,46 @@ namespace doclife::ui {
                 });
         }
 
-        // ---- Container (单位/分部/分项) ----
+        // ---- Container (单位/分部/分项/资料分类) ----
         void buildForContainer(Flyout* flyout, const QString& nodeId,
             const doclife::model::NodeTypeSpec* spec,
             const ProjectContextMenuBuilder::RenameHandler& onRename)
         {
-            // 如果是"分部工程"，优先提供"一键新建分项(工序)"
-            if (spec->type == QLatin1String("sub")) {
-                addCommand(flyout, QStringLiteral("一键添加分项工程 (成套表)..."), [nodeId] {
-                    // TODO: 下一步接入弹窗
-                    qDebug() << "TODO: 弹窗选择工序，一键添加至" << nodeId;
+            // 1. 分项工程专属：一键质检成套向导
+            if (spec->type == QLatin1String("item")) {
+                addCommand(flyout, QStringLiteral("⚡ 一键生成质检评定包..."), [nodeId] {
+                    ProjectWizardDialog dlg(nodeId);
+                    if (dlg.exec() == QDialog::Accepted) {
+                        doclife::core::ProjectContext::instance()->createItemWithSheets(
+                            nodeId, dlg.itemName(), dlg.selectedSheets());
+                    }
                     });
             }
 
-            if (!spec->defaultChildType.isEmpty()) {
-                const QString childType = spec->defaultChildType;
-                addCommand(flyout, QStringLiteral("添加%1").arg(displayLabelOf(childType)),
-                    [nodeId, childType] {
-                        doclife::core::ProjectContext::instance()->addChild(nodeId, childType);
+            // 2. 结构扩展
+            if (spec->type == QLatin1String("unit")) {
+                addCommand(flyout, QStringLiteral("添加分部工程"), [nodeId] {
+                    doclife::core::ProjectContext::instance()->addChild(nodeId, QStringLiteral("sub"));
+                    });
+            }
+            else if (spec->type == QLatin1String("sub")) {
+                addCommand(flyout, QStringLiteral("添加分项工程"), [nodeId] {
+                    doclife::core::ProjectContext::instance()->addChild(nodeId, QStringLiteral("item"));
                     });
             }
 
-            // 所有容器节点都可以自由挂载单表
-            addCommand(flyout, QStringLiteral("自由添加表格..."), [nodeId] {
-                // TODO: 下一步弹窗搜索选表
-                qDebug() << "TODO: 弹窗自由选择表格添加至" << nodeId;
+            // 3. 资料夹
+            addCommand(flyout, QStringLiteral("新建资料分类"), [nodeId] {
+                doclife::core::ProjectContext::instance()->addChild(nodeId, QStringLiteral("folder"));
+                });
+
+            // 4. ★ 自由添加表格
+            addCommand(flyout, QStringLiteral("补充单张资料..."), [nodeId] {
+                AddSheetDialog dlg;
+                if (dlg.exec() == QDialog::Accepted) {
+                    doclife::core::ProjectContext::instance()->addSheetsToNode(
+                        nodeId, dlg.selectedSheets());
+                }
                 });
 
             addCommand(flyout, QStringLiteral("重命名"), [nodeId, onRename] {
@@ -93,7 +110,6 @@ namespace doclife::ui {
             Q_UNUSED(spec)
                 addCommand(flyout, QStringLiteral("打开填报"), [nodeId] {
                 // TODO: 打开右侧预览/填报
-                qDebug() << "TODO: 打开表格填报" << nodeId;
                     });
             addCommand(flyout, QStringLiteral("重命名实例"), [nodeId, onRename] {
                 if (onRename) onRename(nodeId);

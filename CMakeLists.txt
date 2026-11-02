@@ -105,6 +105,8 @@ set(DOCLIFE_VIEW_POPUP
     src/view/popWindow/dialog/dialogbase.h                                   src/view/popWindow/dialog/dialogbase.cpp
     src/view/popWindow/dialog/popupbase.h                                    src/view/popWindow/dialog/popupbase.cpp
     src/view/popWindow/toast/apptoast.h                                      src/view/popWindow/toast/apptoast.cpp
+    src/view/popWindow/projectwizarddialog.h                                 src/view/popWindow/projectwizarddialog.cpp
+    src/view/popWindow/addsheetdialog.h                                      src/view/popWindow/addsheetdialog.cpp
 )
 
 # ---------------------------------------------------------------------------
@@ -199,21 +201,13 @@ target_link_libraries(DocLife
 # 构建期：种子数据复制（示例模板 zip）
 # ===========================================================================
 
-set(DOCLIFE_SEED_ZIP "${CMAKE_CURRENT_SOURCE_DIR}/resources/data/examples.zip")
-
-if(NOT EXISTS "${DOCLIFE_SEED_ZIP}")
-    message(FATAL_ERROR "示例模板 zip 不存在: ${DOCLIFE_SEED_ZIP}")
-endif()
-
-message(STATUS "DocLife seed zip: ${DOCLIFE_SEED_ZIP}")
-
-add_custom_command(TARGET DocLife POST_BUILD
+add_custom_target(DocLifeSeedData ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_FILE_DIR:DocLife>/data"
+            $<TARGET_FILE_DIR:DocLife>/data
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${DOCLIFE_SEED_ZIP}"
-            "$<TARGET_FILE_DIR:DocLife>/data/examples.zip"
-    COMMENT "Copying seed template zip"
+            ${CMAKE_CURRENT_SOURCE_DIR}/resources/data/examples.dlt   # ★ 这里改为 .dlt
+            $<TARGET_FILE_DIR:DocLife>/data/examples.dlt              # ★ 这里也改为 .dlt
+    COMMENT "Copying seed template .dlt"
     VERBATIM
 )
 

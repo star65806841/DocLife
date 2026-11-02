@@ -21,15 +21,16 @@ namespace doclife::model {
                       QStringLiteral("分部工程"), {}, QStringLiteral("item") });
 
         registerType({ QStringLiteral("item"),    NodeRole::Container,
-                      QStringLiteral("分项工程"), {}, QStringLiteral("sheet") });
+                      QStringLiteral("分项工程"), {}, QStringLiteral("folder") }); // 分项下默认建文件夹
 
+        // ---- 资料分类目录（用于装载各类资料） ----
+        registerType({ QStringLiteral("folder"),  NodeRole::Container,
+                      QStringLiteral("资料分类"), {}, QStringLiteral("sheet") });
+
+        // ---- 表格叶子节点 ----
         registerType({ QStringLiteral("sheet"),   NodeRole::Leaf,
                       QStringLiteral("表格"),
                       QIcon(QStringLiteral(":/icons/logo/Flash.png")), {} });
-
-        // ---- 自由组合用的文件夹 (可选，未来用来放散表) ----
-        registerType({ QStringLiteral("folder"),  NodeRole::Container,
-                      QStringLiteral("自定义文件夹"), {}, QStringLiteral("sheet") });
     }
 
     void NodeTypeRegistry::registerType(const NodeTypeSpec& spec)

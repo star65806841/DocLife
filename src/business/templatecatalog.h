@@ -65,8 +65,8 @@ namespace doclife::ui {
         // 工序名 -> 规则列表
         QHash<QString, QList<ProcessRuleInfo>> m_processRules;
         // 从某个集合的 catalog.db 构建子树
-        QStandardItem* buildCollectionFromDb(const QString& collectionRoot,
-            const QString& collectionCode);
+        QStandardItem* buildCollectionFromDb(const QString& dbPath,
+                                             const QString& collectionCode);
 
         QStandardItemModel* m_treeModel = nullptr;
         QList<TemplateFileInfo> m_leaves;

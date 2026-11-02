@@ -3,11 +3,9 @@
 #include <QString>
 #include <QVariant>
 
-class QWidget;
+#include <components/menus_toolbars/CommandBarFlyout.h>
 
-namespace fluent::menus_toolbars {
-    class CommandBarFlyout;
-}
+class QWidget;
 
 namespace doclife::ui {
 

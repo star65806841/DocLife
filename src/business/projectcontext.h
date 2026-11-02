@@ -5,21 +5,18 @@
 #include <QVariant>
 #include <QJsonObject>
 #include <QList>
+#include <QSqlDatabase>
 
 #include "projectNode.h"
 #include "projectInfomodel.h"
-
-// 只前向声明，避免把 QXlsx 头文件拖进所有包含者
-namespace QXlsx { class Document; }
 
 namespace doclife::core {
 
     enum class RenameConflictPolicy { Fail, AutoSuffix, Overwrite };
 
-    // 用于批量挂载表格的数据结构
     struct SheetNodeData {
-        QString displayName;  // 实例名（默认用模板名）
-        QString templateName; // 模板表名（如：明洞浇筑现场质量检验表）
+        QString displayName;
+        QString templateName;
         int sheetId = -1;
         QString dbPath;
     };
@@ -32,10 +29,13 @@ namespace doclife::core {
         ProjectContext(const ProjectContext&) = delete;
         ProjectContext& operator=(const ProjectContext&) = delete;
 
+        static constexpr const char* kFileSuffix = AppConfig::ProjectSuffix;
+        static constexpr const char* kFileFilter = AppConfig::ProjectFilter;
+
         // ---- 状态 ----
         bool    hasOpenProject() const { return !m_filePath.isEmpty(); }
         bool    isUntitled()     const { return !m_tempFilePath.isEmpty(); }
-        bool    isDirty()        const { return m_dirty || m_businessDirty; }
+        bool    isDirty()        const { return m_dirty; }
         QString filePath()       const { return m_filePath; }
         QString projectName()    const;
         QString displayName()    const;
@@ -52,35 +52,22 @@ namespace doclife::core {
         doclife::model::ProjectInfoModel& projectInfo() { return m_projectInfo; }
         void setProjectInfo(doclife::model::ProjectInfoModel& projectInfo);
 
-        // ---- 业务表格（懒加载） ----
-        QXlsx::Document* businessDocument();
-        void             markBusinessDirty();
-        void             releaseBusinessDocument();
-
         // ---- 生命周期 ----
         bool newProject();
         bool openProject(const QString& filePath);
         bool saveProject();
         bool saveProjectAs(const QString& filePath);
         bool closeProject(bool saveBeforeClose = true);
-        bool printAllSheets();
 
         void markClean();
         void markDirty();
 
         // ---- 增量操作 ----
-        bool addChild(const QString& parentId, const QString& childType,
-            QString* newId = nullptr);
-
-        // ★ 新增：批量添加表格实例到指定节点
+        bool addChild(const QString& parentId, const QString& childType, QString* newId = nullptr);
         bool addSheetsToNode(const QString& parentId, const QList<SheetNodeData>& sheets);
-
+        bool createItemWithSheets(const QString& parentId, const QString& itemName, const QList<SheetNodeData>& selectedSheets);
         bool removeNode(const QString& nodeId);
-        bool renameNode(const QString& nodeId, const QString& newName,
-            RenameConflictPolicy policy = RenameConflictPolicy::Fail);
-        bool renameProjectFile(const QString& newBaseName,
-            RenameConflictPolicy policy = RenameConflictPolicy::Fail,
-            QString* actualBaseName = nullptr);
+        bool renameNode(const QString& nodeId, const QString& newName, RenameConflictPolicy policy = RenameConflictPolicy::Fail);
         bool setNodeAttr(const QString& nodeId, const QString& key, const QVariant& value);
 
     signals:
@@ -90,7 +77,6 @@ namespace doclife::core {
         void projectClosed();
         void dirtyChanged(bool dirty);
         void errorOccurred(const QString& message);
-        void projectFilePathChanged(const QString& oldPath, const QString& newPath);
         void nodeAdded(const QString& parentId, const QString& nodeId);
         void nodeRemoved(const QString& parentId, const QString& nodeId);
         void nodeUpdated(const QString& nodeId);
@@ -104,17 +90,15 @@ namespace doclife::core {
         void initConnect();
 
         QString makeTempFilePath() const;
-        QString writeZip(const QString& targetPath);
-        QString readZip(const QString& zipPath);
 
-        QJsonObject nodeToJson(const doclife::model::Node& n) const;
-        doclife::model::Node* nodeFromJson(const QJsonObject& o) const;
+        // 核心：读写 DB
+        bool writeDb(const QString& targetPath);
+        bool readDb(const QString& dbPath);
+
+        void buildTreeFromDb(QSqlDatabase& db);
+        void saveTreeToDb(QSqlDatabase& db);
 
         QString acquireLock(const QString& filePath);
-        QString doRenameProjectFile(const QString& newBaseName,
-            RenameConflictPolicy policy,
-            QString* actualBaseName);
-
         void releaseLock();
         void cleanupTempFile();
         void resetState();
@@ -126,9 +110,6 @@ namespace doclife::core {
         QString m_tempFilePath;
         QString m_lockedPath;
         bool    m_dirty = false;
-
-        QXlsx::Document* m_businessDoc = nullptr;
-        bool             m_businessDirty = false;
     };
 
 } // namespace doclife::core

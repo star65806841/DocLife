@@ -7,7 +7,21 @@ namespace doclife::model {
     class ProjectHead;
 }
 namespace doclife::core {
+    // ============================================================
+// 全局应用常量配置 (单一数据源)
+// ============================================================
+    namespace AppConfig {
+        // 工程文件后缀与过滤器
+        constexpr const char* ProjectSuffix = "dlf";
+        constexpr const char* ProjectFilter = "DocLife 项目文件 (*.dlf)";
 
+        // 模板包后缀与过滤器
+        constexpr const char* TemplateSuffix = "dlt";
+        constexpr const char* TemplateFilter = "DocLife 模板文件 (*.dlt)";
+
+        // 数据库固定文件名
+        constexpr const char* CatalogDbName = "catalog.db";
+    }
     class Utils {
     public:
         static QString makeProjectId();
