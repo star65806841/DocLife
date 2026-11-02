@@ -7,12 +7,10 @@ build_catalog_db.py
 1、模板层级：.json 与 .xlsx 的“同名绑定”读取 JSON 里的 sheets 数组，然后去 Excel 里找同名的 worksheet
 2、特殊目标（工序规则）：全局递归扫描 PFQIEE.xlsx
 """
-
 import sys
 import os
 import json
 import sqlite3
-import zipfile
 import argparse
 import traceback
 import re
@@ -23,12 +21,9 @@ try:
 except Exception:
     pass
 
-print("=== build_catalog_db.py START ===", flush=True)
-
 try:
     from openpyxl import load_workbook
     from openpyxl.cell.cell import MergedCell
-    print("[OK] openpyxl imported", flush=True)
 except ImportError as e:
     print(f"[FATAL] openpyxl not installed: {e}", flush=True)
     sys.exit(1)
@@ -39,11 +34,9 @@ except ImportError as e:
 DISPLAY_NAME_MAP = {
     "sub_project":                   "分部工程",
     "item_project":                  "分项工程",
-
     "examples":                      "示例合集",
     "sichuan":                       "四川省",
     "guangdong":                     "广东省",
-    
     "subgradeandpavementworks":      "路基路面工程质检用表",
     "tunnelworks":                   "隧道工程质检用表",
 }
@@ -57,10 +50,7 @@ def display_name_for(name):
 SCHEMA_SQL = """
 CREATE TABLE catalogs (id INTEGER PRIMARY KEY, code TEXT UNIQUE NOT NULL, display_name TEXT NOT NULL);
 CREATE TABLE folders (id INTEGER PRIMARY KEY, catalog_id INTEGER NOT NULL, key TEXT NOT NULL, display_name TEXT NOT NULL, sort_order INTEGER DEFAULT 0);
-
--- ★ 精简：templates 表不再需要 pdf_path, xlsx_path, json_path
 CREATE TABLE templates (id INTEGER PRIMARY KEY, folder_id INTEGER NOT NULL, code TEXT NOT NULL, title TEXT NOT NULL, sort_order INTEGER DEFAULT 0);
-
 CREATE TABLE template_sheets (
     id INTEGER PRIMARY KEY, template_id INTEGER NOT NULL, page INTEGER NOT NULL, name TEXT NOT NULL, title TEXT NOT NULL, sort_order INTEGER DEFAULT 0,
     row_count INTEGER DEFAULT 0, col_count INTEGER DEFAULT 0, default_row_height REAL DEFAULT 14.25, default_col_width REAL DEFAULT 8.43,
@@ -76,19 +66,10 @@ CREATE TABLE sheet_cells (
 );
 CREATE TABLE sheet_row_heights (sheet_id INTEGER NOT NULL, row INTEGER NOT NULL, height REAL NOT NULL, PRIMARY KEY (sheet_id, row));
 CREATE TABLE sheet_col_widths (sheet_id INTEGER NOT NULL, col INTEGER NOT NULL, width REAL NOT NULL, PRIMARY KEY (sheet_id, col));
-
-CREATE TABLE process_rules (
-    id INTEGER PRIMARY KEY,
-    process_name TEXT NOT NULL,
-    sheet_code TEXT NOT NULL,
-    sheet_title TEXT NOT NULL
-);
+CREATE TABLE process_rules (id INTEGER PRIMARY KEY, process_name TEXT NOT NULL, sheet_code TEXT NOT NULL, sheet_title TEXT NOT NULL);
 CREATE UNIQUE INDEX idx_process_sheet ON process_rules(process_name, sheet_code);
 """
 
-# ============================================================================
-# Style helpers
-# ============================================================================
 def color_to_hex(color):
     if color is None: return None
     t = getattr(color, "type", None)
@@ -107,30 +88,21 @@ def parse_cell_style(cell):
     try:
         f = cell.font
         if f:
-            if f.name: 
-                style["font_family"] = f.name
-            if f.sz: 
-                style["font_size"] = float(f.sz)
-                has_non_default = True
-            style["font_bold"]      = 1 if f.bold else 0
-            style["font_italic"]    = 1 if f.italic else 0
+            if f.name: style["font_family"] = f.name
+            if f.sz: style["font_size"] = float(f.sz); has_non_default = True
+            style["font_bold"] = 1 if f.bold else 0
+            style["font_italic"] = 1 if f.italic else 0
             style["font_underline"] = 1 if f.underline else 0
             fg = color_to_hex(f.color)
-            if fg: 
-                style["font_color"] = fg
-            if f.bold or f.italic or f.underline or fg: 
-                has_non_default = True
+            if fg: style["font_color"] = fg
+            if f.bold or f.italic or f.underline or fg: has_non_default = True
     except: pass
-
     try:
         fill = cell.fill
         if fill and fill.fill_type == "solid":
             bg = color_to_hex(fill.start_color)
-            if bg and bg not in ("#FFFFFF", "#000000"):
-                style["bg_color"] = bg
-                has_non_default = True
+            if bg and bg not in ("#FFFFFF", "#000000"): style["bg_color"] = bg; has_non_default = True
     except: pass
-
     try:
         a = cell.alignment
         if a:
@@ -140,37 +112,29 @@ def parse_cell_style(cell):
             elif a.vertical == "bottom": style["v_align"] = 2; has_non_default = True
             if a.wrap_text is False: style["wrap_text"] = 0
     except: pass
-
     try:
         b = cell.border
         if b:
-            top    = border_style_to_int(b.top.style    if b.top    else None)
+            top = border_style_to_int(b.top.style if b.top else None)
             bottom = border_style_to_int(b.bottom.style if b.bottom else None)
-            left   = border_style_to_int(b.left.style   if b.left   else None)
-            right  = border_style_to_int(b.right.style  if b.right  else None)
+            left = border_style_to_int(b.left.style if b.left else None)
+            right = border_style_to_int(b.right.style if b.right else None)
             if top or bottom or left or right:
-                style["border_top"] = top
-                style["border_bottom"] = bottom
-                style["border_left"] = left
-                style["border_right"] = right
-                has_non_default = True
+                style["border_top"] = top; style["border_bottom"] = bottom; style["border_left"] = left; style["border_right"] = right; has_non_default = True
     except: pass
     return style if has_non_default else None
 
-# ============================================================================
-# 列宽解析
-# ============================================================================
 def get_real_col_widths(xlsx_path, sheet_idx):
     widths = {}
     custom_widths = {}
     try:
+        import zipfile
         with zipfile.ZipFile(xlsx_path, 'r') as zf:
             xml_path = f"xl/worksheets/sheet{sheet_idx + 1}.xml"
             if xml_path not in zf.namelist():
                 possible = [n for n in zf.namelist() if n.startswith("xl/worksheets/sheet")]
                 if sheet_idx < len(possible): xml_path = possible[sheet_idx]
                 else: return widths
-
             with zf.open(xml_path) as f:
                 content = f.read().decode('utf-8', errors='ignore')
                 cols_matches = re.finditer(r'<(?:\w+:)?col\b[^>]*>', content, re.IGNORECASE)
@@ -180,28 +144,16 @@ def get_real_col_widths(xlsx_path, sheet_idx):
                     max_m = re.search(r'max=["\'](\d+)["\']', tag)
                     w_m = re.search(r'width=["\']([\d.]+)["\']', tag)
                     cw_m = re.search(r'customWidth=["\']1["\']', tag)
-                    
                     if min_m and max_m and w_m:
-                        min_c = int(min_m.group(1))
-                        max_c = int(max_m.group(1))
-                        width = float(w_m.group(1))
+                        min_c, max_c, width = int(min_m.group(1)), int(max_m.group(1)), float(w_m.group(1))
                         is_custom = cw_m is not None
-                        
                         for c in range(min_c, max_c + 1):
-                            if is_custom:
-                                custom_widths[c] = width
-                            elif c not in custom_widths:
-                                widths[c] = width
-                                
-        for c, w in custom_widths.items():
-            widths[c] = w
-    except Exception as e:
-        print(f"    [WARN] XML parse error: {e}", flush=True)
+                            if is_custom: custom_widths[c] = width
+                            elif c not in custom_widths: widths[c] = width
+        for c, w in custom_widths.items(): widths[c] = w
+    except Exception as e: pass
     return widths
 
-# ============================================================================
-# Effective bounds
-# ============================================================================
 def effective_bounds(ws):
     max_row = ws.max_row or 0
     max_col = ws.max_column or 0
@@ -211,22 +163,14 @@ def effective_bounds(ws):
         for r in range(max_row, 0, -1):
             for row_cells in ws.iter_rows(min_row=r, max_row=r, min_col=1, max_col=max_col):
                 if any(not isinstance(c, MergedCell) and c.value is not None for c in row_cells):
-                    real_max = r
-                    break
+                    real_max = r; break
             if real_max > 0: break
         max_row = real_max
     return max_row, max_col
 
-# ============================================================================
-# xlsx -> db
-# ============================================================================
 def convert_xlsx_to_db(cur, xlsx_path, sheet_rows):
-    print(f"  -> parsing xlsx: {os.path.basename(xlsx_path)}", flush=True)
-    try:
-        wb = load_workbook(xlsx_path, data_only=True)
-    except Exception as e:
-        print(f"[WARN] cannot load xlsx {xlsx_path}: {e}", flush=True)
-        return
+    try: wb = load_workbook(xlsx_path, data_only=True)
+    except Exception as e: return
 
     ws_list = wb.worksheets
     sheet_map = {}
@@ -234,33 +178,22 @@ def convert_xlsx_to_db(cur, xlsx_path, sheet_rows):
     for i, ws in enumerate(ws_list):
         target = None
         for sid, name, _title in sheet_rows:
-            if sid not in used and name == ws.title:
-                target = sid
-                break
+            if sid not in used and name == ws.title: target = sid; break
         if target is None:
             for sid, name, _title in sheet_rows:
-                if sid not in used:
-                    target = sid
-                    break
-        if target is not None:
-            sheet_map[i] = target
-            used.add(target)
+                if sid not in used: target = sid; break
+        if target is not None: sheet_map[i] = target; used.add(target)
 
     for ws_idx, sheet_id in sheet_map.items():
         ws = ws_list[ws_idx]
-        print(f"     [{ws_idx+1}/{len(ws_list)}] '{ws.title}' …", flush=True)
-
         max_row, max_col = effective_bounds(ws)
         if max_row == 0 or max_col == 0: continue
 
         real_def_col_width = ws.sheet_format.defaultColWidth or 8.43
         real_def_row_height = ws.sheet_format.defaultRowHeight or 14.25
 
-        cur.execute(
-            "UPDATE template_sheets SET row_count=?, col_count=?, default_row_height=?, default_col_width=? WHERE id=?",
-            (max_row, max_col, real_def_row_height, real_def_col_width, sheet_id))
+        cur.execute("UPDATE template_sheets SET row_count=?, col_count=?, default_row_height=?, default_col_width=? WHERE id=?", (max_row, max_col, real_def_row_height, real_def_col_width, sheet_id))
 
-        # 行高
         merged_rows = set()
         for m in ws.merged_cells.ranges:
             for r_idx in range(m.min_row, m.max_row + 1): merged_rows.add(r_idx)
@@ -270,29 +203,21 @@ def convert_xlsx_to_db(cur, xlsx_path, sheet_rows):
             height = real_def_row_height
             if dim:
                 if dim.customHeight and dim.height: height = dim.height
-                elif dim.height:
-                    if r in merged_rows: height = real_def_row_height
-                    else: height = dim.height
+                elif dim.height and r not in merged_rows: height = dim.height
             cur.execute("INSERT OR REPLACE INTO sheet_row_heights VALUES (?,?,?)", (sheet_id, r - 1, float(height)))
 
-        # 列宽
         real_widths = get_real_col_widths(xlsx_path, ws_idx)
         for c in range(1, max_col + 1):
-            width = real_widths.get(c, real_def_col_width)
-            cur.execute("INSERT OR REPLACE INTO sheet_col_widths VALUES (?,?,?)", (sheet_id, c - 1, float(width)))
+            cur.execute("INSERT OR REPLACE INTO sheet_col_widths VALUES (?,?,?)", (sheet_id, c - 1, float(real_widths.get(c, real_def_col_width))))
 
-        # 合并单元格
         merges = {}
         for m in ws.merged_cells.ranges:
             merges[(m.min_row - 1, m.min_col - 1)] = (m.max_row - m.min_row + 1, m.max_col - m.min_col + 1)
 
-        # 单元格内容
-        cell_count = 0
         for row in ws.iter_rows(min_row=1, max_row=max_row, min_col=1, max_col=max_col):
             for cell in row:
                 if isinstance(cell, MergedCell): continue
                 r0, c0 = cell.row - 1, cell.column - 1
-                
                 value, formula = "", None
                 if cell.value is not None:
                     if isinstance(cell.value, str) and cell.value.startswith("="): formula = cell.value
@@ -315,40 +240,19 @@ def convert_xlsx_to_db(cur, xlsx_path, sheet_rows):
                      style.get("bg_color", "#FFFFFF"), style.get("h_align", 0), style.get("v_align", 1),
                      style.get("border_top", 0), style.get("border_bottom", 0), style.get("border_left", 0),
                      style.get("border_right", 0), style.get("wrap_text", 1)))
-                cell_count += 1
-        print(f"       done, {cell_count} cells", flush=True)
 
-# ============================================================================
-# 解析 PFQIEE.xlsx 工序规则
-# ============================================================================
 def parse_pfqiee(cur, file_path):
-    print(f"  -> parsing PFQIEE rules: {file_path}", flush=True)
     try:
         wb = load_workbook(file_path, data_only=True)
         ws = wb.worksheets[0]
         current_process = ""
-        n_rules = 0
         for row in ws.iter_rows(min_row=2): 
-            process_cell = row[0].value   # A列
-            title_cell = row[3].value     # D列
-            code_cell = row[4].value      # E列
-            
-            if process_cell:
-                current_process = str(process_cell).strip()
-            
+            process_cell, title_cell, code_cell = row[0].value, row[3].value, row[4].value
+            if process_cell: current_process = str(process_cell).strip()
             if current_process and code_cell and title_cell:
-                cur.execute(
-                    "INSERT OR IGNORE INTO process_rules (process_name, sheet_code, sheet_title) VALUES (?,?,?)",
-                    (current_process, str(code_cell).strip(), str(title_cell).strip())
-                )
-                n_rules += 1
-        print(f"     写入 {n_rules} 条工序映射规则", flush=True)
-    except Exception as e:
-        print(f"     [WARN] 解析失败: {e}", flush=True)
+                cur.execute("INSERT OR IGNORE INTO process_rules (process_name, sheet_code, sheet_title) VALUES (?,?,?)", (current_process, str(code_cell).strip(), str(title_cell).strip()))
+    except Exception as e: pass
 
-# ============================================================================
-# Build db & zip
-# ============================================================================
 def build_db(collection_dir, collection_code, display_name, output_db):
     if not os.path.isdir(collection_dir): return 1
     if os.path.exists(output_db): os.remove(output_db)
@@ -359,8 +263,6 @@ def build_db(collection_dir, collection_code, display_name, output_db):
     catalog_id = cur.lastrowid
 
     folder_order = 0
-    n_tpl = n_sheet = n_cell = 0
-
     for folder_name in sorted(os.listdir(collection_dir)):
         folder_path = os.path.join(collection_dir, folder_name)
         if not os.path.isdir(folder_path): continue
@@ -371,67 +273,28 @@ def build_db(collection_dir, collection_code, display_name, output_db):
         tpl_order = 0
         for json_file in sorted(os.listdir(folder_path)):
             if not json_file.endswith(".json"): continue
-            json_full = os.path.join(folder_path, json_file)
-            try:
-                with open(json_full, "r", encoding="utf-8") as f: data = json.load(f)
-            except Exception as e: continue
-
+            with open(os.path.join(folder_path, json_file), "r", encoding="utf-8") as f:
+                data = json.load(f)
             base = os.path.splitext(json_file)[0]
-            xlsx_rel = f"{folder_name}/{base}.xlsx"
-
-            # ★ 精简：不再记录 pdf_path, xlsx_path, json_path
-            cur.execute("INSERT INTO templates (folder_id, code, title, sort_order) VALUES (?,?,?,?)",
-                (folder_id, base, data.get("title", base), tpl_order))
+            cur.execute("INSERT INTO templates (folder_id, code, title, sort_order) VALUES (?,?,?,?)", (folder_id, base, data.get("title", base), tpl_order))
             template_id = cur.lastrowid
             tpl_order += 1
-            n_tpl += 1
 
             sheet_rows = []
             for i, sheet in enumerate(data.get("sheets", [])):
-                cur.execute("INSERT INTO template_sheets (template_id, page, name, title, sort_order) VALUES (?,?,?,?,?)",
-                    (template_id, int(sheet.get("page", i)), str(sheet.get("name", "")), str(sheet.get("title", "")), i))
+                cur.execute("INSERT INTO template_sheets (template_id, page, name, title, sort_order) VALUES (?,?,?,?,?)", (template_id, int(sheet.get("page", i)), str(sheet.get("name", "")), str(sheet.get("title", "")), i))
                 sheet_rows.append((cur.lastrowid, str(sheet.get("name", "")), str(sheet.get("title", ""))))
-                n_sheet += 1
 
-            # ★ 仍然需要读取 xlsx 来提取样式和数据写入 sheet_cells
-            xlsx_full = os.path.join(collection_dir, xlsx_rel)
-            if os.path.exists(xlsx_full):
-                before = cur.execute("SELECT COUNT(*) FROM sheet_cells").fetchone()[0]
-                convert_xlsx_to_db(cur, xlsx_full, sheet_rows)
-                after = cur.execute("SELECT COUNT(*) FROM sheet_cells").fetchone()[0]
-                n_cell += (after - before)
-            else:
-                print(f"    [WARN] 缺少对应的 Excel 文件，无法提取样式: {xlsx_full}", flush=True)
+            xlsx_full = os.path.join(collection_dir, f"{folder_name}/{base}.xlsx")
+            if os.path.exists(xlsx_full): convert_xlsx_to_db(cur, xlsx_full, sheet_rows)
 
-    # 递归查找所有的 PFQIEE.xlsx 并解析
-    print("[build_db] 开始扫描 PFQIEE.xlsx ...", flush=True)
-    found_any = False
     for root, dirs, files in os.walk(collection_dir):
-        if "PFQIEE.xlsx" in files:
-            found_any = True
-            full_path = os.path.join(root, "PFQIEE.xlsx")
-            parse_pfqiee(cur, full_path)
-    
-    if not found_any:
-        print("[WARN] 未找到任何 PFQIEE.xlsx 文件，跳过工序规则解析。", flush=True)
+        if "PFQIEE.xlsx" in files: parse_pfqiee(cur, os.path.join(root, "PFQIEE.xlsx"))
 
     conn.commit()
     conn.close()
-    print(f"[OK] db: {output_db}\n     templates={n_tpl}  sheets={n_sheet}  cells={n_cell}", flush=True)
+    print(f"[OK] 数据库生成完毕: {output_db}", flush=True)
     return 0
-
-# ★ 核心瘦身：打包时只放 catalog.db，不再放入 PDF/Excel/JSON
-def build_zip(collection_dir, output_zip, extra_files):
-    if os.path.exists(output_zip): os.remove(output_zip)
-    
-    with zipfile.ZipFile(output_zip, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
-        for full, rel in extra_files:
-            info = zipfile.ZipInfo.from_file(full, rel)
-            info.flag_bits |= 0x800
-            info.external_attr = (0o644 << 16)
-            with open(full, "rb") as f: zf.writestr(info, f.read())
-            
-    print(f"[OK] zip: {output_zip}  大小 {os.path.getsize(output_zip)/1024:.1f} KB (仅包含 catalog.db)", flush=True)
 
 def main():
     ap = argparse.ArgumentParser()
@@ -440,9 +303,16 @@ def main():
     args = ap.parse_args()
 
     coll_dir = os.path.join(os.path.abspath(args.src_root), args.collection)
-    if build_db(coll_dir, args.collection, display_name_for(args.collection), os.path.join(coll_dir, "catalog.db")) != 0:
+    output_db = os.path.join(coll_dir, "catalog.db")
+    
+    if build_db(coll_dir, args.collection, display_name_for(args.collection), output_db) != 0:
         return 1
-    build_zip(coll_dir, os.path.join(os.path.abspath(args.src_root), f"{args.collection}.zip"), [(os.path.join(coll_dir, "catalog.db"), "catalog.db")])
+        
+    # ★ 核心改动：不打包 zip，直接重命名为 .dlt
+    output_dlt = os.path.join(os.path.abspath(args.src_root), f"{args.collection}.dlt")
+    if os.path.exists(output_dlt): os.remove(output_dlt)
+    os.rename(output_db, output_dlt)
+    print(f"[OK] 模板包生成完毕: {output_dlt} (不需要 zip)", flush=True)
     print("=== DONE ===", flush=True)
 
 if __name__ == "__main__":
