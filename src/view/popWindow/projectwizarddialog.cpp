@@ -1,5 +1,6 @@
 ﻿#include "projectwizarddialog.h"
 #include "templatecatalog.h"
+#include "view/delegate/applistdelegate.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -14,9 +15,6 @@
 #include <components/textfields/Label.h>
 #include <components/basicinput/Button.h>
 #include <components/dialogs_flyouts/Dialog.h>
-
-// ★ 确保引入公共代理（根据你项目实际路径调整）
-#include "src/view/delegate/applistdelegate.h" 
 
 using namespace fluent::textfields;
 
@@ -105,7 +103,6 @@ namespace doclife::ui {
         connect(m_listModel, &QStandardItemModel::itemChanged, this, &ProjectWizardDialog::updateOkButtonState);
     }
 
-    // ★ 缺失的核心函数 1：获取实例名称
     QString ProjectWizardDialog::itemName() const
     {
         return m_nameEdit->text().trimmed();
@@ -151,17 +148,26 @@ namespace doclife::ui {
             data["templateName"] = r.sheetTitle;
             data["sheetId"] = r.sheetId;
 
-            const TemplateFileInfo* tInfo = TemplateCatalog::instance()->findSheetByNameAndCode(r.sheetTitle, r.sheetCode);
-            data["dbPath"] = (tInfo && r.sheetId >= 0) ? tInfo->dbPath : "";
+            // ★ 核心修复：既然 SQL 已经查出了真实的 sheetId，直接用 sheetId 去匹配获取 dbPath，无视表名不一致！
+            QString dbPath;
+            if (r.sheetId >= 0) {
+                for (const auto& f : TemplateCatalog::instance()->leafFiles()) {
+                    if (f.sheetId == r.sheetId) {
+                        dbPath = f.dbPath;
+                        break;
+                    }
+                }
+            }
+            data["dbPath"] = dbPath;
             item->setData(data, Qt::UserRole);
 
-            if (r.sheetId < 0 || !tInfo) {
+            if (r.sheetId < 0 || dbPath.isEmpty()) {
                 item->setEnabled(false);
                 item->setText(item->text() + " [系统缺失]");
                 item->setCheckState(Qt::Unchecked);
             }
             else {
-                item->setCheckState(Qt::Checked); // 默认勾选
+                item->setCheckState(Qt::Checked);
             }
             m_listModel->appendRow(item);
         }
@@ -182,7 +188,6 @@ namespace doclife::ui {
         m_okBtn->setEnabled(hasName && hasChecked);
     }
 
-    // ★ 缺失的核心函数 2：收集用户勾选的表格
     QList<doclife::core::SheetNodeData> ProjectWizardDialog::selectedSheets() const
     {
         QList<doclife::core::SheetNodeData> result;

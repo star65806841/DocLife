@@ -443,5 +443,4 @@ namespace doclife::ui {
     {
         return QSize(0, kRowHeight);
     }
-
 } // namespace doclife::ui

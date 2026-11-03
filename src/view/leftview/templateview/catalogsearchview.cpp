@@ -172,7 +172,7 @@ namespace doclife::ui {
         }
     }
 
-    // 渲染工序列表（内容消失是因为之前这里被清空了！）
+    // 渲染工序列表
     void CatalogSearchView::showProcessList(const QString& processName)
     {
         m_processTitle->setText(QStringLiteral("工序：%1 · 推荐表格清单").arg(processName));
