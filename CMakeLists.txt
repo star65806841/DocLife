@@ -107,6 +107,8 @@ set(DOCLIFE_VIEW_POPUP
     src/view/popWindow/toast/apptoast.h                                      src/view/popWindow/toast/apptoast.cpp
     src/view/popWindow/projectwizarddialog.h                                 src/view/popWindow/projectwizarddialog.cpp
     src/view/popWindow/addsheetdialog.h                                      src/view/popWindow/addsheetdialog.cpp
+    # Delegate
+    src/view/delegate/applistdelegate.h src/view/delegate/applistdelegate.cpp
 )
 
 # ---------------------------------------------------------------------------

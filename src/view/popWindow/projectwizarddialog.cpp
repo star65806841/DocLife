@@ -7,8 +7,7 @@
 #include <QStandardItemModel>
 #include <QDebug>
 #include <QDateTime>
-#include <QBrush>
-#include <QColor>
+#include <QListView>
 
 #include <FluentQt/TextFields.h>
 #include <FluentQt/Collections.h> 
@@ -16,7 +15,8 @@
 #include <components/basicinput/Button.h>
 #include <components/dialogs_flyouts/Dialog.h>
 
-#include "leftview/projecttreeview/fluenttreeitemdelegate.h"
+// ★ 确保引入公共代理（根据你项目实际路径调整）
+#include "src/view/delegate/applistdelegate.h" 
 
 using namespace fluent::textfields;
 
@@ -54,20 +54,20 @@ namespace doclife::ui {
         layout->addWidget(m_processBox);
 
         auto* listLabel = new fluent::textfields::Label("推荐表格清单（请勾选所需生成的表格）");
+        layout->addWidget(listLabel);
 
-        m_listView = new fluent::collections::ListView(this);
-        m_listView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-        m_listView->setBackgroundVisible(false);
+        QListView* listView = new QListView(this);
+        listView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        listView->setStyleSheet("QListView { background-color: #FFFFFF; border: none; outline: none; selection-background-color: transparent; } QListView::item { background: transparent; }");
 
-        auto* delegate = new FluentTreeItemDelegate(m_listView);
+        auto* delegate = new AppListDelegate(listView);
         delegate->setCheckBoxVisible(true);
-        m_listView->setItemDelegate(delegate);
+        listView->setItemDelegate(delegate);
 
         m_listModel = new QStandardItemModel(this);
-        m_listView->setModel(m_listModel);
+        listView->setModel(m_listModel);
 
-        layout->addWidget(listLabel);
-        layout->addWidget(m_listView, 1);
+        layout->addWidget(listView, 1);
 
         auto* commandRow = new QHBoxLayout;
         commandRow->setContentsMargins(0, 0, 0, 0);
@@ -105,6 +105,12 @@ namespace doclife::ui {
         connect(m_listModel, &QStandardItemModel::itemChanged, this, &ProjectWizardDialog::updateOkButtonState);
     }
 
+    // ★ 缺失的核心函数 1：获取实例名称
+    QString ProjectWizardDialog::itemName() const
+    {
+        return m_nameEdit->text().trimmed();
+    }
+
     void ProjectWizardDialog::updateSuggestions(const QString& text)
     {
         QString input = text.trimmed();
@@ -115,7 +121,7 @@ namespace doclife::ui {
         }
 
         QStringList startsWith, contains;
-        for (const QString& s : all) {
+        for (const QString& s : qAsConst(all)) {
             if (s.contains(input, Qt::CaseInsensitive)) {
                 if (s.startsWith(input, Qt::CaseInsensitive)) startsWith << s;
                 else contains << s;
@@ -124,8 +130,6 @@ namespace doclife::ui {
         startsWith.append(contains);
         m_processBox->setSuggestions(startsWith);
     }
-
-    QString ProjectWizardDialog::itemName() const { return m_nameEdit->text().trimmed(); }
 
     void ProjectWizardDialog::onProcessChanged(const QString& processName)
     {
@@ -152,14 +156,12 @@ namespace doclife::ui {
             item->setData(data, Qt::UserRole);
 
             if (r.sheetId < 0 || !tInfo) {
-                // 系统缺失的表直接禁用，且不勾选
                 item->setEnabled(false);
                 item->setText(item->text() + " [系统缺失]");
                 item->setCheckState(Qt::Unchecked);
             }
             else {
-                // ★ 完全交给用户决定：不论是 PD 评定表还是普通表，默认全选，且都可以自由取消
-                item->setCheckState(Qt::Checked);
+                item->setCheckState(Qt::Checked); // 默认勾选
             }
             m_listModel->appendRow(item);
         }
@@ -172,7 +174,6 @@ namespace doclife::ui {
         bool hasChecked = false;
         for (int i = 0; i < m_listModel->rowCount(); ++i) {
             auto* item = m_listModel->item(i);
-            // 只要勾选了，且不是缺失的表，就算有效
             if (item->checkState() == Qt::Checked && !item->text().contains("[系统缺失]")) {
                 hasChecked = true;
                 break;
@@ -181,12 +182,12 @@ namespace doclife::ui {
         m_okBtn->setEnabled(hasName && hasChecked);
     }
 
+    // ★ 缺失的核心函数 2：收集用户勾选的表格
     QList<doclife::core::SheetNodeData> ProjectWizardDialog::selectedSheets() const
     {
         QList<doclife::core::SheetNodeData> result;
         for (int i = 0; i < m_listModel->rowCount(); ++i) {
             auto* item = m_listModel->item(i);
-            // 收集被勾选的有效数据
             if (item->checkState() == Qt::Checked && !item->text().contains("[系统缺失]")) {
                 QVariantMap data = item->data(Qt::UserRole).toMap();
                 doclife::core::SheetNodeData s;

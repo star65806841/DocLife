@@ -76,7 +76,9 @@ namespace doclife::ui {
         if (state == Qt::Checked || state == Qt::PartiallyChecked) {
             painter->setPen(Qt::NoPen);
             // 如果主题失效，给个默认的系统蓝
-            painter->setBrush(colors.accentDefault.isValid() ? colors.accentDefault : QColor("#0078D4"));
+            painter->setBrush(colors.accentDefault.isValid()
+                ? colors.accentDefault
+                : QColor(0x00, 0x78, 0xD4));
             painter->drawPath(path);
 
             QFont iconFont(Typography::FontFamily::FluentIcons, -1);
@@ -90,7 +92,9 @@ namespace doclife::ui {
             painter->drawText(boxRect, Qt::AlignCenter, glyph);
         }
         else {
-            painter->setPen(QPen(colors.strokeDefault.isValid() ? colors.strokeDefault : QColor("#C0C0C0"), 1.5));
+            painter->setPen(QPen(colors.strokeDefault.isValid()
+                ? colors.strokeDefault
+                : QColor(0xC0, 0xC0, 0xC0), 1.5));
             painter->setBrush(Qt::transparent);
             painter->drawPath(path);
         }
@@ -179,20 +183,22 @@ namespace doclife::ui {
         const bool isEnabled = option.state & QStyle::State_Enabled;
 
         QColor bgColor = Qt::transparent;
-        QColor textColor = colors.textPrimary.isValid() ? colors.textPrimary : QColor("#333333");
+        QColor textColor = colors.textPrimary.isValid()
+            ? colors.textPrimary
+            : QColor(0x33, 0x33, 0x33);
 
         // ★★★ 核心修复：彻底锁死浅色背景，绝不使用可能变黑的 colors.xxx
         if (!isEnabled) {
-            textColor = QColor("#999999"); // 禁用态浅灰
+            textColor = QColor(0x99, 0x99, 0x99); // 禁用态浅灰
         }
         else if (isSelected && isPressed) {
-            bgColor = QColor("#D0E8FF"); // 按下深一点的蓝
+            bgColor = QColor(0xD0, 0xE8, 0xFF); // 按下深一点的蓝
         }
         else if (isSelected || isPressed) {
-            bgColor = QColor("#E5F1FB"); // 选中浅蓝
+            bgColor = QColor(0xE5, 0xF1, 0xFB); // 选中浅蓝
         }
         else if (isHovered) {
-            bgColor = QColor("#F0F0F0"); // 悬停浅灰
+            bgColor = QColor(0xF0, 0xF0, 0xF0); // 悬停浅灰
         }
 
         if (isFirstColumn) {
@@ -249,7 +255,9 @@ namespace doclife::ui {
                     indicatorPath.addRoundedRect(indicatorRect, indicatorW / 2.0,
                         indicatorW / 2.0);
 
-                    QColor ac = colors.accentDefault.isValid() ? colors.accentDefault : QColor("#0078D4");
+                    QColor ac = colors.accentDefault.isValid()
+                        ? colors.accentDefault
+                        : QColor(0x00, 0x78, 0xD4);
                     ac.setAlphaF(ac.alphaF() * accentT);
                     painter->setPen(Qt::NoPen);
                     painter->setBrush(ac);
