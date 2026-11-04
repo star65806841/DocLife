@@ -29,6 +29,15 @@ ProjectTreeView::ProjectTreeView(QWidget* parent)
     m_tree->setModel(m_model);
     m_tree->setIndicatorMotionAnimationEnabled(true);
     m_tree->setSelectionMode(fluent::collections::SelectionMode::Single);
+
+    // 自由拖拽：目录/表格可以换父级，单位/分部/分项只能同级排序。
+    // 结构规则由 ProjectTreeModel 的 canDropMimeData 与 ProjectContext::moveNode 共同把关。
+    // 注意不能开 Fluent TreeView 自带的 setCanReorderItems()：它只支持 QStandardItemModel。
+    m_tree->setDragEnabled(true);
+    m_tree->setAcceptDrops(true);
+    m_tree->setDropIndicatorShown(true);
+    m_tree->setDragDropMode(QAbstractItemView::InternalMove);
+    m_tree->setDefaultDropAction(Qt::MoveAction);
     // 双击 / 单击已选中项 / F2 进入编辑
     m_tree->setEditTriggers(QAbstractItemView::DoubleClicked
                             | QAbstractItemView::SelectedClicked

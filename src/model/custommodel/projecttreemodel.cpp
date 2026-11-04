@@ -3,10 +3,18 @@
 #include "ProjectContext.h"          // ← 新增
 
 #include <QIcon>
+#include <QMimeData>
 #include <QDebug>
 #include <QtAlgorithms>
 
 namespace doclife::model {
+
+namespace {
+    // 内部拖拽使用的私有格式，避免和外部文本拖放混淆
+    const char* kNodeMimeType = "application/x-doclife-node";
+
+    QByteArray nodeMimeType() { return QByteArray(kNodeMimeType); }
+}
 
 // ============================================================
 // 构造：自动与业务层连线 + 若项目已打开则直接同步
@@ -244,9 +252,71 @@ Qt::ItemFlags ProjectTreeModel::flags(const QModelIndex& index) const
     if (!node) return Qt::NoItemFlags;
 
     Qt::ItemFlags f = Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable;
+
+    // 根节点（工程本身）不能被拖动，但可以接收拖放
+    if (node != m_root) f |= Qt::ItemIsDragEnabled;
     if (NodeTypeRegistry::instance().canHaveChildren(node->data.type))
         f |= Qt::ItemIsDropEnabled;
+
     return f;
+}
+
+// ============================================================
+// 拖拽：把 (节点 → 新父级/新位置) 交给 ProjectContext 统一校验并落库
+// ============================================================
+QStringList ProjectTreeModel::mimeTypes() const
+{
+    return { QString::fromLatin1(kNodeMimeType) };
+}
+
+QMimeData* ProjectTreeModel::mimeData(const QModelIndexList& indexes) const
+{
+    if (indexes.isEmpty()) return nullptr;
+
+    Node* node = nodeFromIndex(indexes.first());
+    if (!node || node == m_root) return nullptr;
+
+    auto* data = new QMimeData;
+    data->setData(nodeMimeType(), node->data.id.toUtf8());
+    data->setText(node->data.name);
+    return data;
+}
+
+Qt::DropActions ProjectTreeModel::supportedDropActions() const
+{
+    return Qt::MoveAction;
+}
+
+bool ProjectTreeModel::canDropMimeData(const QMimeData* data, Qt::DropAction action,
+                                       int /*row*/, int /*column*/, const QModelIndex& parent) const
+{
+    if (!data || action != Qt::MoveAction || !data->hasFormat(nodeMimeType())) return false;
+
+    Node* node = m_idIndex.value(QString::fromUtf8(data->data(nodeMimeType())), nullptr);
+    if (!node || node == m_root) return false;
+
+    Node* newParent = parent.isValid() ? nodeFromIndex(parent) : m_root;
+    if (!newParent || newParent == node) return false;
+
+    // 不能拖进自己的子树
+    for (Node* p = newParent; p; p = p->parent) {
+        if (p == node) return false;
+    }
+
+    return NodeTypeRegistry::instance().canAcceptChild(newParent->data.type, node->data.type);
+}
+
+bool ProjectTreeModel::dropMimeData(const QMimeData* data, Qt::DropAction action,
+                                    int row, int /*column*/, const QModelIndex& parent)
+{
+    if (!canDropMimeData(data, action, row, 0, parent)) return false;
+
+    Node* newParent = parent.isValid() ? nodeFromIndex(parent) : m_root;
+    if (!newParent) return false;
+
+    const QString nodeId = QString::fromUtf8(data->data(nodeMimeType()));
+    // row == -1 表示放到父节点末尾（Qt 的约定）
+    return doclife::core::ProjectContext::instance()->moveNode(nodeId, newParent->data.id, row);
 }
 
 // ============================================================

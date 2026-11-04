@@ -728,21 +728,39 @@ namespace doclife::core {
         auto* newParent = findNodeById(newParentId);
         if (!node || !newParent || node == m_root) return false;
 
+        // 不能把节点拖进自己的子树
         auto* check = newParent;
         while (check) {
             if (check == node) return false;
             check = check->parent;
         }
 
+        // 结构规则统一在这里校验：拖拽和以后任何移动入口都走同一套判断
+        const auto& registry = doclife::model::NodeTypeRegistry::instance();
+        if (!registry.canAcceptChild(newParent->data.type, node->data.type)) {
+            emit errorOccurred(QStringLiteral("「%1」不能放到「%2」下面")
+                .arg(registry.displayLabel(node->data.type),
+                    registry.displayLabel(newParent->data.type)));
+            return false;
+        }
+
         auto* oldParent = node->parent;
         if (!oldParent) return false;
+
+        const int oldIndex = oldParent->children.indexOf(node);
+
+        // 同一个父节点内向下移动时，摘掉自己后目标索引会左移一位
+        int insertIndex = newIndex;
+        if (oldParent == newParent && insertIndex >= 0 && oldIndex >= 0 && oldIndex < insertIndex) {
+            --insertIndex;
+        }
 
         emit nodeRemoved(oldParent->data.id, nodeId);
         oldParent->children.removeOne(node);
 
         node->parent = newParent;
-        if (newIndex < 0 || newIndex >= newParent->children.size()) newParent->children.append(node);
-        else newParent->children.insert(newIndex, node);
+        if (insertIndex < 0 || insertIndex >= newParent->children.size()) newParent->children.append(node);
+        else newParent->children.insert(insertIndex, node);
 
         emit nodeAdded(newParentId, nodeId);
         markDirty();
