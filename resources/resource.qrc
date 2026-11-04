@@ -9,5 +9,9 @@
         <file>icons/menu/file_save.svg</file>
         <file>icons/menu/template-blue.svg</file>
         <file>icons/menu/template-grey.svg</file>
+        <file>icons/edit/resetSheet.svg</file>
+        <file>icons/cursor/arrow-down.svg</file>
+        <file>icons/cursor/arrow-right.svg</file>
+        <file>icons/cursor/cross-society.svg</file>
     </qresource>
 </RCC>

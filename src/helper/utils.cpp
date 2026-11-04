@@ -1,5 +1,6 @@
 ﻿#include "utils.h"
 
+#include <QIcon>
 #include <QWidget>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -179,5 +180,17 @@ namespace doclife::core {
         }
 
         return fileName;
+    }
+
+    QCursor Utils::createSvgCursor(const QString& path, int size)
+    {
+        QIcon icon(path);
+        if (!icon.isNull()) {
+            QPixmap pm = icon.pixmap(QSize(size, size));
+            if (!pm.isNull()) {
+                return QCursor(pm, pm.width() / 2, pm.height() / 2);
+            }
+        }
+        return QCursor(Qt::ArrowCursor);   // SVG 加载失败时使用系统内置光标
     }
 }

@@ -159,8 +159,11 @@ void CentralView::popOpenedWarning()
     AppToast::showInfo(this, "应用程序正在运行, 请先关闭后再启动。");
 }
 
-void CentralView::popProjectClosed()
+void CentralView::projectClosed()
 {
+    if (m_mainContent) {
+        m_mainContent->clearView();
+    }
     // QString s2 = u"你好"_qs;
     QString infoStr = QStringLiteral("文档已关闭");
     AppToast::showInfo(this, infoStr);
@@ -234,7 +237,8 @@ void CentralView::initConnect()
     connect(UISignalManager::instance(), &UISignalManager::duplicateInstanceDetected, this, &CentralView::popOpenedWarning);
     /******************状态提醒*****************************************/
     // 工程关闭提醒
-    connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectClosed, this, &CentralView::popProjectClosed);
+    connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectClosed, this, &CentralView::projectClosed);
+
     // 工程保存提醒
     connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectSaved, this, &CentralView::popProjectSaved);
     // 工程创建提醒
@@ -247,6 +251,7 @@ void CentralView::initConnect()
     connect(UISignalManager::instance(), &UISignalManager::showTemplateView, this,[this](bool show){m_templateView->setVisible(show);});
     // 新建表格
     connect(UISignalManager::instance(), &UISignalManager::requestAddSheet, this, &CentralView::onRequestAddSheet);
+
 }
 
 void CentralView::showProjectDialog()

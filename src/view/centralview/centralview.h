@@ -33,7 +33,7 @@ namespace doclife::ui {
 
         void popOpenedWarning();
 
-        void popProjectClosed();
+        void projectClosed();
         void popProjectSaved();
         void popProjectCreated();
         void popProjectOpened();

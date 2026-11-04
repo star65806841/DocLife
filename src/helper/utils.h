@@ -42,5 +42,6 @@ namespace doclife::core {
         static bool saveProject(const doclife::model::ProjectHead& proj, const QString& filePath);
         static bool loadProject(const QString& filePath, doclife::model::ProjectHead& out);
 
+        static QCursor createSvgCursor(const QString &path, int size);
     };
 }

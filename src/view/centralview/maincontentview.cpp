@@ -17,7 +17,6 @@ namespace doclife::ui {
 
         m_host = new fluent::navigation::StackContentHost(this);
 
-        // 0=空白页 1=模板表格视图
         m_blankPage = new QWidget(m_host);
         m_sheetView = new TemplateSheetView(m_host);
         m_sheetView->setContentsMargins(0, 0, 9, 9);
@@ -29,18 +28,35 @@ namespace doclife::ui {
 
         layout->addWidget(m_host, 1);
 
-        // 只保留表格激活的监听
         connect(UISignalManager::instance(), &UISignalManager::templateSheetActivated,
             this, &MainContentView::onTemplateSheetActivated);
+
+        connect(UISignalManager::instance(), &UISignalManager::projectSheetActivated,
+            this, &MainContentView::onProjectSheetActivated);
+
+        connect(UISignalManager::instance(), &UISignalManager::projectBlankPageActivated, this, [this]() {
+            clearView();
+            });
+    }
+
+    // ★ 实现清空逻辑
+    void MainContentView::clearView()
+    {
+        m_sheetView->clearView();
+        m_host->setCurrentIndex(0, 0, false); // 0 是空白页
     }
 
     void MainContentView::onTemplateSheetActivated(const QString& dbPath,
         int sheetId,
         const QString& title)
     {
-        // 将表格数据传给渲染组件
         m_sheetView->loadSheet(dbPath, sheetId, title);
-        // 切换到表格页
+        m_host->setCurrentIndex(1, 0, true);
+    }
+
+    void MainContentView::onProjectSheetActivated(const QString& nodeId, const QString& dbPath, int sheetId, const QString& title)
+    {
+        m_sheetView->loadProjectSheet(nodeId, dbPath, sheetId, title);
         m_host->setCurrentIndex(1, 0, true);
     }
 

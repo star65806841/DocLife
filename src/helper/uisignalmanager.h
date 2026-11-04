@@ -22,6 +22,8 @@ Q_SIGNALS:
     // ============---============
 
     void drawerFileSetting();
+    // 项目设置
+    void popProjectsetting();
     // 新建项目
     void popProjectNew();
     void newProject();
@@ -30,8 +32,10 @@ Q_SIGNALS:
     void showTemplateView(bool);
     // 新建表格
     void requestAddSheet(const QString& parentNodeId);
-    // 项目设置
-    void popProjectsetting();
+    // 项目树点击了表格节点，通知右侧打开填报表
+    void projectSheetActivated(const QString& nodeId, const QString& dbPath, int sheetId, const QString& title);
+    // 项目树点击了非表格节点，通知右侧切回空白页
+    void projectBlankPageActivated();
     // 项目多开
     void duplicateInstanceDetected();
     // 点击了某个xlsx文件

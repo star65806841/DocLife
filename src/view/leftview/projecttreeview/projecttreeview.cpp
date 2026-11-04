@@ -6,6 +6,7 @@
 #include <QModelIndex>
 #include <QRect>
 #include <functional>
+#include <uisignalmanager.h>
 
 #include "business/ProjectContext.h"
 #include "ProjectContextMenuBuilder.h"
@@ -84,8 +85,33 @@ ProjectTreeView::ProjectTreeView(QWidget* parent)
                 m_model->onNodeUpdated(nodeId);
             });
 
-    // 除非打开和新建否则不需要rebuild
-    // rebuildAll();
+    // 监听左侧树的点击
+    connect(m_tree, &fluent::collections::TreeView::clicked, this, [this](const QModelIndex& index) {
+        if (!index.isValid()) return;
+
+        QString nodeType = index.data(doclife::model::ProjectTreeModel::NodeTypeRole).toString();
+        if (nodeType != "sheet")
+        {
+            UISignalManager::instance()->projectBlankPageActivated();
+            return; // 只对表格节点响应
+        }
+
+        QString nodeId = index.data(doclife::model::ProjectTreeModel::NodeIdRole).toString();
+
+        // 从业务层查出这个节点的具体信息
+        auto* ctx = doclife::core::ProjectContext::instance();
+        auto* node = ctx->findNodeById(nodeId);
+        if (!node) return;
+
+        // 获取我们之前存入的模板信息
+        QString dbPath = node->data.attrs.value("dbPath").toString();
+        int sheetId = node->data.attrs.value("sheetId").toInt();
+        QString title = node->data.name;
+
+        if (!dbPath.isEmpty() && sheetId >= 0) {
+            UISignalManager::instance()->projectSheetActivated(nodeId, dbPath, sheetId, title);
+        }
+    });
 }
 
 // ===============================================================

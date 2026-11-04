@@ -14,9 +14,12 @@ namespace doclife::ui {
     public:
         explicit MainContentView(QWidget* parent = nullptr);
 
+        // 清空视图，切回空白页
+        void clearView();
+
     private slots:
-        // 接收左侧树发出的表格展示信号
         void onTemplateSheetActivated(const QString& dbPath, int sheetId, const QString& title);
+        void onProjectSheetActivated(const QString& nodeId, const QString& dbPath, int sheetId, const QString& title);
 
     private:
         fluent::navigation::StackContentHost* m_host = nullptr;
