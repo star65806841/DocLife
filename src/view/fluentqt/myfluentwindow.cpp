@@ -165,6 +165,11 @@ namespace doclife::ui {
                 [this]() {
                     qDebug() << "User clicks OK";
                     emit UISignalManager::instance()->saveProject();
+                    // 保存成功（不再是未命名状态）才继续走关闭流程；
+                    // 用户若在另存为对话框里点了取消，就留在当前窗口继续编辑。
+                    if (!doclife::core::ProjectContext::instance()->isUntitled()) {
+                        setDidCancel(true);
+                    }
                 },
                 [this]() {
                     qDebug() << "User clicks Cancel";

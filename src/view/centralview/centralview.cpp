@@ -71,9 +71,12 @@ void CentralView::saveProject()
     if (doclife::core::ProjectContext::instance()->isUntitled())
     {
         qDebug() << "start saveProjectas-> open a fill diaog";
-        QString filepath = doclife::core::Utils::saveFileDialog(doclife::core::ProjectContext::instance()->displayName(), this);
-        qDebug() << "file path is :" << filepath;
-        doclife::core::ProjectContext::instance()->saveProjectAs(filepath);
+        const QString filepath = doclife::core::Utils::saveFileDialog(
+            doclife::core::ProjectContext::instance()->displayName(), this);
+        if (filepath.isEmpty()) return;   // 用户取消了另存为
+        if (!doclife::core::ProjectContext::instance()->saveProjectAs(filepath)) {
+            AppToast::showWarning(this, "保存失败，请检查目标位置是否可写");
+        }
     }
     // go save
     else

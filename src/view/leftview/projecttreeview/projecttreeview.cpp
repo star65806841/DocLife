@@ -87,29 +87,27 @@ ProjectTreeView::ProjectTreeView(QWidget* parent)
 
     // 监听左侧树的点击
     connect(m_tree, &fluent::collections::TreeView::clicked, this, [this](const QModelIndex& index) {
-        if (!index.isValid()) return;
-
         QString nodeType = index.data(doclife::model::ProjectTreeModel::NodeTypeRole).toString();
-        if (nodeType != "sheet")
-        {
-            UISignalManager::instance()->projectBlankPageActivated();
-            return; // 只对表格节点响应
-        }
-
         QString nodeId = index.data(doclife::model::ProjectTreeModel::NodeIdRole).toString();
 
-        // 从业务层查出这个节点的具体信息
         auto* ctx = doclife::core::ProjectContext::instance();
         auto* node = ctx->findNodeById(nodeId);
-        if (!node) return;
 
-        // 获取我们之前存入的模板信息
-        QString dbPath = node->data.attrs.value("dbPath").toString();
-        int sheetId = node->data.attrs.value("sheetId").toInt();
-        QString title = node->data.name;
+        if (nodeType == "sheet" && node) {
+            // ★ 改为当前项目的文件路径
+            QString dbPath = doclife::core::ProjectContext::instance()->filePath();
+            // ★ 读取刚才存进 attrs 的项目实例 ID
+            int projectSheetId = node->data.attrs.value("projectSheetId").toInt();
+            QString title = node->data.name;
 
-        if (!dbPath.isEmpty() && sheetId >= 0) {
-            UISignalManager::instance()->projectSheetActivated(nodeId, dbPath, sheetId, title);
+            if (!dbPath.isEmpty() && projectSheetId >= 0) {
+                UISignalManager::instance()->projectSheetActivated(nodeId, dbPath, projectSheetId, title);
+            }
+        }
+        else
+        {
+            // 如果是目录节点，发信号切回空白页
+            UISignalManager::instance()->projectBlankPageActivated();
         }
     });
 }

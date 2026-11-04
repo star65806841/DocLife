@@ -61,7 +61,8 @@ namespace doclife::core {
 
         void markClean();
         void markDirty();
-
+        // 获取当前项目数据库的连接（用于外部读写表格数据）
+        QSqlDatabase getProjectDb();
         // ---- 增量操作 (内存级别) ----
         bool addChild(const QString& parentId, const QString& childType, QString* newId = nullptr);
         bool addSheetsToNode(const QString& parentId, const QList<SheetNodeData>& sheets);
@@ -76,6 +77,8 @@ namespace doclife::core {
     signals:
         void projectCreated(const QString& filePath);
         void projectOpened(const QString& filePath);
+        // 即将写入磁盘：视图层应在此信号里把内存中的编辑内容落库
+        void projectSaving();
         void projectSaved(const QString& filePath);
         void projectClosed();
         void dirtyChanged(bool dirty);
@@ -94,6 +97,8 @@ namespace doclife::core {
 
         QString makeTempFilePath() const;
 
+        bool openDbConnection(const QString& dbPath);
+        void closeDbConnection();
         // SQLite 底层操作
         bool writeDb(const QString& targetPath);
         bool readDb(const QString& dbPath);
@@ -104,6 +109,8 @@ namespace doclife::core {
         void resetState();
 
     private:
+        // 当前项目数据库连接名
+        QString m_dbConnName;
         doclife::model::Node* m_root = nullptr;
         doclife::model::ProjectInfoModel  m_projectInfo;
         QString m_filePath;

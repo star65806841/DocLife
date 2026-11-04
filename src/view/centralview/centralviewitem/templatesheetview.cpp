@@ -15,6 +15,7 @@
 #include <QAction>
 #include <QItemSelectionModel>
 #include <utils.h>
+#include <uisignalmanager.h>
 
 #include <components/menus_toolbars/CommandBar.h>
 #include <business/projectcontext.h>
@@ -138,6 +139,26 @@ namespace doclife::ui {
         connect(m_table->verticalHeader()->selectionModel(), &QItemSelectionModel::selectionChanged, this, &TemplateSheetView::onHeaderSelectionChanged);
 
         connect(m_resetAction, &QAction::triggered, this, &TemplateSheetView::onResetTriggered);
+
+        // 保存工程前，把内存里的填报内容写入数据库
+        auto* ctx = doclife::core::ProjectContext::instance();
+        connect(ctx, &doclife::core::ProjectContext::projectSaving,
+            this, &TemplateSheetView::flushPendingEdits);
+        // 工程关闭后丢弃未保存的填报缓存，避免串到下一个工程
+        connect(ctx, &doclife::core::ProjectContext::projectClosed,
+            this, &TemplateSheetView::clearPendingEdits);
+        // 正在填报的表格被删除时，退回空白页并丢弃该表的缓存
+        connect(ctx, &doclife::core::ProjectContext::nodeRemoved, this,
+            [this](const QString&, const QString& nodeId) {
+                if (nodeId.isEmpty() || nodeId != m_currentNodeId) return;
+                const int sheetId = m_currentSheetId;
+                for (auto it = m_pendingEdits.begin(); it != m_pendingEdits.end(); ) {
+                    if (it.key().sheetId == sheetId) it = m_pendingEdits.erase(it);
+                    else ++it;
+                }
+                clearView();
+                UISignalManager::instance()->projectBlankPageActivated();
+            });
     }
 
     QString TemplateSheetView::columnName(int col) const
@@ -158,7 +179,54 @@ namespace doclife::ui {
         m_table->setColumnCount(0);
         m_table->clearSpans();
         m_currentNodeId.clear();
+        m_currentSheetId = -1;
+        m_currentDbPath.clear();
         m_isApplyingSettings = false;
+    }
+
+    void TemplateSheetView::clearPendingEdits()
+    {
+        m_pendingEdits.clear();
+    }
+
+    void TemplateSheetView::flushPendingEdits()
+    {
+        if (m_pendingEdits.isEmpty()) return;
+
+        auto* ctx = doclife::core::ProjectContext::instance();
+        QSqlDatabase db = ctx->getProjectDb();
+        if (!db.isOpen()) {
+            qWarning() << "★ 填报内容保存失败：工程数据库未打开，待写入单元格数:" << m_pendingEdits.size();
+            return;
+        }
+
+        const bool inTransaction = db.transaction();
+
+        QSqlQuery q(db);
+        q.prepare("INSERT OR REPLACE INTO form_values (sheet_id, row, col, value) VALUES (?,?,?,?)");
+
+        bool ok = true;
+        for (auto it = m_pendingEdits.cbegin(); it != m_pendingEdits.cend(); ++it) {
+            q.bindValue(0, it.key().sheetId);
+            q.bindValue(1, it.key().row);
+            q.bindValue(2, it.key().col);
+            q.bindValue(3, it.value());
+            if (!q.exec()) {
+                qWarning() << "★ 写入填报数据失败:" << q.lastError().text();
+                ok = false;
+                break;
+            }
+        }
+
+        if (inTransaction) {
+            if (ok) ok = db.commit();
+            else    db.rollback();
+        }
+
+        if (ok) {
+            qDebug() << "★ 填报内容已保存，共" << m_pendingEdits.size() << "个单元格";
+            m_pendingEdits.clear();
+        }
     }
 
     void TemplateSheetView::loadSheet(const QString& dbPath, int sheetId, const QString& title)
@@ -179,13 +247,8 @@ namespace doclife::ui {
         m_isProjectMode = true;
         m_titleAction->setText(title);
 
-        // 加载模板底图
         setupTemplate(dbPath, sheetId);
-
-        // 开启项目模式
         setMode(true);
-
-        // 恢复用户拖拽的宽高（此时会触发 onSectionResized，但被 m_isApplyingSettings 拦截）
         applyUserSettings();
     }
 
@@ -220,6 +283,11 @@ namespace doclife::ui {
 
     void TemplateSheetView::setupTemplate(const QString& dbPath, int sheetId)
     {
+        // 整个构建过程都屏蔽 itemChanged，否则模板内容会被当成用户输入缓存起来
+        const bool guardBefore = m_isApplyingSettings;
+        m_isApplyingSettings = true;
+        auto restoreGuard = [this, guardBefore]() { m_isApplyingSettings = guardBefore; };
+
         m_table->clear();
         m_table->setRowCount(0);
         m_table->setColumnCount(0);
@@ -227,18 +295,38 @@ namespace doclife::ui {
         m_defaultColWidths.clear();
         m_defaultRowHeights.clear();
 
-        if (!QFile::exists(dbPath)) return;
+        QSqlDatabase db;
+        bool ownsConnection = false;
 
-        const QString connName = QStringLiteral("sheetview_main");
-        QSqlDatabase db = QSqlDatabase::contains(connName) ? QSqlDatabase::database(connName) : QSqlDatabase::addDatabase("QSQLITE", connName);
-        if (db.isOpen()) db.close();
-        db.setDatabaseName(dbPath);
-        if (!db.open()) return;
+        if (m_isProjectMode) {
+            // 填报模式复用工程上下文里的长连接：同一个文件不重复打开，另存后也自动跟随
+            db = doclife::core::ProjectContext::instance()->getProjectDb();
+            if (!db.isOpen()) { restoreGuard(); return; }
+        }
+        else {
+            if (!QFile::exists(dbPath)) { restoreGuard(); return; }
+
+            const QString connName = QStringLiteral("sheetview_main");
+            db = QSqlDatabase::contains(connName) ? QSqlDatabase::database(connName)
+                : QSqlDatabase::addDatabase("QSQLITE", connName);
+            if (db.isOpen()) db.close();
+            db.setDatabaseName(dbPath);
+            if (!db.open()) { restoreGuard(); return; }
+            ownsConnection = true;
+        }
+
+        // 统一收尾：预览模式关掉自己的连接，填报模式保留长连接
+        auto finish = [&]() {
+            if (ownsConnection && db.isValid()) db.close();
+            restoreGuard();
+            };
 
         int rowCount = 0, colCount = 0;
         {
             QSqlQuery q(db);
-            q.prepare("SELECT row_count, col_count FROM template_sheets WHERE id = ?");
+            const QString tableName = m_isProjectMode ? QStringLiteral("project_sheets")
+                : QStringLiteral("template_sheets");
+            q.prepare(QStringLiteral("SELECT row_count, col_count FROM %1 WHERE id = ?").arg(tableName));
             q.addBindValue(sheetId);
             if (q.exec() && q.next()) {
                 rowCount = q.value(0).toInt();
@@ -246,7 +334,7 @@ namespace doclife::ui {
             }
         }
 
-        if (rowCount <= 0 || colCount <= 0) { db.close(); return; }
+        if (rowCount <= 0 || colCount <= 0) { finish(); return; }
 
         m_table->setUpdatesEnabled(false);
         m_table->setRowCount(rowCount);
@@ -281,6 +369,7 @@ namespace doclife::ui {
         }
 
         // 2. 渲染单元格
+        QHash<QString, int> fontVotes;   // "字体|字号" -> 出现次数，用来推断空白格的默认字体
         {
             QSqlQuery q(db);
             q.prepare("SELECT row, col, row_span, col_span, value, font_family, font_size, font_bold, font_italic, font_underline, font_color, bg_color, h_align, v_align, border_top, border_bottom, border_left, border_right FROM sheet_cells WHERE sheet_id = ?");
@@ -299,11 +388,15 @@ namespace doclife::ui {
 
                     qreal fontSize = q.value(6).toDouble();
                     if (fontSize <= 0.0) fontSize = 10.5;
-                    QFont font(q.value(5).toString(), qRound(fontSize + 0.5));
+                    const QString fontFamily = q.value(5).toString();
+                    QFont font(fontFamily, qRound(fontSize + 0.5));
                     font.setBold(q.value(7).toInt() != 0);
                     font.setItalic(q.value(8).toInt() != 0);
                     font.setUnderline(q.value(9).toInt() != 0);
                     item->setFont(font);
+                    if (!fontFamily.isEmpty()) {
+                        fontVotes[fontFamily + QLatin1Char('|') + QString::number(qRound(fontSize))]++;
+                    }
 
                     QColor fg(q.value(10).toString()); if (fg.isValid()) item->setForeground(fg);
                     QColor bg(q.value(11).toString()); if (bg.isValid() && bg != QColor("#FFFFFF")) item->setBackground(bg);
@@ -329,9 +422,58 @@ namespace doclife::ui {
             }
         }
 
+        // 3. 填报模式：补齐空白单元格并叠加已填写的内容
+        if (m_isProjectMode) {
+            QString dominantKey;
+            int bestVotes = 0;
+            for (auto it = fontVotes.cbegin(); it != fontVotes.cend(); ++it) {
+                if (it.value() > bestVotes) { bestVotes = it.value(); dominantKey = it.key(); }
+            }
+            QFont dominantFont(QStringLiteral("宋体"), 11);
+            const QStringList parts = dominantKey.split(QLatin1Char('|'));
+            if (parts.size() == 2 && !parts.at(0).isEmpty()) {
+                dominantFont = QFont(parts.at(0), parts.at(1).toInt());
+            }
+
+            ensureBlankCellsEditable(rowCount, colCount, dominantFont);
+            applyFormValues(db, rowCount, colCount);
+        }
+
         // ★ 关键修复：去掉了 resizeSections(QHeaderView::Fixed)，防止覆盖用户数据
         m_table->setUpdatesEnabled(true);
-        db.close();
+        finish();
+    }
+
+    void TemplateSheetView::ensureBlankCellsEditable(int rowCount, int colCount, const QFont& defaultFont)
+    {
+        // 模板只记录了有内容的单元格，空白格没有 QTableWidgetItem，
+        // 而 QTableWidget 只允许编辑已经有 item 的格子，所以这里补齐。
+        for (int r = 0; r < rowCount; ++r) {
+            for (int c = 0; c < colCount; ++c) {
+                if (m_table->item(r, c)) continue;
+                auto* item = new QTableWidgetItem;
+                item->setFont(defaultFont);
+                item->setFlags(item->flags() | Qt::ItemIsEditable);
+                m_table->setItem(r, c, item);
+            }
+        }
+    }
+
+    void TemplateSheetView::applyFormValues(QSqlDatabase& db, int rowCount, int colCount)
+    {
+        QSqlQuery q(db);
+        q.prepare("SELECT row, col, value FROM form_values WHERE sheet_id = ?");
+        q.addBindValue(m_currentSheetId);
+        if (!q.exec()) {
+            qWarning() << "★ 读取填报数据失败:" << q.lastError().text();
+            return;
+        }
+        while (q.next()) {
+            const int r = q.value(0).toInt();
+            const int c = q.value(1).toInt();
+            if (r < 0 || r >= rowCount || c < 0 || c >= colCount) continue;
+            if (auto* item = m_table->item(r, c)) item->setText(q.value(2).toString());
+        }
     }
 
     void TemplateSheetView::onSectionResized(int logicalIndex, int oldSize, int newSize)
@@ -360,7 +502,21 @@ namespace doclife::ui {
 
     void TemplateSheetView::onItemChanged(QTableWidgetItem* item)
     {
-        if (!m_isProjectMode || m_isApplyingSettings || m_currentNodeId.isEmpty()) return;
+        if (!m_isProjectMode || m_isApplyingSettings || item == nullptr) return;
+        if (m_currentNodeId.isEmpty() || m_currentSheetId < 0) return;
+
+        const int row = item->row();
+        const int col = item->column();
+        if (row < 0 || col < 0) return;
+
+        // 先只记在内存里，保存工程时统一落库，避免未保存的改动偷偷写进文件
+        PendingCellKey key;
+        key.sheetId = m_currentSheetId;
+        key.row = row;
+        key.col = col;
+        m_pendingEdits.insert(key, item->text());
+
+        doclife::core::ProjectContext::instance()->markDirty();
     }
 
     void TemplateSheetView::applyUserSettings()

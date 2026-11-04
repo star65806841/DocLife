@@ -4,10 +4,11 @@
 #include <QWidget>
 #include <QFileDialog>
 #include <QMessageBox>
-#include <projecmodel1.h>
 #include <QDir>
 #include <QFileInfo>
 #include <QUuid>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 namespace doclife::core {
 
@@ -108,32 +109,6 @@ namespace doclife::core {
         list.reserve(arr.size());
         for (const auto& v : arr) list << v.toString();
         return list;
-    }
-
-    bool Utils::saveProject(const doclife::model::ProjectHead& proj, const QString& filePath) {
-        QFile f(filePath);
-        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-            qWarning() << "打开失败:" << f.errorString();
-            return false;
-        }
-        f.write(QJsonDocument(proj.toJson()).toJson(QJsonDocument::Indented));
-        return true;
-    }
-
-    bool Utils::loadProject(const QString& filePath, doclife::model::ProjectHead& out) {
-        QFile f(filePath);
-        if (!f.open(QIODevice::ReadOnly)) {
-            qWarning() << "打开失败:" << f.errorString();
-            return false;
-        }
-        QJsonParseError err;
-        const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-        if (err.error != QJsonParseError::NoError || !doc.isObject()) {
-            qWarning() << "JSON 解析失败:" << err.errorString();
-            return false;
-        }
-        out = doclife::model::ProjectHead::fromJson(doc.object());
-        return true;
     }
 
     inline QString Utils::jsonToStr(const QJsonObject& o, bool pretty) {

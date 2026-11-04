@@ -3,9 +3,6 @@
 #include <QString>
 
 class QWidget;
-namespace doclife::model {
-    class ProjectHead;
-}
 namespace doclife::core {
     // ============================================================
 // 全局应用常量配置 (单一数据源)
@@ -38,9 +35,6 @@ namespace doclife::core {
         static QJsonArray strListToJson(const QStringList& list);
 
         static QStringList jsonToStrList(const QJsonArray& arr);
-
-        static bool saveProject(const doclife::model::ProjectHead& proj, const QString& filePath);
-        static bool loadProject(const QString& filePath, doclife::model::ProjectHead& out);
 
         static QCursor createSvgCursor(const QString &path, int size);
     };

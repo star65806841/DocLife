@@ -40,40 +40,43 @@ namespace doclife::ui {
             UISignalManager::instance()->requestAddSheet(nodeId);
         }
 
+        // 统一的“打开填报”逻辑：工程表节点带着 projectSheetId，直接交给右侧视图
+        void openSheetNode(const QString& nodeId) {
+            auto* ctx = doclife::core::ProjectContext::instance();
+            auto* node = ctx->findNodeById(nodeId);
+            if (!node || !ctx->hasOpenProject()) return;
+
+            const int projectSheetId = node->data.attrs.value(QStringLiteral("projectSheetId")).toInt(-1);
+            if (projectSheetId < 0) {
+                qWarning() << "表格节点缺少 projectSheetId，无法打开填报:" << nodeId;
+                return;
+            }
+            UISignalManager::instance()->projectSheetActivated(
+                nodeId, ctx->filePath(), projectSheetId, node->data.name);
+        }
+
         // 统一的“安全删除”逻辑
         void triggerDeleteNode(const QString& nodeId, QWidget* parentWidget) {
             auto* ctx = doclife::core::ProjectContext::instance();
             auto* node = ctx->findNodeById(nodeId);
             if (!node) return;
 
-            // 判断是否需要弹窗（如果有子节点或者包含表格）
-            bool hasChildren = !node->children.isEmpty();
-            if (hasChildren) {
-                QMessageBox::warning(parentWidget, "删除确认",
-                    "该目录下包含其他子目录或表格资料！\n删除后所有子级资料将被一并移除，且不可恢复。\n\n确定要删除吗？",
-                    QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
-                // 注意：上面的 QMessageBox 是同步阻塞的，我们需要简化一下逻辑
-            }
+            // 有子节点时提示影响范围，其余情况只做普通确认
+            const bool hasChildren = !node->children.isEmpty();
 
-            // 为了体验，可以用原生的确认框
+            QMessageBox box(parentWidget);
+            box.setWindowTitle("删除确认");
             if (hasChildren) {
-                QMessageBox box(parentWidget);
-                box.setWindowTitle("删除确认");
                 box.setText("该目录下包含其他子目录或表格资料！\n删除后所有子级资料将被一并移除，且不可恢复。\n\n确定要删除吗？");
                 box.setIcon(QMessageBox::Warning);
-                box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-                box.setDefaultButton(QMessageBox::No);
-                if (box.exec() != QMessageBox::Yes) return;
             }
             else {
-                QMessageBox box(parentWidget);
-                box.setWindowTitle("删除确认");
                 box.setText(QStringLiteral("确定要删除“%1”吗？").arg(node->data.name));
                 box.setIcon(QMessageBox::Question);
-                box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-                box.setDefaultButton(QMessageBox::No);
-                if (box.exec() != QMessageBox::Yes) return;
             }
+            box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+            box.setDefaultButton(QMessageBox::No);
+            if (box.exec() != QMessageBox::Yes) return;
 
             ctx->removeNode(nodeId);
         }
@@ -148,8 +151,7 @@ namespace doclife::ui {
         void buildForLeaf(Flyout* flyout, const QString& nodeId, QWidget* p, const ProjectContextMenuBuilder::RenameHandler& onRename)
         {
             addCommand(flyout, "打开填报", [nodeId] {
-                // TODO: 后续实现表格打开填报逻辑
-                qDebug() << "TODO: 打开表格填报" << nodeId;
+                openSheetNode(nodeId);
                 });
             addCommand(flyout, "重命名", [nodeId, onRename] {
                 if (onRename) onRename(nodeId);

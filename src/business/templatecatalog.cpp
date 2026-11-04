@@ -70,17 +70,29 @@ namespace doclife::ui {
         }
 
         const QString connName = QStringLiteral("catalog_") + collectionCode;
-        {
-            QSqlDatabase old = QSqlDatabase::database(connName, false);
-            if (old.isOpen()) old.close();
+        // 重新加载时先把上一次的连接彻底移除，否则 addDatabase 会报同名连接警告
+        if (QSqlDatabase::contains(connName)) {
+            {
+                QSqlDatabase old = QSqlDatabase::database(connName, false);
+                if (old.isOpen()) old.close();
+            }
+            QSqlDatabase::removeDatabase(connName);
         }
         QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connName);
         db.setDatabaseName(dbPath);
         if (!db.open()) {
             qWarning() << "[TemplateCatalog] db 打开失败:" << db.lastError().text();
+            db = QSqlDatabase();
             QSqlDatabase::removeDatabase(connName);
             return nullptr;
         }
+
+        // 释放连接时必须先丢掉本地引用，否则 Qt 会警告“连接仍在使用”
+        auto releaseConnection = [&]() {
+            if (db.isOpen()) db.close();
+            db = QSqlDatabase();
+            QSqlDatabase::removeDatabase(connName);
+            };
 
         QStandardItem* collectionItem = nullptr;
         {
@@ -90,8 +102,7 @@ namespace doclife::ui {
                 "SELECT code, display_name FROM catalogs LIMIT 1"));
             if (!q.exec() || !q.next()) {
                 qWarning() << "[TemplateCatalog] catalogs 查询失败";
-                db.close();
-                QSqlDatabase::removeDatabase(connName);
+                releaseConnection();
                 return nullptr;
             }
             const QString displayName = q.value(1).toString();
@@ -112,8 +123,7 @@ namespace doclife::ui {
                     "SELECT id, key, display_name FROM folders ORDER BY sort_order, id"));
                 if (!folderQ.exec()) {
                     qWarning() << "[TemplateCatalog] folders 查询失败";
-                    db.close();
-                    QSqlDatabase::removeDatabase(connName);
+                    releaseConnection();
                     delete collectionItem;
                     return nullptr;
                 }
@@ -224,14 +234,14 @@ namespace doclife::ui {
             loadProcessRules(db);
         }
 
-        db.close();
-        QSqlDatabase::removeDatabase(connName);
+        releaseConnection();
         return collectionItem;
     }
 
     void TemplateCatalog::loadProcessRules(QSqlDatabase& db)
     {
-        m_processRules.clear();
+        // 注意：这里不能清空，否则加载第二个集合时会把前面集合的工序规则全丢掉。
+        // 整体清空由 load() 负责。
         QSqlQuery q(db);
         // 联表查询，利用 LEFT JOIN 把真实的 sheet_id 找出来
         q.prepare("SELECT DISTINCT p.process_name, p.sheet_code, p.sheet_title, t.id "
