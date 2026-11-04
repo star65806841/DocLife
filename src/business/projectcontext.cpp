@@ -132,6 +132,12 @@ namespace doclife::core {
 
     void ProjectContext::setProjectInfo(model::ProjectInfoModel& projectInfo) {
         m_projectInfo = projectInfo;
+        // 工程名以 project_info 为准，树里的根节点跟着同步，避免两处显示不一致
+        if (m_root && !m_projectInfo.projectName.isEmpty()
+            && m_root->data.name != m_projectInfo.projectName) {
+            m_root->data.name = m_projectInfo.projectName;
+            emit nodeUpdated(m_root->data.id);
+        }
         markDirty();
     }
 
@@ -700,6 +706,8 @@ namespace doclife::core {
         const QString trimmed = newName.trimmed();
         if (trimmed.isEmpty() || trimmed == node->data.name) return false;
         node->data.name = trimmed;
+        // 根节点就是工程本身：工程名单独存在 project_info 里，不同步的话重开工程会退回默认名
+        if (m_root && node == m_root) m_projectInfo.projectName = trimmed;
         markDirty();
         emit nodeUpdated(nodeId);
         return true;
