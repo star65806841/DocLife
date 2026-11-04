@@ -2,6 +2,7 @@
 
 #include <QStyle>
 #include <QTreeView>
+#include <QLineEdit>
 #include <functional>
 #include <QMouseEvent>
 #include <QPainterPath>
@@ -31,6 +32,34 @@ namespace doclife::ui {
         if (auto* view = qobject_cast<QAbstractItemView*>(parent())) {
             if (view->viewport()) view->viewport()->update();
         }
+    }
+
+    QWidget* FluentTreeItemDelegate::createEditor(QWidget* parent,
+        const QStyleOptionViewItem& option,
+        const QModelIndex& index) const
+    {
+        QWidget* editor = QStyledItemDelegate::createEditor(parent, option, index);
+        auto* lineEdit = qobject_cast<QLineEdit*>(editor);
+        if (!lineEdit) return editor;
+
+        // 打开编辑器时默认全选。默认选区色和整行的选中色几乎一样，看上去像没选中，
+        // 这里显式给一个更明显的蓝色：点一下可以取消全选，Ctrl+A 可以重新全选。
+        const QColor textColor = option.palette.color(QPalette::Text);
+        const QColor baseColor = option.palette.color(QPalette::Base);
+
+        lineEdit->setFrame(false);
+        lineEdit->setStyleSheet(QStringLiteral(
+            "QLineEdit {"
+            "  border: 1px solid #7FB8E0;"
+            "  border-radius: 2px;"
+            "  padding: 0px 3px;"
+            "  background: %1;"
+            "  color: %2;"
+            "  selection-background-color: #9CCBEB;"
+            "  selection-color: #10233A;"
+            "}").arg(baseColor.name(), textColor.name()));
+
+        return editor;
     }
 
     QAbstractItemView* FluentTreeItemDelegate::viewFromOption(

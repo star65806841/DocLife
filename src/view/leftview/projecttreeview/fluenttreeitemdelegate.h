@@ -33,6 +33,10 @@ public:
     bool checkBoxVisible() const { return m_checkBoxVisible; }
 
     // -------- QStyledItemDelegate 接口 --------
+    QWidget* createEditor(QWidget* parent,
+                          const QStyleOptionViewItem& option,
+                          const QModelIndex& index) const override;
+
     void paint(QPainter* painter,
                const QStyleOptionViewItem& option,
                const QModelIndex& index) const override;
