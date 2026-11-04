@@ -18,7 +18,7 @@ namespace doclife::ui {
         Q_OBJECT
     public:
         explicit AddSheetDialog(QWidget* parent = nullptr);
-        ~AddSheetDialog();
+        ~AddSheetDialog() override = default;
 
         QList<doclife::core::SheetNodeData> selectedSheets() const;
 

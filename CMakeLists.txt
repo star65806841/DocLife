@@ -5,7 +5,7 @@ project(DocLife LANGUAGES CXX)
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
 
 find_package(Qt6 6.12 REQUIRED COMPONENTS
-    Core Widgets LinguistTools Svg GuiPrivate Network Concurrent Pdf PdfWidgets Sql)
+    Core Widgets LinguistTools Svg GuiPrivate Network Concurrent Sql)
 
 qt_standard_project_setup()
 
@@ -60,8 +60,7 @@ set(DOCLIFE_APP
 set(DOCLIFE_VIEW_CENTRAL
     src/view/centralview/maincontentview.h                                   src/view/centralview/maincontentview.cpp
     src/view/centralview/centralview.h                                       src/view/centralview/centralview.cpp
-    src/view/centralview/centralviewitem/templatepreviewview.h               src/view/centralview/centralviewitem/templatepreviewview.cpp
-    src/view/centralview/centralviewitem/templatepdfpreviewview.h            src/view/centralview/centralviewitem/templatepdfpreviewview.cpp
+
     src/view/centralview/centralviewitem/excelcelldelegate.h                 src/view/centralview/centralviewitem/excelcelldelegate.cpp
     src/view/centralview/centralviewitem/excelsheetmodel.h                   src/view/centralview/centralviewitem/excelsheetmodel.cpp
     src/view/centralview/centralviewitem/templatesheetview.h                 src/view/centralview/centralviewitem/templatesheetview.cpp
@@ -190,8 +189,6 @@ target_link_libraries(DocLife
         Qt::Network
         Qt::Widgets
         Qt::Concurrent
-        Qt::Pdf
-        Qt::PdfWidgets
         Qt::Sql
 
         QXlsx::QXlsx

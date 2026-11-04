@@ -6,8 +6,6 @@ namespace fluent::navigation { class StackContentHost; }
 
 namespace doclife::ui {
 
-    class TemplatePreviewView;
-    class TemplatePdfPreviewView;
     class TemplateSheetView;
 
     class MainContentView : public QWidget
@@ -17,14 +15,12 @@ namespace doclife::ui {
         explicit MainContentView(QWidget* parent = nullptr);
 
     private slots:
-        void onSheetActivated(const QString& xlsxPath, const QString& sheetName);
-        void onPdfActivated(const QString& pdfPath,int page);
+        // 接收左侧树发出的表格展示信号
         void onTemplateSheetActivated(const QString& dbPath, int sheetId, const QString& title);
+
     private:
         fluent::navigation::StackContentHost* m_host = nullptr;
-        TemplatePreviewView* m_preview = nullptr;
         QWidget* m_blankPage = nullptr;
-        TemplatePdfPreviewView* m_pdfPreview = nullptr;
         TemplateSheetView* m_sheetView = nullptr;
     };
 

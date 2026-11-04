@@ -157,11 +157,6 @@ namespace doclife::ui {
         connect(this, &QDialog::finished, this, &QObject::deleteLater);
     }
 
-    AddSheetDialog::~AddSheetDialog()
-    {
-        qDebug()<<"~AddSheetDialog";
-    }
-
     void AddSheetDialog::doFilter(const QString& inputText)
     {
         QString input = inputText.trimmed();
