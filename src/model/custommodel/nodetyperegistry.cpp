@@ -34,11 +34,11 @@ namespace doclife::model {
                       QStringLiteral("资料分类"), {}, QStringLiteral("sheet"),
                       { QStringLiteral("folder"), QStringLiteral("sheet") } });
 
-        // ---- 表格叶子节点：可以再挂表格，但不能挂目录 ----
+        // ---- 表格叶子节点：表格是叶子，不能再挂任何子节点 ----
         registerType({ QStringLiteral("sheet"),   NodeRole::Leaf,
                       QStringLiteral("表格"),
                       QIcon(QStringLiteral(":/icons/logo/Flash.png")), {},
-                      { QStringLiteral("sheet") } });
+                      {} });
     }
 
     void NodeTypeRegistry::registerType(const NodeTypeSpec& spec)
