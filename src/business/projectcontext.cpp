@@ -12,7 +12,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <functional>
-#include <windows.h>
+#include <algorithm>
 
 #include "utils.h"
 #include "model/custommodel/NodeTypeRegistry.h"
@@ -22,16 +22,6 @@ namespace doclife::core {
     namespace {
         const QString kLockSuffix = QStringLiteral(".lock");
 
-        bool isProcessAlive(qint64 pid) {
-            if (pid <= 0) return false;
-            HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)pid);
-            if (!h) return false;
-            DWORD code = 0;
-            BOOL ok = GetExitCodeProcess(h, &code);
-            CloseHandle(h);
-            return ok && code == STILL_ACTIVE;
-        }
-
         QString tempDirPath() {
             const QString dir = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + QStringLiteral("/DocLife");
             QDir().mkpath(dir);
@@ -39,24 +29,15 @@ namespace doclife::core {
         }
 
         QString tryAcquireLockFile(const QString& filePath) {
+            // 简易文件锁实现
             const QString lockPath = filePath + kLockSuffix;
             QFile lock(lockPath);
-            if (lock.exists()) {
-                if (lock.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                    const qint64 pid = QString::fromUtf8(lock.readAll()).trimmed().toLongLong();
-                    lock.close();
-                    if (pid > 0 && isProcessAlive(pid)) {
-                        return QStringLiteral("文件正在被其他进程使用（PID %1）").arg(pid);
-                    }
-                }
-                QFile::remove(lockPath);
+            if (lock.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+                lock.write(QByteArray::number(QCoreApplication::applicationPid()));
+                lock.close();
+                return {};
             }
-            if (!lock.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
-                return QStringLiteral("无法创建锁文件: %1").arg(lockPath);
-            }
-            lock.write(QByteArray::number(QCoreApplication::applicationPid()));
-            lock.close();
-            return {};
+            return QStringLiteral("无法创建锁文件: %1").arg(lockPath);
         }
 
         void releaseLockFile(const QString& filePath) {
@@ -116,18 +97,6 @@ namespace doclife::core {
     void ProjectContext::setProjectInfo(model::ProjectInfoModel& projectInfo) {
         m_projectInfo = projectInfo;
         markDirty();
-    }
-
-    bool ProjectContext::renameNode(const QString& nodeId, const QString& newName, RenameConflictPolicy policy) {
-        auto* node = findNodeById(nodeId);
-        if (!node) return false;
-        const QString trimmed = newName.trimmed();
-        if (trimmed.isEmpty() || trimmed == node->data.name) return false;
-
-        node->data.name = trimmed;
-        markDirty();
-        emit nodeUpdated(nodeId);
-        return true;
     }
 
     void ProjectContext::markClean() {
@@ -232,130 +201,138 @@ namespace doclife::core {
     }
 
     // ============================================================
-    // 核心改造：SQLite 读写 (代替原有的 Zip)
+    // 核心改造：基于统一树节点的 SQLite 读写
     // ============================================================
 
     bool ProjectContext::writeDb(const QString& targetPath) {
-        const QString connName = QStringLiteral("save_conn");
+        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", "save_conn");
+        db.setDatabaseName(targetPath);
+        if (!db.open()) return false;
+
         {
-            QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connName);
-            db.setDatabaseName(targetPath);
-            if (!db.open()) return false;
+            QSqlQuery q(db);
+            // 建立适配未来拖拽的表结构
+            q.exec("CREATE TABLE IF NOT EXISTS project_info (id TEXT PRIMARY KEY, name TEXT, owner_unit TEXT, construction_unit TEXT, design_unit TEXT, supervision_unit TEXT);");
+            q.exec("CREATE TABLE IF NOT EXISTS tree_nodes (id TEXT PRIMARY KEY, parent_id TEXT, type TEXT, name TEXT, sort_order INTEGER, attrs TEXT);");
+            q.exec("CREATE TABLE IF NOT EXISTS project_sheets (id INTEGER PRIMARY KEY AUTOINCREMENT, template_title TEXT, row_count INTEGER, col_count INTEGER);");
+            q.exec("CREATE TABLE IF NOT EXISTS sheet_cells (sheet_id INTEGER, row INTEGER, col INTEGER, value TEXT, PRIMARY KEY(sheet_id, row, col));");
+            q.exec("CREATE TABLE IF NOT EXISTS form_values (sheet_id INTEGER, row INTEGER, col INTEGER, value TEXT, PRIMARY KEY (sheet_id, row, col));");
+            q.exec("CREATE TABLE IF NOT EXISTS sheet_row_heights (sheet_id INTEGER, row INTEGER, height REAL, PRIMARY KEY(sheet_id, row));");
+            q.exec("CREATE TABLE IF NOT EXISTS sheet_col_widths (sheet_id INTEGER, col INTEGER, width REAL, PRIMARY KEY(sheet_id, col));");
 
-            // 用 {} 包裹，确保 QSqlQuery 在 db.close 之前析构
-            {
-                QSqlQuery q(db);
-                q.exec("PRAGMA foreign_keys = OFF;");
-                q.exec("CREATE TABLE IF NOT EXISTS project_info (id TEXT PRIMARY KEY, name TEXT, owner_unit TEXT, construction_unit TEXT, design_unit TEXT, supervision_unit TEXT);");
-                q.exec("CREATE TABLE IF NOT EXISTS project_nodes (id TEXT PRIMARY KEY, parent_id TEXT, type TEXT, name TEXT, attrs TEXT);");
-                q.exec("CREATE TABLE IF NOT EXISTS form_values (node_id TEXT, row INTEGER, col INTEGER, value TEXT, PRIMARY KEY (node_id, row, col));");
+            q.exec("BEGIN TRANSACTION;");
+            q.exec("DELETE FROM project_info;");
+            q.exec("DELETE FROM tree_nodes;");
 
-                q.exec("BEGIN TRANSACTION;");
-                q.exec("DELETE FROM project_info;");
-                q.exec("DELETE FROM project_nodes;");
+            q.prepare("INSERT INTO project_info VALUES (?,?,?,?,?,?)");
+            q.addBindValue(m_projectInfo.id);
+            q.addBindValue(m_projectInfo.projectName);
+            q.addBindValue(m_projectInfo.ownerUnitName);
+            q.addBindValue(m_projectInfo.constructionUnitName);
+            q.addBindValue(m_projectInfo.designUnitName);
+            q.addBindValue(m_projectInfo.supervisionUnitName);
+            q.exec();
 
-                q.prepare("INSERT INTO project_info VALUES (?,?,?,?,?,?)");
-                q.addBindValue(m_projectInfo.id);
-                q.addBindValue(m_projectInfo.projectName);
-                q.addBindValue(m_projectInfo.ownerUnitName);
-                q.addBindValue(m_projectInfo.constructionUnitName);
-                q.addBindValue(m_projectInfo.designUnitName);
-                q.addBindValue(m_projectInfo.supervisionUnitName);
-                q.exec();
+            // 递归写入树节点，完美支持未来的拖拽和排序
+            std::function<void(const doclife::model::Node&, const QString&)> saveNode =
+                [&](const doclife::model::Node& n, const QString& parentId) {
+                int sortOrder = 0;
+                for (const auto* child : n.children) {
+                    QSqlQuery nq(db);
+                    nq.prepare("INSERT INTO tree_nodes (id, parent_id, type, name, sort_order, attrs) VALUES (?,?,?,?,?,?)");
+                    nq.addBindValue(child->data.id);
+                    nq.addBindValue(parentId);
+                    nq.addBindValue(child->data.type);
+                    nq.addBindValue(child->data.name);
+                    nq.addBindValue(sortOrder++); // ★ 记录排序号
 
-                std::function<void(const doclife::model::Node&, const QString&)> saveNode =
-                    [&](const doclife::model::Node& n, const QString& parentId) {
-                        QSqlQuery nq(db);
-                        nq.prepare("INSERT INTO project_nodes VALUES (?,?,?,?,?)");
-                        nq.addBindValue(n.data.id);
-                        nq.addBindValue(parentId);
-                        nq.addBindValue(n.data.type);
-                        nq.addBindValue(n.data.name);
-                        QJsonDocument doc(n.data.attrs);
-                        nq.addBindValue(QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
-                        nq.exec();
+                    QJsonDocument doc(child->data.attrs);
+                    nq.addBindValue(QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
+                    nq.exec();
 
-                        for (const auto* child : n.children) {
-                            saveNode(*child, n.data.id);
-                        }
-                    };
-                if (m_root) saveNode(*m_root, "");
+                    saveNode(*child, child->data.id);
+                }
+                };
+            if (m_root) saveNode(*m_root, "");
 
-                q.exec("COMMIT;");
-            } // QSqlQuery 在这里析构
-
-            db.close();
-        } // QSqlDatabase db 在这里析构
-        QSqlDatabase::removeDatabase(connName);
+            q.exec("COMMIT;");
+        }
+        db.close();
+        QSqlDatabase::removeDatabase("save_conn");
         return true;
     }
 
     bool ProjectContext::readDb(const QString& dbPath) {
-        const QString connName = QStringLiteral("load_conn");
-        {
-            QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connName);
-            db.setDatabaseName(dbPath);
-            if (!db.open()) return false;
+        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", "load_conn");
+        db.setDatabaseName(dbPath);
+        if (!db.open()) return false;
 
-            {
-                QSqlQuery q(db);
-                q.exec("SELECT id, name, owner_unit, construction_unit, design_unit, supervision_unit FROM project_info LIMIT 1;");
-                if (q.next()) {
-                    m_projectInfo.id = q.value(0).toString();
-                    m_projectInfo.projectName = q.value(1).toString();
-                    m_projectInfo.ownerUnitName = q.value(2).toString();
-                    m_projectInfo.constructionUnitName = q.value(3).toString();
-                    m_projectInfo.designUnitName = q.value(4).toString();
-                    m_projectInfo.supervisionUnitName = q.value(5).toString();
-                }
+        {
+            QSqlQuery q(db);
+            q.exec("SELECT id, name, owner_unit, construction_unit, design_unit, supervision_unit FROM project_info LIMIT 1;");
+            if (q.next()) {
+                m_projectInfo.id = q.value(0).toString();
+                m_projectInfo.projectName = q.value(1).toString();
+                m_projectInfo.ownerUnitName = q.value(2).toString();
+                m_projectInfo.constructionUnitName = q.value(3).toString();
+                m_projectInfo.designUnitName = q.value(4).toString();
+                m_projectInfo.supervisionUnitName = q.value(5).toString();
             }
 
             delete m_root; m_root = nullptr;
             QHash<QString, doclife::model::Node*> nodeMap;
-            QHash<QString, QString> parentMap;
+            QMultiHash<QString, doclife::model::Node*> childrenMap;
 
-            {
-                QSqlQuery q(db);
-                q.exec("SELECT id, parent_id, type, name, attrs FROM project_nodes;");
-                while (q.next()) {
-                    auto* n = new doclife::model::Node;
-                    n->data.id = q.value(0).toString();
-                    n->data.type = q.value(2).toString();
-                    n->data.name = q.value(3).toString();
-                    QString attrsJson = q.value(4).toString();
-                    if (!attrsJson.isEmpty()) {
-                        n->data.attrs = QJsonDocument::fromJson(attrsJson.toUtf8()).object();
-                    }
-                    nodeMap[n->data.id] = n;
-                    parentMap[n->data.id] = q.value(1).toString();
-                }
-            } // QSqlQuery 在这里析构
+            // ★ 按 sort_order 读取，保证内存组装后的顺序与拖拽后一致
+            q.exec("SELECT id, parent_id, type, name, attrs FROM tree_nodes ORDER BY parent_id, sort_order ASC;");
+            while (q.next()) {
+                auto* n = new doclife::model::Node;
+                n->data.id = q.value(0).toString();
+                n->data.type = q.value(2).toString();
+                n->data.name = q.value(3).toString();
 
-            for (auto it = nodeMap.begin(); it != nodeMap.end(); ++it) {
-                QString id = it.key();
-                QString pid = parentMap[id];
-                if (pid.isEmpty()) {
-                    m_root = it.value();
-                } else if (nodeMap.contains(pid)) {
-                    it.value()->parent = nodeMap[pid];
-                    nodeMap[pid]->children.append(it.value());
+                QString attrsJson = q.value(4).toString();
+                if (!attrsJson.isEmpty()) {
+                    n->data.attrs = QJsonDocument::fromJson(attrsJson.toUtf8()).object();
                 }
+
+                nodeMap.insert(n->data.id, n);
+                childrenMap.insert(q.value(1).toString(), n); // 以 parent_id 为键存入
             }
 
-            if (!m_root) {
-                m_root = new doclife::model::Node;
-                m_root->data.type = "project";
+            // 组装树结构
+            m_root = new doclife::model::Node;
+            m_root->data.type = "project";
+            m_root->data.id = m_projectInfo.projectnodeId;
+            m_root->data.name = m_projectInfo.projectName.isEmpty() ? "未命名项目" : m_projectInfo.projectName;
+
+            // 找出所有的顶层节点 (parent_id 为 "")
+            QList<doclife::model::Node*> rootChildren = childrenMap.values("");
+            for (auto* child : rootChildren) {
+                child->parent = m_root;
+                m_root->children.append(child);
             }
 
-            db.close();
-        } // QSqlDatabase db 在这里析构
-        QSqlDatabase::removeDatabase(connName);
+            // 递归组装子节点
+            std::function<void(doclife::model::Node*)> buildTree = [&](doclife::model::Node* parent) {
+                QList<doclife::model::Node*> children = childrenMap.values(parent->data.id);
+                for (auto* child : children) {
+                    child->parent = parent;
+                    parent->children.append(child);
+                    buildTree(child);
+                }
+                };
+            buildTree(m_root);
+        }
+        db.close();
+        QSqlDatabase::removeDatabase("load_conn");
         return true;
     }
 
     // ============================================================
-    // 增删改逻辑保持不变
+    // 内存操作逻辑保持不变，保存时自动落盘
     // ============================================================
+
     bool ProjectContext::addChild(const QString& parentId, const QString& childType, QString* newId) {
         if (!m_root) return false;
         auto* parent = findNodeById(parentId);
@@ -386,8 +363,9 @@ namespace doclife::core {
             child->data.name = s.displayName;
             child->parent = parent;
 
-            child->data.attrs.insert(QStringLiteral("dbPath"), s.dbPath);
-            child->data.attrs.insert(QStringLiteral("sheetId"), s.sheetId);
+            // ★ 为第二阶段的“复制数据”铺垫，先把模板线索存进 attrs
+            child->data.attrs.insert(QStringLiteral("templateDbPath"), s.dbPath);
+            child->data.attrs.insert(QStringLiteral("templateSheetId"), s.sheetId);
             child->data.attrs.insert(QStringLiteral("templateName"), s.templateName);
 
             parent->children.append(child);
@@ -420,6 +398,17 @@ namespace doclife::core {
         return true;
     }
 
+    bool ProjectContext::renameNode(const QString& nodeId, const QString& newName, RenameConflictPolicy policy) {
+        auto* node = findNodeById(nodeId);
+        if (!node) return false;
+        const QString trimmed = newName.trimmed();
+        if (trimmed.isEmpty() || trimmed == node->data.name) return false;
+        node->data.name = trimmed;
+        markDirty();
+        emit nodeUpdated(nodeId);
+        return true;
+    }
+
     bool ProjectContext::setNodeAttr(const QString& nodeId, const QString& key, const QVariant& value) {
         auto* node = findNodeById(nodeId);
         if (!node) return false;
@@ -428,4 +417,38 @@ namespace doclife::core {
         emit nodeUpdated(nodeId);
         return true;
     }
+
+    // ★ 新增：纯粹的移动逻辑，供未来接入拖拽
+    bool ProjectContext::moveNode(const QString& nodeId, const QString& newParentId, int newIndex) {
+        if (nodeId == newParentId) return false;
+        auto* node = findNodeById(nodeId);
+        auto* newParent = findNodeById(newParentId);
+        if (!node || !newParent || node == m_root) return false;
+
+        // 防止把父节点拖进自己的子孙节点
+        auto* check = newParent;
+        while (check) {
+            if (check == node) return false;
+            check = check->parent;
+        }
+
+        auto* oldParent = node->parent;
+        if (!oldParent) return false;
+
+        emit nodeRemoved(oldParent->data.id, nodeId);
+        oldParent->children.removeOne(node);
+
+        node->parent = newParent;
+        if (newIndex < 0 || newIndex >= newParent->children.size()) {
+            newParent->children.append(node);
+        }
+        else {
+            newParent->children.insert(newIndex, node);
+        }
+
+        emit nodeAdded(newParentId, nodeId);
+        markDirty();
+        return true;
+    }
+
 } // namespace doclife::core

@@ -62,13 +62,16 @@ namespace doclife::core {
         void markClean();
         void markDirty();
 
-        // ---- 增量操作 ----
+        // ---- 增量操作 (内存级别) ----
         bool addChild(const QString& parentId, const QString& childType, QString* newId = nullptr);
         bool addSheetsToNode(const QString& parentId, const QList<SheetNodeData>& sheets);
         bool createItemWithSheets(const QString& parentId, const QString& itemName, const QList<SheetNodeData>& selectedSheets);
         bool removeNode(const QString& nodeId);
         bool renameNode(const QString& nodeId, const QString& newName, RenameConflictPolicy policy = RenameConflictPolicy::Fail);
         bool setNodeAttr(const QString& nodeId, const QString& key, const QVariant& value);
+
+        // ★ 新增：供拖拽移动使用
+        bool moveNode(const QString& nodeId, const QString& newParentId, int newIndex = -1);
 
     signals:
         void projectCreated(const QString& filePath);
@@ -91,12 +94,9 @@ namespace doclife::core {
 
         QString makeTempFilePath() const;
 
-        // 核心：读写 DB
+        // SQLite 底层操作
         bool writeDb(const QString& targetPath);
         bool readDb(const QString& dbPath);
-
-        void buildTreeFromDb(QSqlDatabase& db);
-        void saveTreeToDb(QSqlDatabase& db);
 
         QString acquireLock(const QString& filePath);
         void releaseLock();
