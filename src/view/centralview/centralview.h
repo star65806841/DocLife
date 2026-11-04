@@ -38,6 +38,7 @@ namespace doclife::ui {
         void popProjectCreated();
         void popProjectOpened();
         void onToastWarning(const QString &msg);
+        void onRequestAddSheet(const QString& parentNodeId);
     private:
         //project context data
         doclife::core::ProjectContext* m_projectObject = nullptr;

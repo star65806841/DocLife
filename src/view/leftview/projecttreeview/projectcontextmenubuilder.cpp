@@ -5,11 +5,13 @@
 #include <QWidget>
 #include <QDebug>
 #include <functional>
+#include <QMessageBox>
+#include <uisignalmanager.h>
 
 #include <FluentQt/MenusToolbars.h>
 #include <business/ProjectContext.h>
 
-#include "view/popWindow/projectwizarddialog.h"
+// ★ 引入统一的弹窗
 #include "view/popWindow/addsheetdialog.h"
 
 namespace doclife::ui {
@@ -32,99 +34,134 @@ namespace doclife::ui {
             return doclife::model::NodeTypeRegistry::instance().displayLabel(type);
         }
 
+        // 统一的“新建表格”逻辑
+        void triggerNewSheet(const QString& nodeId) {
+            // 发出信号，由 CentralView 接管
+            UISignalManager::instance()->requestAddSheet(nodeId);
+        }
+
+        // 统一的“安全删除”逻辑
+        void triggerDeleteNode(const QString& nodeId, QWidget* parentWidget) {
+            auto* ctx = doclife::core::ProjectContext::instance();
+            auto* node = ctx->findNodeById(nodeId);
+            if (!node) return;
+
+            // 判断是否需要弹窗（如果有子节点或者包含表格）
+            bool hasChildren = !node->children.isEmpty();
+            if (hasChildren) {
+                QMessageBox::warning(parentWidget, "删除确认",
+                    "该目录下包含其他子目录或表格资料！\n删除后所有子级资料将被一并移除，且不可恢复。\n\n确定要删除吗？",
+                    QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+                // 注意：上面的 QMessageBox 是同步阻塞的，我们需要简化一下逻辑
+            }
+
+            // 为了体验，可以用原生的确认框
+            if (hasChildren) {
+                QMessageBox box(parentWidget);
+                box.setWindowTitle("删除确认");
+                box.setText("该目录下包含其他子目录或表格资料！\n删除后所有子级资料将被一并移除，且不可恢复。\n\n确定要删除吗？");
+                box.setIcon(QMessageBox::Warning);
+                box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+                box.setDefaultButton(QMessageBox::No);
+                if (box.exec() != QMessageBox::Yes) return;
+            }
+            else {
+                QMessageBox box(parentWidget);
+                box.setWindowTitle("删除确认");
+                box.setText(QStringLiteral("确定要删除“%1”吗？").arg(node->data.name));
+                box.setIcon(QMessageBox::Question);
+                box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+                box.setDefaultButton(QMessageBox::No);
+                if (box.exec() != QMessageBox::Yes) return;
+            }
+
+            ctx->removeNode(nodeId);
+        }
+
         // ---- Root (项目节点) ----
-        void buildForRoot(Flyout* flyout, const QString& nodeId,
-            const doclife::model::NodeTypeSpec* spec,
-            const ProjectContextMenuBuilder::RenameHandler& onRename)
+        void buildForRoot(Flyout* flyout, const QString& nodeId, QWidget* p, const ProjectContextMenuBuilder::RenameHandler& onRename)
         {
-            addCommand(flyout, QStringLiteral("添加单位工程"), [nodeId] {
-                doclife::core::ProjectContext::instance()->addChild(nodeId, QStringLiteral("unit"));
+            addCommand(flyout, "添加单位工程", [nodeId] {
+                doclife::core::ProjectContext::instance()->addChild(nodeId, "unit");
                 });
-            addCommand(flyout, QStringLiteral("新建资料分类"), [nodeId] {
-                doclife::core::ProjectContext::instance()->addChild(nodeId, QStringLiteral("folder"));
+            addCommand(flyout, "新建目录", [nodeId] {
+                doclife::core::ProjectContext::instance()->addChild(nodeId, "folder");
                 });
-            addCommand(flyout, QStringLiteral("重命名"), [nodeId, onRename] {
+            addCommand(flyout, "新建表格", [nodeId] {
+                triggerNewSheet(nodeId);
+                });
+            addCommand(flyout, "重命名", [nodeId, onRename] {
                 if (onRename) onRename(nodeId);
                 });
-            addCommand(flyout, QStringLiteral("关闭项目"), [] {
+            addCommand(flyout, "关闭项目", [] {
                 doclife::core::ProjectContext::instance()->closeProject(true);
                 });
         }
 
-        // ---- Container (单位/分部/分项/资料分类) ----
-        void buildForContainer(Flyout* flyout, const QString& nodeId,
-            const doclife::model::NodeTypeSpec* spec,
-            const ProjectContextMenuBuilder::RenameHandler& onRename)
+        // ---- Container (单位/分部/分项) ----
+        void buildForContainer(Flyout* flyout, const QString& nodeId, const QString& type, QWidget* p, const ProjectContextMenuBuilder::RenameHandler& onRename)
         {
-            // 1. 分项工程专属：一键质检成套向导
-            if (spec->type == QLatin1String("item")) {
-                addCommand(flyout, QStringLiteral("⚡ 一键生成质检评定包..."), [nodeId] {
-                    ProjectWizardDialog dlg(nodeId);
-                    if (dlg.exec() == QDialog::Accepted) {
-                        doclife::core::ProjectContext::instance()->createItemWithSheets(
-                            nodeId, dlg.itemName(), dlg.selectedSheets());
-                    }
+            // 按级别显示“添加下级”
+            if (type == "unit") {
+                addCommand(flyout, "添加分部工程", [nodeId] {
+                    doclife::core::ProjectContext::instance()->addChild(nodeId, "sub");
+                    });
+            }
+            else if (type == "sub") {
+                addCommand(flyout, "添加分项工程", [nodeId] {
+                    doclife::core::ProjectContext::instance()->addChild(nodeId, "item");
                     });
             }
 
-            // 2. 结构扩展
-            if (spec->type == QLatin1String("unit")) {
-                addCommand(flyout, QStringLiteral("添加分部工程"), [nodeId] {
-                    doclife::core::ProjectContext::instance()->addChild(nodeId, QStringLiteral("sub"));
-                    });
-            }
-            else if (spec->type == QLatin1String("sub")) {
-                addCommand(flyout, QStringLiteral("添加分项工程"), [nodeId] {
-                    doclife::core::ProjectContext::instance()->addChild(nodeId, QStringLiteral("item"));
-                    });
-            }
-
-            // 3. 资料夹
-            addCommand(flyout, QStringLiteral("新建资料分类"), [nodeId] {
-                doclife::core::ProjectContext::instance()->addChild(nodeId, QStringLiteral("folder"));
+            addCommand(flyout, "新建目录", [nodeId] {
+                doclife::core::ProjectContext::instance()->addChild(nodeId, "folder");
                 });
-
-            // 4. ★ 自由添加表格
-            addCommand(flyout, QStringLiteral("补充单张资料..."), [nodeId] {
-                AddSheetDialog dlg;
-                if (dlg.exec() == QDialog::Accepted) {
-                    doclife::core::ProjectContext::instance()->addSheetsToNode(
-                        nodeId, dlg.selectedSheets());
-                }
+            addCommand(flyout, "新建表格", [nodeId] {
+                triggerNewSheet(nodeId);
                 });
-
-            addCommand(flyout, QStringLiteral("重命名"), [nodeId, onRename] {
+            addCommand(flyout, "重命名", [nodeId, onRename] {
                 if (onRename) onRename(nodeId);
                 });
+            addCommand(flyout, "删除目录", [nodeId, p] {
+                triggerDeleteNode(nodeId, p);
+                });
+        }
 
-            addCommand(flyout, QStringLiteral("删除节点"), [nodeId] {
-                doclife::core::ProjectContext::instance()->removeNode(nodeId);
+        // ---- Folder (新目录) ----
+        void buildForFolder(Flyout* flyout, const QString& nodeId, QWidget* p, const ProjectContextMenuBuilder::RenameHandler& onRename)
+        {
+            addCommand(flyout, "新建目录", [nodeId] {
+                doclife::core::ProjectContext::instance()->addChild(nodeId, "folder");
+                });
+            addCommand(flyout, "新建表格", [nodeId] {
+                triggerNewSheet(nodeId);
+                });
+            addCommand(flyout, "重命名", [nodeId, onRename] {
+                if (onRename) onRename(nodeId);
+                });
+            addCommand(flyout, "删除目录", [nodeId, p] {
+                triggerDeleteNode(nodeId, p);
                 });
         }
 
         // ---- Leaf (表格) ----
-        void buildForLeaf(Flyout* flyout, const QString& nodeId,
-            const doclife::model::NodeTypeSpec* spec,
-            const ProjectContextMenuBuilder::RenameHandler& onRename)
+        void buildForLeaf(Flyout* flyout, const QString& nodeId, QWidget* p, const ProjectContextMenuBuilder::RenameHandler& onRename)
         {
-            Q_UNUSED(spec)
-                addCommand(flyout, QStringLiteral("打开填报"), [nodeId] {
-                // TODO: 打开右侧预览/填报
-                    });
-            addCommand(flyout, QStringLiteral("重命名实例"), [nodeId, onRename] {
+            addCommand(flyout, "打开填报", [nodeId] {
+                // TODO: 后续实现表格打开填报逻辑
+                qDebug() << "TODO: 打开表格填报" << nodeId;
+                });
+            addCommand(flyout, "重命名", [nodeId, onRename] {
                 if (onRename) onRename(nodeId);
                 });
-            addCommand(flyout, QStringLiteral("删除表格"), [nodeId] {
-                doclife::core::ProjectContext::instance()->removeNode(nodeId);
+            addCommand(flyout, "删除表格", [nodeId, p] {
+                triggerDeleteNode(nodeId, p);
                 });
         }
 
     } // namespace
 
-    Flyout* ProjectContextMenuBuilder::build(QWidget* parent,
-        const QString& nodeType,
-        const QVariant& nodeId,
-        RenameHandler onRename)
+    Flyout* ProjectContextMenuBuilder::build(QWidget* parent, const QString& nodeType, const QVariant& nodeId, RenameHandler onRename)
     {
         auto* flyout = new Flyout(parent);
         flyout->setAttribute(Qt::WA_DeleteOnClose);
@@ -134,13 +171,17 @@ namespace doclife::ui {
 
         const QString idStr = nodeId.toString();
 
-        switch (spec->role) {
-        case doclife::model::NodeRole::Root:
-            buildForRoot(flyout, idStr, spec, onRename);      break;
-        case doclife::model::NodeRole::Container:
-            buildForContainer(flyout, idStr, spec, onRename); break;
-        case doclife::model::NodeRole::Leaf:
-            buildForLeaf(flyout, idStr, spec, onRename);      break;
+        if (spec->role == doclife::model::NodeRole::Root) {
+            buildForRoot(flyout, idStr, parent, onRename);
+        }
+        else if (spec->type == "folder") {
+            buildForFolder(flyout, idStr, parent, onRename);
+        }
+        else if (spec->role == doclife::model::NodeRole::Leaf) {
+            buildForLeaf(flyout, idStr, parent, onRename);
+        }
+        else {
+            buildForContainer(flyout, idStr, spec->type, parent, onRename);
         }
 
         return flyout;

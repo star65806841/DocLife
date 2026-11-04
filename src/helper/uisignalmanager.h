@@ -28,7 +28,8 @@ Q_SIGNALS:
     void saveProject();
     void openProject();
     void showTemplateView(bool);
-
+    // 新建表格
+    void requestAddSheet(const QString& parentNodeId);
     // 项目设置
     void popProjectsetting();
     // 项目多开

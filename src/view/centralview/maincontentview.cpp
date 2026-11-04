@@ -1,7 +1,7 @@
 ﻿#include "maincontentview.h"
 #include "centralview/centralviewitem/templatepreviewview.h"
 #include "centralview/centralviewitem/templatepdfpreviewview.h"
-#include "centralview/centralviewitem/templatesheetview.h"    // ★ 新增
+#include "centralview/centralviewitem/templatesheetview.h"
 
 #include <QVBoxLayout>
 #include <components/navigation/StackContentHost.h>

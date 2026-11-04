@@ -8,6 +8,7 @@
 #include <components/collections/SplitView.h>
 #include <components/layout/Divider.h>
 
+#include <popWindow/addsheetdialog.h>
 #include <popWindow/projectnew.h>
 #include <popWindow/projectsetting.h>
 #include <popWindow/dialog/PopupBase.h>
@@ -182,6 +183,26 @@ void CentralView::onToastWarning(const QString& msg)
     AppToast::showWarning(this, msg);
 }
 
+void CentralView::onRequestAddSheet(const QString &parentNodeId)
+{
+    // 1. 创建弹窗
+    auto* dlg = new AddSheetDialog(this);
+
+    // 2. 设置弹窗关闭后自动销毁
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+
+    // 3. 监听弹窗完成（无论点确定还是取消，都会发 finished）
+    connect(dlg, &QDialog::accepted, this, [this, dlg, parentNodeId]() {
+        auto selectedSheets = dlg->selectedSheets();
+        if (!selectedSheets.isEmpty()) {
+            doclife::core::ProjectContext::instance()->addSheetsToNode(parentNodeId, selectedSheets);
+        }
+    });
+
+    // 4. 打开弹窗（异步模态，不阻塞主界面，且带遮罩和动画）
+    dlg->open();
+}
+
 void CentralView::onDrawerFileSetting()
 {
     auto* drawer = new fluent::collections::DrawerView(this);
@@ -224,6 +245,8 @@ void CentralView::initConnect()
     connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::errorOccurred, this, &CentralView::onToastWarning);
     /******************模板窗口*****************************************/
     connect(UISignalManager::instance(), &UISignalManager::showTemplateView, this,[this](bool show){m_templateView->setVisible(show);});
+    // 新建表格
+    connect(UISignalManager::instance(), &UISignalManager::requestAddSheet, this, &CentralView::onRequestAddSheet);
 }
 
 void CentralView::showProjectDialog()

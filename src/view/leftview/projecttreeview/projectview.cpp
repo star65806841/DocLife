@@ -16,16 +16,6 @@ namespace doclife::ui {
     {
         auto* leftTop = new LeftTop(this);
         auto* projectTree = new ProjectTreeView(this);
-        // ----------- 上侧区域  -----------
-        // leftTop->setStyleSheet("background-color: #a1F1BF;");
-        // ----------- 下侧区域  -----------
-        // auto* leftDown = new QWidget();
-        // leftDown->setStyleSheet("background-color: #a1a1Ba;");
-        // auto* splitter = new fluent::collections::SplitView();
-        // splitter->setOrientation(Qt::Orientation::Vertical);
-        // splitter->addPane(leftTop);
-        // splitter->addPane(leftDown, { 100,300,650,false });
-        // splitter->setPaneFill(0, true);
 
         auto* layout = new QVBoxLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
