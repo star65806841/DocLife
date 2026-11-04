@@ -63,6 +63,7 @@ set(DOCLIFE_VIEW_CENTRAL
 
     src/view/centralview/centralviewitem/excelcelldelegate.h                 src/view/centralview/centralviewitem/excelcelldelegate.cpp
     src/view/centralview/centralviewitem/excelsheetmodel.h                   src/view/centralview/centralviewitem/excelsheetmodel.cpp
+    src/view/centralview/centralviewitem/sheetformatbar.h                    src/view/centralview/centralviewitem/sheetformatbar.cpp
     src/view/centralview/centralviewitem/templatesheetview.h                 src/view/centralview/centralviewitem/templatesheetview.cpp
 )
 
