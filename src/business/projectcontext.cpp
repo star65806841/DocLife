@@ -89,7 +89,8 @@ namespace doclife::core {
     }
 
     ProjectContext::~ProjectContext() {
-        closeDbConnection();
+        // 单例的析构发生在 QApplication 之后，这时再操作 QSqlDatabase 只会报警告
+        if (QCoreApplication::instance()) closeDbConnection();
         releaseLock();
         cleanupTempFile();
         delete m_root;
@@ -472,21 +473,19 @@ namespace doclife::core {
                 }
             }
 
-            const QList<doclife::model::Node*> rootChildren = childrenMap.value(QString());
-            for (auto* child : rootChildren) {
-                child->parent = m_root;
-                m_root->children.append(child);
-            }
-
-            std::function<void(doclife::model::Node*)> buildTree = [&](doclife::model::Node* parent) {
-                const QList<doclife::model::Node*> children = childrenMap.value(parent->data.id);
+            // 根节点的子节点在库里 parent_id 是空串，其余节点用父节点 id。
+            // 递归时必须把「库里的父键」和「内存里的父节点」分开传，
+            // 否则第一层之后的节点永远挂不回去。
+            std::function<void(doclife::model::Node*, const QString&)> buildTree =
+                [&](doclife::model::Node* parent, const QString& dbParentId) {
+                const QList<doclife::model::Node*> children = childrenMap.value(dbParentId);
                 for (auto* child : children) {
                     child->parent = parent;
                     parent->children.append(child);
-                    buildTree(child);
+                    buildTree(child, child->data.id);
                 }
                 };
-            buildTree(m_root);
+            buildTree(m_root, QString());
         }
         return true;
     }
