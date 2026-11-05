@@ -24,6 +24,10 @@ Q_SIGNALS:
     void drawerFileSetting();
     // 项目设置
     void popProjectsetting();
+    // 应用设置
+    void popSettings();
+    // 编辑区设置发生变化（选中背景开关/颜色）
+    void editorSettingsChanged();
     // 新建项目
     void popProjectNew();
     void newProject();

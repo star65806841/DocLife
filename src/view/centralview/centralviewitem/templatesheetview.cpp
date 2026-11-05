@@ -20,6 +20,7 @@
 #include <QUndoStack>
 #include <QSet>
 #include <popWindow/dialog/dialogbase.h>
+#include <popWindow/settingsdialog.h>
 #include <climits>
 #include <utils.h>
 #include <uisignalmanager.h>
@@ -139,29 +140,10 @@ namespace doclife::ui {
         };
         m_table->setItemDelegate(delegate);
 
-        m_table->setStyleSheet(R"(
-            QTableWidget {
-                background-color: #FFFFFF;
-                border: none;
-            }
-            QTableWidget::item {
-                padding: 0px;
-                margin: 0px;
-                border: none;
-            }
-            QTableWidget::item:selected {
-                background-color: rgba(0, 120, 215, 16%);
-            }
-            QHeaderView::section {
-                background-color: #F8F8F8;
-                border: 1px solid #D0D0D0;
-                font-weight: bold;
-                padding: 4px;
-            }
-            QHeaderView::section:hover {
-                background-color: #E5F1FB;
-            }
-        )");
+        m_table->setStyleSheet(editorTableStyleSheet());
+        connect(UISignalManager::instance(), &UISignalManager::editorSettingsChanged, this, [this]() {
+            m_table->setStyleSheet(editorTableStyleSheet());
+            });
 
         auto* layout = new QVBoxLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);

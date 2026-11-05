@@ -60,8 +60,8 @@ void TopMenu::init()
     bar->addPrimaryAction(separator);//|
     bar->addPrimaryAction(syncAction);
     bar->addPrimaryAction(m_templateAction);
-    bar->addPrimaryAction(new QAction(
-        QIcon(Typography::Icons::Document), "Settings", this));
+    auto* settingsAction = new QAction(QIcon(Typography::Icons::Document), "设置", this);
+    bar->addPrimaryAction(settingsAction);
     bar->addPrimaryAction(new QAction(
         QIcon(Typography::Icons::Document), "Help", this));
 
@@ -80,6 +80,7 @@ void TopMenu::init()
     connect(actionOpenProject,&QAction::triggered,UISignalManager::instance(),&UISignalManager::openProject);
     connect(actionSaveProject,&QAction::triggered,UISignalManager::instance(),&UISignalManager::saveProject);
     connect(infoAction,&QAction::triggered,UISignalManager::instance(),&UISignalManager::popProjectsetting);
+    connect(settingsAction,&QAction::triggered,UISignalManager::instance(),&UISignalManager::popSettings);
 
 }
 

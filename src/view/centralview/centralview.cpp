@@ -11,6 +11,7 @@
 #include <popWindow/addsheetdialog.h>
 #include <popWindow/projectnew.h>
 #include <popWindow/projectsetting.h>
+#include <popWindow/settingsdialog.h>
 #include <popWindow/dialog/PopupBase.h>
 #include <popWindow/dialog/dialogbase.h>
 #include <popWindow/dialog/popcontent.h>
@@ -229,6 +230,11 @@ void CentralView::initConnect()
     connect(UISignalManager::instance(), &UISignalManager::drawerFileSetting, this, &CentralView::onDrawerFileSetting);
     // 点击项目信息按钮
     connect(UISignalManager::instance(), &UISignalManager::popProjectsetting, this, &CentralView::showProjectsetting);
+    // 点击设置按钮
+    connect(UISignalManager::instance(), &UISignalManager::popSettings, this, [this]() {
+        auto* dialog = new SettingsDialog(this);
+        dialog->open();
+        });
     // 点击新建
     connect(UISignalManager::instance(), &UISignalManager::newProject, this, &CentralView::newProject);
     // 点击保存
