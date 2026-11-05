@@ -197,6 +197,8 @@ namespace doclife::ui {
         void setCellTextOnly(int row, int col, const QString& text);
         // 让「勾选方格」按钮的按下状态与表里实际的 ☑ 一致（不触发信号）
         void syncCheckBoxesAction();
+        // 折行打开后，把行高长到能放下换行后的文字（合并行跳过）
+        void autoGrowRow(int row);
         void applyToSelection(const QString& label, const std::function<void(CellSnapshot&)>& mutate);
         QString selectionAsText() const;
         void pasteText(const QString& text);

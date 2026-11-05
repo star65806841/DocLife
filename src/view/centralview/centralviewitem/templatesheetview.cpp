@@ -51,6 +51,7 @@ namespace doclife::ui {
         CellLockedRole = Qt::UserRole + 22,    // 锁定：只读 + 不参与自动赋值
         CellAutoFitRole = Qt::UserRole + 23,   // 自适应：文字缩放到单元格大小
         CellWrapRole = Qt::UserRole + 24,      // 折行显示
+        CellSaveRole = Qt::UserRole + 25,      // 这格已经有保存过的内容（不再自动同步）
     };
 
     namespace {
@@ -137,7 +138,7 @@ namespace doclife::ui {
             opt.features = wrap
                 ? (opt.features | QStyleOptionViewItem::WrapText)
                 : (opt.features & ~QStyleOptionViewItem::WrapText);
-            opt.textElideMode = Qt::ElideRight;   // 不折行时超长显示 …
+            opt.textElideMode = Qt::ElideNone;   // 不折行就是硬切，不加省略号
 
             if (index.data(CellLockedRole).toBool()) {
                 opt.backgroundBrush = QBrush(readOnlyTint());   // 锁定 = 约定的只读底色
@@ -150,7 +151,11 @@ namespace doclife::ui {
             }
 
             QStyle* style = opt.widget ? opt.widget->style() : QApplication::style();
+            // 不折行时样式不会自己裁剪，这里夹一下：超出单元格的部分是硬切，不是溢出到隔壁
+            painter->save();
+            painter->setClipRect(opt.rect);
             style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, opt.widget);
+            painter->restore();
 
             if (selected && selectionEnabled) {
                 painter->save();
@@ -560,6 +565,9 @@ namespace doclife::ui {
 
     void TemplateSheetView::loadProjectSheet(const QString& nodeId, const QString& dbPath, int sheetId, const QString& title)
     {
+        // 切表前先把上一张表的填报内容落库：否则锁定、打勾、折行这些状态
+        // 只存在内存里，切走再回来就丢了。
+        flushPendingEdits();
         if (m_undoStack) m_undoStack->clear();
         m_currentNodeId = nodeId;
         m_currentDbPath = dbPath;
@@ -802,6 +810,8 @@ namespace doclife::ui {
                     if (!item) continue;
                     // 锁定的格子不吃自动赋值：保留它自己已有的内容
                     if (isCellLocked(item)) continue;
+                    // 已经有保存内容的格子也不自动同步：切页/重开保持原样，等用户点「同步工程信息」
+                    if (item->data(CellSaveRole).toBool()) continue;
                     // 占位符原文就是这格的字段绑定（数据源永远是 sheet_cells.value）：
                     // 有绑定的格子，即使 form_values 里存过手填/旧值，打开时也按绑定重算，
                     // 保证「改完工程信息 → 刷新/重开」显示的是当前项目信息。
@@ -974,6 +984,48 @@ namespace doclife::ui {
         m_checkBoxesAction->setChecked(anyChecked);
     }
 
+    void TemplateSheetView::autoGrowRow(int row)
+    {
+        if (!m_isProjectMode || m_isApplyingSettings) return;
+        if (row < 0 || row >= m_table->rowCount()) return;
+
+        // 竖向合并的行不自动增高，免得把合并块拉变形
+        for (int col = 0; col < m_table->columnCount(); ++col) {
+            if (m_table->rowSpan(row, col) > 1) return;
+        }
+
+        int needed = 0;
+        for (int col = 0; col < m_table->columnCount(); ++col) {
+            auto* item = m_table->item(row, col);
+            if (!item) continue;
+            if (!item->data(CellWrapRole).toBool()) continue;
+
+            const QString text = item->text();
+            if (text.isEmpty()) continue;
+
+            int width = 0;
+            if (m_spanAnchors.contains(cellKey(row, col))) {
+                for (int i = 0; i < m_table->columnSpan(row, col) && col + i < m_table->columnCount(); ++i) {
+                    width += m_table->columnWidth(col + i);
+                }
+            }
+            else {
+                width = m_table->columnWidth(col);
+            }
+            width -= 8;   // 与 shrinkFontToFit 的左右边距一致
+            if (width <= 8) continue;
+
+            const QFontMetrics fm(item->font());
+            const QRect need = fm.boundingRect(QRect(0, 0, width, 0), Qt::TextWordWrap, text);
+            needed = qMax(needed, need.height() + 6);
+        }
+
+        if (needed > 0 && needed > m_table->rowHeight(row)) {
+            // setRowHeight 会经 onSectionResized 记进节点 attrs，随工程一起保存
+            m_table->setRowHeight(row, needed);
+        }
+    }
+
     void TemplateSheetView::applyCellRole(QTableWidgetItem* item, const QString& roleKey)
     {
         if (!item) return;
@@ -1107,7 +1159,11 @@ namespace doclife::ui {
             const int r = q.value(0).toInt();
             const int c = q.value(1).toInt();
             if (r < 0 || r >= rowCount || c < 0 || c >= colCount) continue;
-            if (auto* item = m_table->item(r, c)) item->setText(q.value(2).toString());
+            if (auto* item = m_table->item(r, c)) {
+                item->setText(q.value(2).toString());
+                // 这格已经有保存过的内容：下次打开不再自动同步工程信息
+                item->setData(CellSaveRole, true);
+            }
         }
     }
 
@@ -1150,6 +1206,9 @@ namespace doclife::ui {
         key.row = row;
         key.col = col;
         m_pendingEdits.insert(key, item->text());
+
+        // 折行格子里输入长文本后，把行高撑到能放下
+        autoGrowRow(row);
 
         doclife::core::ProjectContext::instance()->markDirty();
     }
@@ -1617,6 +1676,11 @@ namespace doclife::ui {
         }
 
         pushEdit(before, after, QStringLiteral("粘贴"));
+
+        // 粘贴进来的长文本同样要把行高撑开（只处理受影响的非合并行）
+        for (const CellSnapshot& s : after) {
+            autoGrowRow(s.row);
+        }
     }
 
     void TemplateSheetView::onMergeCells()
@@ -1769,6 +1833,14 @@ namespace doclife::ui {
         applyToSelection(QStringLiteral("折行显示"), [on](CellSnapshot& snapshot) {
             snapshot.wrap = on;
             });
+
+        // 打开折行后把行高长到能放下，否则固定行高会把换出来的行裁掉，看着像没换行
+        if (!on) return;
+        for (const auto& range : m_table->selectedRanges()) {
+            for (int row = range.topRow(); row <= range.bottomRow(); ++row) {
+                autoGrowRow(row);
+            }
+        }
     }
 
     void TemplateSheetView::onLockToggled(bool on)
