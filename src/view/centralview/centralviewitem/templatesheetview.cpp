@@ -134,7 +134,16 @@ namespace doclife::ui {
             initStyleOption(&opt, index);
 
             const QVariant wrapValue = index.data(CellWrapRole);
-            const bool wrap = wrapValue.isValid() ? wrapValue.toBool() : true;
+            const bool wrapAllowed = wrapValue.isValid() ? wrapValue.toBool() : true;
+
+            // 只有真的放不下（或正文里本来就有换行）才走换行排版。
+            // 换行要走 QTextLayout，很贵；绝大多数格子一行就放得下，跳过能明显加快整表重绘。
+            bool wrap = false;
+            if (wrapAllowed) {
+                wrap = opt.text.contains(QLatin1Char('\n'))
+                    || QFontMetrics(opt.font).horizontalAdvance(opt.text) > qMax(8, opt.rect.width() - 8);
+            }
+
             opt.features = wrap
                 ? (opt.features | QStyleOptionViewItem::WrapText)
                 : (opt.features & ~QStyleOptionViewItem::WrapText);
@@ -465,7 +474,22 @@ namespace doclife::ui {
 
     void TemplateSheetView::flushPendingEdits()
     {
+        flushPending(true);
+    }
+
+    void TemplateSheetView::flushCurrentSheet()
+    {
+        flushPending(false);
+    }
+
+    void TemplateSheetView::flushPending(bool allSheets)
+    {
         if (m_pendingEdits.isEmpty() && m_pendingFormats.isEmpty()) return;
+
+        // 切表时只写当前这张表，别的表留在缓存里等切到它 / 保存工程时再写
+        auto wanted = [this, allSheets](const PendingCellKey& key) {
+            return allSheets || key.sheetId == m_currentSheetId;
+            };
 
         auto* ctx = doclife::core::ProjectContext::instance();
         QSqlDatabase db = ctx->getProjectDb();
@@ -478,12 +502,15 @@ namespace doclife::ui {
         const bool inTransaction = db.transaction();
 
         bool ok = true;
+        int writtenTexts = 0;
+        int writtenFormats = 0;
 
         // 1. 填报的文本
-        if (!m_pendingEdits.isEmpty()) {
+        {
             QSqlQuery q(db);
             q.prepare("INSERT OR REPLACE INTO form_values (sheet_id, row, col, value) VALUES (?,?,?,?)");
             for (auto it = m_pendingEdits.cbegin(); it != m_pendingEdits.cend(); ++it) {
+                if (!wanted(it.key())) continue;
                 q.bindValue(0, it.key().sheetId);
                 q.bindValue(1, it.key().row);
                 q.bindValue(2, it.key().col);
@@ -493,11 +520,12 @@ namespace doclife::ui {
                     ok = false;
                     break;
                 }
+                ++writtenTexts;
             }
         }
 
         // 2. 单元格格式：只更新格式列，已有单元格的文本与边框保持不变
-        if (ok && !m_pendingFormats.isEmpty()) {
+        if (ok) {
             QSqlQuery q(db);
             q.prepare("INSERT INTO sheet_cells (sheet_id, row, col, value, font_family, font_size, "
                 "font_bold, font_italic, font_underline, font_color, bg_color, h_align, v_align, "
@@ -513,6 +541,7 @@ namespace doclife::ui {
                 "wrap_text=excluded.wrap_text, auto_fit=excluded.auto_fit, locked=excluded.locked");
 
             for (auto it = m_pendingFormats.cbegin(); it != m_pendingFormats.cend(); ++it) {
+                if (!wanted(it.key())) continue;
                 const PendingCellFormat& f = it.value();
                 q.bindValue(0, it.key().sheetId);
                 q.bindValue(1, it.key().row);
@@ -536,6 +565,7 @@ namespace doclife::ui {
                     ok = false;
                     break;
                 }
+                ++writtenFormats;
             }
         }
 
@@ -544,11 +574,21 @@ namespace doclife::ui {
             else    db.rollback();
         }
 
-        if (ok) {
-            qDebug() << "★ 填报内容已保存，文本" << m_pendingEdits.size()
-                << "格，格式" << m_pendingFormats.size() << "格";
+        if (!ok) return;
+
+        qDebug() << "★ 填报内容已保存，文本" << writtenTexts << "格，格式" << writtenFormats << "格";
+
+        if (allSheets) {
             m_pendingEdits.clear();
             m_pendingFormats.clear();
+            return;
+        }
+
+        for (auto it = m_pendingEdits.begin(); it != m_pendingEdits.end(); ) {
+            it = (it.key().sheetId == m_currentSheetId) ? m_pendingEdits.erase(it) : std::next(it);
+        }
+        for (auto it = m_pendingFormats.begin(); it != m_pendingFormats.end(); ) {
+            it = (it.key().sheetId == m_currentSheetId) ? m_pendingFormats.erase(it) : std::next(it);
         }
     }
 
@@ -567,7 +607,7 @@ namespace doclife::ui {
     {
         // 切表前先把上一张表的填报内容落库：否则锁定、打勾、折行这些状态
         // 只存在内存里，切走再回来就丢了。
-        flushPendingEdits();
+        flushCurrentSheet();
         if (m_undoStack) m_undoStack->clear();
         m_currentNodeId = nodeId;
         m_currentDbPath = dbPath;
@@ -989,41 +1029,61 @@ namespace doclife::ui {
         if (!m_isProjectMode || m_isApplyingSettings) return;
         if (row < 0 || row >= m_table->rowCount()) return;
 
-        // 竖向合并的行不自动增高，免得把合并块拉变形
+        // 这一行涉及的合并块，每块只处理一次（合并块里的格子要按整块算宽高）
+        QSet<quint64> blocks;
         for (int col = 0; col < m_table->columnCount(); ++col) {
-            if (m_table->rowSpan(row, col) > 1) return;
+            if (!m_table->item(row, col)) continue;
+            const QPoint anchor = spanAnchorOf(row, col);
+            blocks.insert(cellKey(anchor.y(), anchor.x()));
         }
 
-        int needed = 0;
-        for (int col = 0; col < m_table->columnCount(); ++col) {
-            auto* item = m_table->item(row, col);
-            if (!item) continue;
-            if (!item->data(CellWrapRole).toBool()) continue;
+        for (const quint64 key : blocks) {
+            const int ar = int(key >> 32);
+            const int ac = int(key & 0xffffffffULL);
+
+            auto* item = m_table->item(ar, ac);
+            if (!item || !item->data(CellWrapRole).toBool()) continue;
 
             const QString text = item->text();
             if (text.isEmpty()) continue;
 
+            const int rs = qMax(1, m_table->rowSpan(ar, ac));
+            const int cs = qMax(1, m_table->columnSpan(ar, ac));
+
             int width = 0;
-            if (m_spanAnchors.contains(cellKey(row, col))) {
-                for (int i = 0; i < m_table->columnSpan(row, col) && col + i < m_table->columnCount(); ++i) {
-                    width += m_table->columnWidth(col + i);
-                }
-            }
-            else {
-                width = m_table->columnWidth(col);
+            for (int i = 0; i < cs && ac + i < m_table->columnCount(); ++i) {
+                width += m_table->columnWidth(ac + i);
             }
             width -= 8;   // 与 shrinkFontToFit 的左右边距一致
             if (width <= 8) continue;
 
-            const QFontMetrics fm(item->font());
-            const QRect need = fm.boundingRect(QRect(0, 0, width, 0), Qt::TextWordWrap, text);
-            needed = qMax(needed, need.height() + 6);
-        }
+            int current = 0;
+            for (int i = 0; i < rs && ar + i < m_table->rowCount(); ++i) {
+                current += m_table->rowHeight(ar + i);
+            }
 
-        if (needed > 0 && needed > m_table->rowHeight(row)) {
-            // setRowHeight 会经 onSectionResized 记进节点 attrs，随工程一起保存
-            m_table->setRowHeight(row, needed);
+            const QFontMetrics fm(item->font());
+            const int needed = fm.boundingRect(QRect(0, 0, width, 0), Qt::TextWordWrap, text).height() + 6;
+            if (needed <= current) continue;
+
+            // 差量加在合并块的最后一行：前面的行不动，版面变化最小
+            const int last = qMin(ar + rs - 1, m_table->rowCount() - 1);
+            m_table->setRowHeight(last, m_table->rowHeight(last) + (needed - current));
         }
+    }
+
+    QPoint TemplateSheetView::spanAnchorOf(int row, int col) const
+    {
+        for (const quint64 key : m_spanAnchors) {
+            const int r = int(key >> 32);
+            const int c = int(key & 0xffffffffULL);
+            const int rs = qMax(1, m_table->rowSpan(r, c));
+            const int cs = qMax(1, m_table->columnSpan(r, c));
+            if (row >= r && row < r + rs && col >= c && col < c + cs) {
+                return QPoint(c, r);
+            }
+        }
+        return QPoint(col, row);
     }
 
     void TemplateSheetView::applyCellRole(QTableWidgetItem* item, const QString& roleKey)
@@ -1209,6 +1269,9 @@ namespace doclife::ui {
 
         // 折行格子里输入长文本后，把行高撑到能放下
         autoGrowRow(row);
+
+        // 改完这一格顺手把工具栏状态对齐（否则按钮可能还停在上一个格子的状态）
+        updateFormatBarFromSelection();
 
         doclife::core::ProjectContext::instance()->markDirty();
     }

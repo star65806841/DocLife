@@ -187,6 +187,9 @@ namespace doclife::ui {
         // ---- 编辑区 ----
         void setupFormatBar();
         void updateFormatBarFromSelection();
+        // 把待写入内容落库：allSheets=false 时只写当前这张表（切表用）
+        void flushPending(bool allSheets);
+        void flushCurrentSheet();
         CellSnapshot snapshotOf(int row, int col) const;
         QVector<CellSnapshot> snapshotRanges(const QList<QTableWidgetSelectionRange>& ranges) const;
         void applySnapshots(const QVector<CellSnapshot>& snapshots);
@@ -197,8 +200,10 @@ namespace doclife::ui {
         void setCellTextOnly(int row, int col, const QString& text);
         // 让「勾选方格」按钮的按下状态与表里实际的 ☑ 一致（不触发信号）
         void syncCheckBoxesAction();
-        // 折行打开后，把行高长到能放下换行后的文字（合并行跳过）
+        // 折行打开后，把行高长到能放下换行后的文字（按合并块整体计算）
         void autoGrowRow(int row);
+        // (row,col) 所属合并块的左上角；不在合并块里就返回自己
+        QPoint spanAnchorOf(int row, int col) const;
         void applyToSelection(const QString& label, const std::function<void(CellSnapshot&)>& mutate);
         QString selectionAsText() const;
         void pasteText(const QString& text);
