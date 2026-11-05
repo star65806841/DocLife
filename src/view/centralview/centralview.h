@@ -2,6 +2,7 @@
 #define CENTRALVIEW_H
 
 #include <QWidget>
+#include <QDate>
 
 namespace doclife::core
 {
@@ -39,6 +40,8 @@ namespace doclife::ui {
         void popProjectOpened();
         void onToastWarning(const QString &msg);
         void onRequestAddSheet(const QString& parentNodeId);
+        // 时间区域双击：统一由主界面弹日历窗，确认后发回执信号
+        void onDatePickRequested(int sheetId, int row, int col, const QDate& current);
     private:
         //project context data
         doclife::core::ProjectContext* m_projectObject = nullptr;

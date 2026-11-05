@@ -40,19 +40,10 @@ namespace doclife::ui {
 
     QString editorTableStyleSheet(const EditorSettings& settings)
     {
-        QString selection;
-        if (!settings.selectionEnabled) {
-            selection = QStringLiteral("background-color: transparent;");
-        }
-        else {
-            const QColor color = settings.selectionColor;
-            // 半透明，保证单元格自身的填充色仍然可见
-            selection = QStringLiteral("background-color: rgba(%1, %2, %3, 64);")
-                .arg(color.red()).arg(color.green()).arg(color.blue());
-            if (color.red() + color.green() + color.blue() < 380) {
-                selection += QStringLiteral(" color: #FFFFFF;");
-            }
-        }
+        // 选中高亮不再走样式表：样式表一旦给 item:selected 定 background-color，
+        // Qt 就不再绘制单元格自身的填充色，用户刚填完色的格子（必然处于选中态）会"看不见颜色"。
+        // 这里显式置透明，半透明高亮由 CellBorderDelegate 自己叠加绘制。
+        const QString selection = QStringLiteral("background-color: transparent;");
 
         return QStringLiteral(R"(
             QTableWidget {

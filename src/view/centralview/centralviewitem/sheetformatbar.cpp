@@ -145,6 +145,18 @@ namespace doclife::ui {
         layout->addWidget(m_fontSize);
         layout->addWidget(separator(this));
 
+        // ---- 自适应单元格大小 / 折行显示 ----
+        // 自适应：文字缩小到刚好放进单元格；折行：自动换行，关掉则单行超长显示省略号
+        m_autoFit = makeButton(QStringLiteral("ic_fluent_arrow_autofit_content_20_regular"),
+            QStringLiteral("自适应单元格大小：文字缩放到单元格刚好放下"), true);
+        m_wrap = makeButton(QStringLiteral("ic_fluent_text_wrap_20_regular"),
+            QStringLiteral("折行显示：文字自动换行（关闭则超长省略为 …）"), true);
+        connect(m_autoFit, &QToolButton::toggled, this, &SheetFormatBar::autoFitToggled);
+        connect(m_wrap, &QToolButton::toggled, this, &SheetFormatBar::wrapToggled);
+        layout->addWidget(m_autoFit);
+        layout->addWidget(m_wrap);
+        layout->addWidget(separator(this));
+
         // ---- 加粗 / 斜体 / 下划线 ----
         m_bold = makeButton(QStringLiteral("ic_fluent_text_bold_20_regular"), QStringLiteral("加粗 (Ctrl+B)"), true);
         m_italic = makeButton(QStringLiteral("ic_fluent_text_italic_20_regular"), QStringLiteral("斜体 (Ctrl+I)"), true);
@@ -193,6 +205,12 @@ namespace doclife::ui {
         m_merge = makeButton(QStringLiteral("ic_fluent_table_cells_merge_20_regular"), QStringLiteral("合并居中 / 取消合并"), true);
         connect(m_merge, &QToolButton::clicked, this, &SheetFormatBar::mergeRequested);
         layout->addWidget(m_merge);
+
+        // ---- 锁定 / 解锁（只读 + 不参与同步等自动赋值）----
+        m_lock = makeButton(QStringLiteral("ic_fluent_lock_closed_20_regular"),
+            QStringLiteral("锁定/解锁单元格：锁定后只读，且不参与工程信息同步等自动填充"), true);
+        connect(m_lock, &QToolButton::toggled, this, &SheetFormatBar::lockToggled);
+        layout->addWidget(m_lock);
 
         layout->addStretch(1);
 
@@ -259,6 +277,22 @@ namespace doclife::ui {
     {
         const QSignalBlocker blocker(m_merge);
         m_merge->setChecked(merged);
+    }
+
+    void SheetFormatBar::syncLayoutState(bool wrap, bool autoFit, bool locked)
+    {
+        {
+            const QSignalBlocker b1(m_wrap);
+            m_wrap->setChecked(wrap);
+        }
+        {
+            const QSignalBlocker b2(m_autoFit);
+            m_autoFit->setChecked(autoFit);
+        }
+        {
+            const QSignalBlocker b3(m_lock);
+            m_lock->setChecked(locked);
+        }
     }
 
     void SheetFormatBar::syncState(const QFont& font,

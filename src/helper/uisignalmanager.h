@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QDate>
 
 namespace doclife::ui{
 
@@ -52,6 +53,10 @@ Q_SIGNALS:
     void excelSheetActivated(const QString &xlsxPath, const QString &sheetName);
     void pdfPreviewRequested(const QString& pdfPath, int index = 0);
     void templateSheetActivated(const QString& dbPath, int sheetId, const QString& title);
+    // 时间区域单元格双击：请求由主界面弹日期选择窗（避免在双击事件里直接弹浮层被秒杀）
+    void datePickRequested(int sheetId, int row, int col, const QDate& current);
+    // 日期选择窗确认后的回执，通知对应表格把日期写入单元格
+    void datePickConfirmed(int sheetId, int row, int col, const QDate& date);
     // 日志
     void logMessage(const QString &msg);
     void logError(const QString &msg);

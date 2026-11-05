@@ -7,6 +7,11 @@
 #include <components/collections/DrawerView.h>
 #include <components/collections/SplitView.h>
 #include <components/layout/Divider.h>
+#include <components/date_time/CalendarView.h>
+#include <components/dialogs_flyouts/ContentDialog.h>
+
+#include <QVBoxLayout>
+#include <QPointer>
 
 #include <popWindow/addsheetdialog.h>
 #include <popWindow/projectnew.h>
@@ -266,6 +271,8 @@ void CentralView::initConnect()
     connect(UISignalManager::instance(), &UISignalManager::showTemplateView, this,[this](bool show){m_templateView->setVisible(show);});
     // 新建表格
     connect(UISignalManager::instance(), &UISignalManager::requestAddSheet, this, &CentralView::onRequestAddSheet);
+    // 时间区域双击：主界面统一弹日历窗
+    connect(UISignalManager::instance(), &UISignalManager::datePickRequested, this, &CentralView::onDatePickRequested);
 
 }
 
@@ -275,4 +282,42 @@ void CentralView::showProjectDialog()
     QString filepath = doclife::core::Utils::openFileDialog();
     qDebug() << "file path is :" << filepath;
     doclife::core::ProjectContext::instance()->openProject(filepath);
+}
+
+void CentralView::onDatePickRequested(int sheetId, int row, int col, const QDate& current)
+{
+    // 日历内嵌在内容弹窗里：弹窗由本信号处理函数发起，脱离双击事件，
+    // 不会被浮层的“点外部即关”逻辑误杀；确定/取消统一走 datePickConfirmed 回执。
+    auto* dlg = new fluent::dialogs_flyouts::ContentDialog(this);
+    dlg->setTitle("选择日期");
+    dlg->setPrimaryButtonText("确定");
+    dlg->setCloseButtonText("取消");
+    dlg->setDefaultButton(fluent::dialogs_flyouts::ContentDialog::Primary);
+    dlg->setModal(true);
+    dlg->setDim(true);
+    dlg->setAnimationEnabled(true);
+
+    auto* body = new QWidget(dlg);
+    auto* bodyLayout = new QVBoxLayout(body);
+    bodyLayout->setContentsMargins(12, 10, 12, 10);
+
+    auto* calendar = new fluent::date_time::CalendarView(body);
+    calendar->setFrameVisible(false);
+    calendar->setSelectedDate(current);
+    calendar->setVisibleMonth(current);
+    bodyLayout->addWidget(calendar);
+
+    dlg->setContent(body);
+
+    QPointer<fluent::date_time::CalendarView> calendarGuard(calendar);
+    connect(dlg, &QDialog::finished, this,
+        [calendarGuard, sheetId, row, col](int result) {
+            const QDate picked = (result == QDialog::Accepted && calendarGuard)
+                ? calendarGuard->selectedDate() : QDate();
+            // 取消/关闭时 picked 无效，表格侧收到后保留单元格原值
+            emit UISignalManager::instance()->datePickConfirmed(sheetId, row, col, picked);
+        });
+
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    dlg->open();
 }

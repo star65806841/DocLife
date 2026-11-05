@@ -15,5 +15,7 @@
         <file>icons/cursor/cross-society.svg</file>
         <file>icons/menu/settings.svg</file>
         <file>icons/menu/about.svg</file>
+        <file>icons/menu/check.svg</file>
+        <file>icons/menu/project_info.svg</file>
     </qresource>
 </RCC>

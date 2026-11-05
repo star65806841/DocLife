@@ -135,6 +135,7 @@ set(DOCLIFE_BUSINESS
 # 数据模型（纯头文件 + 自定义模型）
 # ---------------------------------------------------------------------------
 set(DOCLIFE_MODEL
+    src/model/boxmark.h
     src/model/cellrole.h
     src/model/fieldtokens.h
     src/model/projectInfomodel.h

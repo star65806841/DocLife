@@ -67,10 +67,12 @@ namespace doclife::core {
                 "font_family TEXT, font_size REAL, font_bold INTEGER, font_italic INTEGER, font_underline INTEGER, "
                 "font_color TEXT, bg_color TEXT, h_align INTEGER, v_align INTEGER, "
                 "border_top INTEGER, border_bottom INTEGER, border_left INTEGER, border_right INTEGER, wrap_text INTEGER, "
-                "cell_role TEXT, "
+                "cell_role TEXT, auto_fit INTEGER DEFAULT 0, locked INTEGER DEFAULT 0, "
                 "PRIMARY KEY(sheet_id, row, col));")) return false;
             // 老工程库补列（失败说明列已存在，忽略即可）
             q.exec("ALTER TABLE sheet_cells ADD COLUMN cell_role TEXT;");
+            q.exec("ALTER TABLE sheet_cells ADD COLUMN auto_fit INTEGER DEFAULT 0;");
+            q.exec("ALTER TABLE sheet_cells ADD COLUMN locked INTEGER DEFAULT 0;");
 
             if (!q.exec("CREATE TABLE IF NOT EXISTS form_values ("
                 "sheet_id INTEGER, row INTEGER, col INTEGER, value TEXT, "

@@ -12,6 +12,8 @@
 #include <QDebug>
 #include <QStyledItemDelegate>
 #include <QPainter>
+#include <QStyle>
+#include <QFontMetrics>
 #include <QAction>
 #include <QItemSelectionModel>
 #include <QApplication>
@@ -21,6 +23,7 @@
 #include <QSet>
 #include <QTimer>
 #include <QPointer>
+#include <QSignalBlocker>
 #include <popWindow/dialog/dialogbase.h>
 #include <popWindow/settingsdialog.h>
 #include <popWindow/toast/apptoast.h>
@@ -34,11 +37,66 @@
 #include "sheetformatbar.h"
 #include "model/cellrole.h"
 #include "model/fieldtokens.h"
+#include "model/boxmark.h"
 
 #include <components/menus_toolbars/CommandBar.h>
 #include <business/projectcontext.h>
 
 namespace doclife::ui {
+
+    // 单元格在 QTableWidgetItem 上挂的数据键（20 以后是本模块专用）
+    enum CellDataRole {
+        CellRoleKeyRole = Qt::UserRole + 20,   // 角色 key：title/readonly/project/input/summary/date
+        CellRawTextRole = Qt::UserRole + 21,   // 占位符原文
+        CellLockedRole = Qt::UserRole + 22,    // 锁定：只读 + 不参与自动赋值
+        CellAutoFitRole = Qt::UserRole + 23,   // 自适应：文字缩放到单元格大小
+        CellWrapRole = Qt::UserRole + 24,      // 折行显示
+    };
+
+    namespace {
+        // 约定的只读底色：与模板标记色/文档一致（RGB 217,217,217）。
+        // 手动锁定的格子也用它，所以「只读」和「锁定」看起来是同一个灰。
+        QColor readOnlyTint() { return QColor(0xD9, 0xD9, 0xD9); }
+        // 表名/标题用更浅的一层，免得整张表头和只读说明混成一片
+        QColor titleTint() { return QColor(0xF2, 0xF2, 0xF2); }
+
+        // 「自适应单元格大小」：只缩小、不放大，二分找能放下的最大字号
+        QFont shrinkFontToFit(const QFont& font, const QString& text, const QRect& rect, bool wrap)
+        {
+            if (text.isEmpty()) return font;
+
+            const QRect avail = rect.adjusted(4, 2, -4, -2);
+            if (avail.width() <= 0 || avail.height() <= 0) return font;
+
+            const qreal original = font.pointSizeF() > 0 ? font.pointSizeF() : 10.5;
+            const qreal lo0 = 4.0;
+            if (original <= lo0) return font;
+
+            const int flags = wrap ? int(Qt::TextWordWrap) : int(Qt::TextSingleLine);
+
+            auto fits = [&](qreal pt) {
+                QFont probe(font);
+                probe.setPointSizeF(pt);
+                const QFontMetricsF fm(probe);
+                const QRectF needed = fm.boundingRect(QRectF(0, 0, avail.width(), 0), flags, text);
+                return needed.width() <= avail.width() + 0.5
+                    && needed.height() <= avail.height() + 0.5;
+            };
+
+            if (fits(original)) return font;
+
+            qreal lo = lo0, hi = original;
+            for (int i = 0; i < 8; ++i) {
+                const qreal mid = (lo + hi) / 2.0;
+                if (fits(mid)) lo = mid;
+                else hi = mid;
+            }
+
+            QFont fitted(font);
+            fitted.setPointSizeF(lo);
+            return fitted;
+        }
+    } // namespace
 
     class CellBorderDelegate : public QStyledItemDelegate
     {
@@ -47,6 +105,11 @@ namespace doclife::ui {
 
         // 文本真正写入模型前记录旧值，供撤销栈使用
         std::function<void(int, int, const QString&, const QString&)> onTextEdited;
+
+        // 选中高亮由本委托叠加绘制：样式表的 item:selected 会盖掉单元格自身的填充色，
+        // 导致"填了色看不见"。这里只留一层半透明色，填充色和字体色都能透出来。
+        bool selectionEnabled = true;
+        QColor selectionColor = QColor(0x00, 0x78, 0xD4);
 
         void setModelData(QWidget* editor, QAbstractItemModel* model, const QModelIndex& index) const override
         {
@@ -59,7 +122,43 @@ namespace doclife::ui {
 
         void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override
         {
-            QStyledItemDelegate::paint(painter, option, index);
+            // 先绕开样式表的 item:selected：带着选中态绘制时，Qt 会忽略单元格自身的填充色，
+            // 填色在选中期间完全看不见。去掉标志让背景正常绘制，选中层再由下面手动叠加。
+            QStyleOptionViewItem opt = option;
+            const bool selected = (opt.state & QStyle::State_Selected) != 0;
+            opt.state &= ~QStyle::State_Selected;
+
+            // 自己走一遍 initStyleOption，改成需要的排版参数后再交给样式绘制，
+            // 这样折行/省略/自适应/锁定底色都能逐格生效。
+            initStyleOption(&opt, index);
+
+            const QVariant wrapValue = index.data(CellWrapRole);
+            const bool wrap = wrapValue.isValid() ? wrapValue.toBool() : true;
+            opt.features = wrap
+                ? (opt.features | QStyleOptionViewItem::WrapText)
+                : (opt.features & ~QStyleOptionViewItem::WrapText);
+            opt.textElideMode = Qt::ElideRight;   // 不折行时超长显示 …
+
+            if (index.data(CellLockedRole).toBool()) {
+                opt.backgroundBrush = QBrush(readOnlyTint());   // 锁定 = 约定的只读底色
+            }
+
+            if (index.data(CellAutoFitRole).toBool()) {
+                const QFont fitted = shrinkFontToFit(opt.font, opt.text, opt.rect, wrap);
+                opt.font = fitted;
+                opt.fontMetrics = QFontMetrics(fitted);
+            }
+
+            QStyle* style = opt.widget ? opt.widget->style() : QApplication::style();
+            style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, opt.widget);
+
+            if (selected && selectionEnabled) {
+                painter->save();
+                QColor tint = selectionColor;
+                tint.setAlpha(56);
+                painter->fillRect(opt.rect, tint);
+                painter->restore();
+            }
 
             const int top = index.data(Qt::UserRole + 10).toInt();
             const int bottom = index.data(Qt::UserRole + 11).toInt();
@@ -73,10 +172,10 @@ namespace doclife::ui {
             QPen pen(QColor("#000000"));
             pen.setCosmetic(true);
 
-            QPoint tl = option.rect.topLeft();
-            QPoint tr(option.rect.right() + 1, option.rect.top());
-            QPoint bl = option.rect.bottomLeft() + QPoint(0, 1);
-            QPoint br = option.rect.bottomRight() + QPoint(1, 1);
+            QPoint tl = opt.rect.topLeft();
+            QPoint tr(opt.rect.right() + 1, opt.rect.top());
+            QPoint bl = opt.rect.bottomLeft() + QPoint(0, 1);
+            QPoint br = opt.rect.bottomRight() + QPoint(1, 1);
 
             if (top > 0) { pen.setWidth(top > 1 ? 2 : 1); painter->setPen(pen); painter->drawLine(tl, tr); }
             if (bottom > 0) { pen.setWidth(bottom > 1 ? 2 : 1); painter->setPen(pen); painter->drawLine(bl, br); }
@@ -94,6 +193,43 @@ namespace doclife::ui {
         return (quint64(quint32(row)) << 32) | quint32(col);
     }
 
+    // 纯文本改动（如勾选方格）：只回放文本，不碰字体/底色/合并，
+    // 避免把角色底色当成用户填充写进数据库。
+    class SheetTextCommand : public QUndoCommand
+    {
+    public:
+        SheetTextCommand(TemplateSheetView* view,
+                         QVector<QPair<int, int>> cells,
+                         QStringList before,
+                         QStringList after,
+                         const QString& label)
+            : m_view(view)
+            , m_cells(std::move(cells))
+            , m_before(std::move(before))
+            , m_after(std::move(after))
+        {
+            setText(label);
+        }
+
+        void undo() override { applyTexts(m_before); }
+        void redo() override { applyTexts(m_after); }
+
+    private:
+        void applyTexts(const QStringList& texts)
+        {
+            if (!m_view) return;
+            for (int i = 0; i < m_cells.size() && i < texts.size(); ++i) {
+                m_view->setCellTextOnly(m_cells.at(i).first, m_cells.at(i).second, texts.at(i));
+            }
+            m_view->syncCheckBoxesAction();
+        }
+
+        TemplateSheetView* m_view = nullptr;
+        QVector<QPair<int, int>> m_cells;
+        QStringList m_before;
+        QStringList m_after;
+    };
+
     TemplateSheetView::TemplateSheetView(QWidget* parent)
         : QWidget(parent)
     {
@@ -108,10 +244,19 @@ namespace doclife::ui {
         m_topBar->addPrimaryAction(m_titleAction);
         m_topBar->addPrimaryAction(m_resetAction);
 
-        m_refreshAction = new QAction("刷新信息", m_topBar);
-        m_refreshAction->setIcon(QIcon(":/icons/edit/resetSheet.svg"));
+        m_refreshAction = new QAction("同步工程信息", m_topBar);
+        m_refreshAction->setIcon(QIcon(":/icons/menu/project_info.svg"));
         m_topBar->addPrimaryAction(m_refreshAction);
         connect(m_refreshAction, &QAction::triggered, this, &TemplateSheetView::refreshFieldValues);
+
+        // 一键勾选：把整张表的方格打上勾（「不合格」前面的方格保持不勾），再点一次取消
+        m_checkBoxesAction = new QAction("勾选方格", m_topBar);
+        m_checkBoxesAction->setIcon(QIcon(":/icons/menu/check.svg"));
+        m_checkBoxesAction->setCheckable(true);
+        m_checkBoxesAction->setToolTip(
+            QStringLiteral("把整张表的方格都打上勾（“不合格”前面的方格不打勾），再次点击取消"));
+        m_topBar->addPrimaryAction(m_checkBoxesAction);
+        connect(m_checkBoxesAction, &QAction::toggled, this, &TemplateSheetView::onCheckAllBoxesToggled);
 
         m_table = new QTableWidget(this);
         m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -148,8 +293,19 @@ namespace doclife::ui {
         m_table->setItemDelegate(delegate);
 
         m_table->setStyleSheet(editorTableStyleSheet());
-        connect(UISignalManager::instance(), &UISignalManager::editorSettingsChanged, this, [this]() {
-            m_table->setStyleSheet(editorTableStyleSheet());
+        // 选中高亮改由委托自绘（样式表的 item:selected 会盖掉单元格填充色），
+        // 这里把编辑器设置里的选中色同步给委托，并在设置变更后刷新重绘。
+        auto syncSelectionToDelegate = [delegate, this] {
+            const auto settings = loadEditorSettings();
+            delegate->selectionEnabled = settings.selectionEnabled;
+            delegate->selectionColor = settings.selectionColor;
+            m_table->viewport()->update();
+        };
+        syncSelectionToDelegate();
+        connect(UISignalManager::instance(), &UISignalManager::editorSettingsChanged, this,
+            [this, syncSelectionToDelegate] {
+                m_table->setStyleSheet(editorTableStyleSheet());
+                syncSelectionToDelegate();
             });
 
         auto* layout = new QVBoxLayout(this);
@@ -170,6 +326,19 @@ namespace doclife::ui {
         connect(m_table->selectionModel(), &QItemSelectionModel::selectionChanged,
             this, &TemplateSheetView::onSelectionChanged);
         connect(m_table, &QTableWidget::doubleClicked, this, &TemplateSheetView::onCellDoubleClicked);
+
+        // 日期选择窗回执：确认属于当前表才写入；回执日期无效（用户取消）则保持单元格原值
+        connect(UISignalManager::instance(), &UISignalManager::datePickConfirmed, this,
+            [this](int sheetId, int row, int col, const QDate& date) {
+                if (!m_isProjectMode || sheetId != m_currentSheetId) return;
+                if (!date.isValid()) return;
+                auto* cell = m_table->item(row, col);
+                if (!cell) return;
+                if (isCellLocked(cell)) return;   // 锁定格不接受日期回填
+                cell->setText(date.toString(QStringLiteral("yyyy年M月d日")));
+                m_pendingEdits.insert({ sheetId, row, col }, cell->text());
+                doclife::core::ProjectContext::instance()->markDirty();
+            });
 
         connect(m_table->horizontalHeader(), &QHeaderView::sectionResized, this, &TemplateSheetView::onSectionResized);
         connect(m_table->verticalHeader(), &QHeaderView::sectionResized, this, &TemplateSheetView::onSectionResized);
@@ -276,6 +445,10 @@ namespace doclife::ui {
         m_currentSheetId = -1;
         m_currentDbPath.clear();
         if (m_undoStack) m_undoStack->clear();
+        if (m_checkBoxesAction) {
+            QSignalBlocker blocker(m_checkBoxesAction);
+            m_checkBoxesAction->setChecked(false);
+        }
         m_isApplyingSettings = false;
     }
 
@@ -323,14 +496,16 @@ namespace doclife::ui {
             QSqlQuery q(db);
             q.prepare("INSERT INTO sheet_cells (sheet_id, row, col, value, font_family, font_size, "
                 "font_bold, font_italic, font_underline, font_color, bg_color, h_align, v_align, "
-                "row_span, col_span, border_top, border_bottom, border_left, border_right, wrap_text) "
-                "VALUES (?,?,?,'',?,?,?,?,?,?,?,?,?,?,?,0,0,0,0,1) "
+                "row_span, col_span, border_top, border_bottom, border_left, border_right, wrap_text, "
+                "auto_fit, locked) "
+                "VALUES (?,?,?,'',?,?,?,?,?,?,?,?,?,?,?,0,0,0,0,?,?,?) "
                 "ON CONFLICT(sheet_id, row, col) DO UPDATE SET "
                 "font_family=excluded.font_family, font_size=excluded.font_size, "
                 "font_bold=excluded.font_bold, font_italic=excluded.font_italic, "
                 "font_underline=excluded.font_underline, font_color=excluded.font_color, "
                 "bg_color=excluded.bg_color, h_align=excluded.h_align, v_align=excluded.v_align, "
-                "row_span=excluded.row_span, col_span=excluded.col_span");
+                "row_span=excluded.row_span, col_span=excluded.col_span, "
+                "wrap_text=excluded.wrap_text, auto_fit=excluded.auto_fit, locked=excluded.locked");
 
             for (auto it = m_pendingFormats.cbegin(); it != m_pendingFormats.cend(); ++it) {
                 const PendingCellFormat& f = it.value();
@@ -348,6 +523,9 @@ namespace doclife::ui {
                 q.bindValue(11, f.vAlign);
                 q.bindValue(12, f.rowSpan);
                 q.bindValue(13, f.colSpan);
+                q.bindValue(14, f.wrap);
+                q.bindValue(15, f.autoFit);
+                q.bindValue(16, f.locked);
                 if (!q.exec()) {
                     qWarning() << "★ 写入单元格格式失败:" << q.lastError().text();
                     ok = false;
@@ -392,6 +570,7 @@ namespace doclife::ui {
         setupTemplate(dbPath, sheetId);
         setMode(true);
         applyUserSettings();
+        syncCheckBoxesAction();
     }
 
     void TemplateSheetView::setMode(bool isProject)
@@ -406,6 +585,7 @@ namespace doclife::ui {
             m_resetAction->setVisible(true);
             if (m_formatBar) m_formatBar->setVisible(true);
             if (m_refreshAction) m_refreshAction->setVisible(true);
+            if (m_checkBoxesAction) m_checkBoxesAction->setVisible(true);
 
             for (int c = 0; c < m_table->columnCount(); ++c) {
                 m_table->setHorizontalHeaderItem(c, new QTableWidgetItem(columnName(c)));
@@ -423,6 +603,7 @@ namespace doclife::ui {
             m_resetAction->setVisible(false);
             if (m_formatBar) m_formatBar->setVisible(false);
             if (m_refreshAction) m_refreshAction->setVisible(false);
+            if (m_checkBoxesAction) m_checkBoxesAction->setVisible(false);
         }
         m_isApplyingSettings = false;
     }
@@ -519,7 +700,7 @@ namespace doclife::ui {
         QHash<QString, int> fontVotes;   // "字体|字号" -> 出现次数，用来推断空白格的默认字体
         {
             QSqlQuery q(db);
-            q.prepare("SELECT row, col, row_span, col_span, value, font_family, font_size, font_bold, font_italic, font_underline, font_color, bg_color, h_align, v_align, border_top, border_bottom, border_left, border_right FROM sheet_cells WHERE sheet_id = ?");
+            q.prepare("SELECT row, col, row_span, col_span, value, font_family, font_size, font_bold, font_italic, font_underline, font_color, bg_color, h_align, v_align, border_top, border_bottom, border_left, border_right, wrap_text FROM sheet_cells WHERE sheet_id = ?");
             q.addBindValue(sheetId);
             if (q.exec()) {
                 while (q.next()) {
@@ -566,6 +747,9 @@ namespace doclife::ui {
                     item->setData(Qt::UserRole + 12, q.value(16).toInt());
                     item->setData(Qt::UserRole + 13, q.value(17).toInt());
 
+                    const QVariant wrapValue = q.value(18);
+                    item->setData(CellWrapRole, wrapValue.isNull() ? true : (wrapValue.toInt() != 0));
+
                     if (m_isProjectMode) item->setFlags(item->flags() | Qt::ItemIsEditable);
                     m_table->setItem(r, c, item);
 
@@ -593,6 +777,22 @@ namespace doclife::ui {
             ensureBlankCellsEditable(rowCount, colCount, dominantFont);
             applyFormValues(db, rowCount, colCount);
 
+            // 排版与锁定标记（老工程库没有这些列时读不到，按默认值处理）
+            {
+                QSqlQuery layoutQuery(db);
+                layoutQuery.prepare(QStringLiteral(
+                    "SELECT row, col, locked, auto_fit FROM sheet_cells WHERE sheet_id = ?"));
+                layoutQuery.addBindValue(sheetId);
+                if (layoutQuery.exec()) {
+                    while (layoutQuery.next()) {
+                        auto* item = m_table->item(layoutQuery.value(0).toInt(), layoutQuery.value(1).toInt());
+                        if (!item) continue;
+                        item->setData(CellLockedRole, layoutQuery.value(2).toInt() != 0);
+                        item->setData(CellAutoFitRole, layoutQuery.value(3).toInt() != 0);
+                    }
+                }
+            }
+
             // 字段占位符：#projectName / #unitName 等，用当前工程与节点信息替换显示
             const QHash<QString, QString> fieldValues =
                 doclife::core::ProjectContext::instance()->fieldValues(m_currentNodeId);
@@ -600,6 +800,8 @@ namespace doclife::ui {
                 for (int col = 0; col < colCount; ++col) {
                     auto* item = m_table->item(row, col);
                     if (!item) continue;
+                    // 锁定的格子不吃自动赋值：保留它自己已有的内容
+                    if (isCellLocked(item)) continue;
                     // 占位符原文就是这格的字段绑定（数据源永远是 sheet_cells.value）：
                     // 有绑定的格子，即使 form_values 里存过手填/旧值，打开时也按绑定重算，
                     // 保证「改完工程信息 → 刷新/重开」显示的是当前项目信息。
@@ -645,6 +847,7 @@ namespace doclife::ui {
                 if (m_table->item(r, c)) continue;
                 auto* item = new QTableWidgetItem;
                 item->setFont(defaultFont);
+                item->setData(CellWrapRole, true);
                 item->setFlags(item->flags() | Qt::ItemIsEditable);
                 m_table->setItem(r, c, item);
             }
@@ -665,6 +868,8 @@ namespace doclife::ui {
             for (int col = 0; col < m_table->columnCount(); ++col) {
                 auto* item = m_table->item(row, col);
                 if (!item) continue;
+                // 锁定的格子不参与同步
+                if (isCellLocked(item)) continue;
                 QString raw = item->data(Qt::UserRole + 21).toString();
                 if (raw.isEmpty()) {
                     // 兼容：没有记录原始文本时，直接对当前文本再解析一次
@@ -687,6 +892,88 @@ namespace doclife::ui {
         AppToast::showSuccess(this, QStringLiteral("已按当前工程信息刷新 %1 个单元格").arg(refreshed));
     }
 
+    void TemplateSheetView::onCheckAllBoxesToggled(bool checked)
+    {
+        if (!m_isProjectMode || m_currentSheetId < 0) {
+            syncCheckBoxesAction();
+            return;
+        }
+
+        QVector<QPair<int, int>> cells;
+        QStringList before;
+        QStringList after;
+
+        for (int row = 0; row < m_table->rowCount(); ++row) {
+            for (int col = 0; col < m_table->columnCount(); ++col) {
+                auto* item = m_table->item(row, col);
+                if (!item) continue;
+                if (isCellLocked(item)) continue;   // 锁定格不参与批量打勾
+                const QString oldText = item->text();
+                const QString newText = doclife::model::applyBoxMarks(oldText, checked);
+                if (newText == oldText) continue;
+                cells.append({ row, col });
+                before.append(oldText);
+                after.append(newText);
+            }
+        }
+
+        if (cells.isEmpty()) {
+            // 没有可改的方格：按钮状态按实际内容弹回去，别停在“已勾选”的假状态
+            syncCheckBoxesAction();
+            AppToast::showSuccess(this, checked
+                ? QStringLiteral("本表没有可勾选的方格")
+                : QStringLiteral("本表没有已勾选的方格"));
+            return;
+        }
+
+        if (m_undoStack) {
+            m_undoStack->push(new SheetTextCommand(this, cells, before, after,
+                checked ? QStringLiteral("勾选方格") : QStringLiteral("取消勾选")));
+        }
+        else {
+            for (int i = 0; i < cells.size(); ++i) {
+                setCellTextOnly(cells.at(i).first, cells.at(i).second, after.at(i));
+            }
+        }
+        syncCheckBoxesAction();
+        AppToast::showSuccess(this, checked ? QStringLiteral("已勾选") : QStringLiteral("已取消勾选"));
+    }
+
+    void TemplateSheetView::setCellTextOnly(int row, int col, const QString& text)
+    {
+        auto* item = m_table->item(row, col);
+        if (!item) return;
+        if (item->text() == text) return;
+
+        const bool guard = m_isApplyingSettings;
+        m_isApplyingSettings = true;
+        item->setText(text);
+        m_isApplyingSettings = guard;
+
+        // 与「同步工程信息」一致：先进待保存缓存，保存工程时统一落库，重开/打印口径一致
+        m_pendingEdits.insert({ m_currentSheetId, row, col }, text);
+        doclife::core::ProjectContext::instance()->markDirty();
+    }
+
+    void TemplateSheetView::syncCheckBoxesAction()
+    {
+        if (!m_checkBoxesAction) return;
+
+        bool anyChecked = false;
+        for (int row = 0; row < m_table->rowCount() && !anyChecked; ++row) {
+            for (int col = 0; col < m_table->columnCount(); ++col) {
+                const auto* item = m_table->item(row, col);
+                if (item && doclife::model::containsCheckedBox(item->text())) {
+                    anyChecked = true;
+                    break;
+                }
+            }
+        }
+
+        QSignalBlocker blocker(m_checkBoxesAction);
+        m_checkBoxesAction->setChecked(anyChecked);
+    }
+
     void TemplateSheetView::applyCellRole(QTableWidgetItem* item, const QString& roleKey)
     {
         if (!item) return;
@@ -694,12 +981,12 @@ namespace doclife::ui {
         const auto role = doclife::model::cellRoleFromKey(roleKey);
         if (role == doclife::model::CellRole::Unknown) return;
 
-        item->setData(Qt::UserRole + 20, roleKey);
+        item->setData(CellRoleKeyRole, roleKey);
 
         QColor tint;
         switch (role) {
-        case doclife::model::CellRole::Title:
-        case doclife::model::CellRole::ReadOnly: tint = QColor(0xF2, 0xF2, 0xF2); break;
+        case doclife::model::CellRole::Title:    tint = titleTint(); break;
+        case doclife::model::CellRole::ReadOnly: tint = readOnlyTint(); break;
         case doclife::model::CellRole::Project:  tint = QColor(0xFF, 0xF2, 0xCC); break;
         case doclife::model::CellRole::Summary:  tint = QColor(0xDD, 0xEB, 0xF7); break;
         case doclife::model::CellRole::Date:     tint = QColor(0xE2, 0xEF, 0xDA); break;
@@ -710,9 +997,25 @@ namespace doclife::ui {
             item->setBackground(tint);
         }
 
-        if (!doclife::model::cellRoleEditable(role)) {
-            item->setFlags(item->flags() & ~Qt::ItemIsEditable);
-        }
+        applyCellEditableState(item);
+    }
+
+    bool TemplateSheetView::isCellLocked(const QTableWidgetItem* item)
+    {
+        return item && item->data(CellLockedRole).toBool();
+    }
+
+    void TemplateSheetView::applyCellEditableState(QTableWidgetItem* item) const
+    {
+        if (!item) return;
+
+        const auto role = doclife::model::cellRoleFromKey(item->data(CellRoleKeyRole).toString());
+        const bool editable = !isCellLocked(item) && doclife::model::cellRoleEditable(role);
+
+        Qt::ItemFlags flags = item->flags();
+        if (editable) flags |= Qt::ItemIsEditable;
+        else flags &= ~Qt::ItemIsEditable;
+        item->setFlags(flags);
     }
 
     void TemplateSheetView::onCellDoubleClicked(const QModelIndex& index)
@@ -722,46 +1025,35 @@ namespace doclife::ui {
         auto* item = m_table->item(index.row(), index.column());
         if (!item) return;
 
+        // 锁定的格子：先问一次是否解锁，解锁后按普通单元格编辑
+        if (isCellLocked(item)) {
+            DialogBase::show(this,
+                QStringLiteral("单元格已锁定"),
+                QStringLiteral("该单元格已锁定为只读，不参与工程信息同步等自动填充。\n解锁后即可编辑，是否解锁？"),
+                [this, row = index.row(), col = index.column()]() {
+                    CellSnapshot before = snapshotOf(row, col);
+                    CellSnapshot after = before;
+                    after.locked = false;
+                    pushEdit({ before }, { after }, QStringLiteral("解锁单元格"));
+                    if (auto* cell = m_table->item(row, col)) {
+                        m_table->edit(m_table->model()->index(row, col));
+                    }
+                },
+                nullptr);
+            return;
+        }
+
         const QString roleKey = item->data(Qt::UserRole + 20).toString();
         const auto role = doclife::model::cellRoleFromKey(roleKey);
 
-        // 时间区域：双击在单元格位置展开日期选择器（无弹窗），确定后按 yyyy年M月d日 写入。
+        // 时间区域：双击只发全局信号，由主界面统一弹日期选择窗。
+        // 不在双击事件里直接弹浮层——轻关闭浮层会把本次双击的按压当成“点外部”，刚弹出就被关掉。
         if (role == doclife::model::CellRole::Date) {
-            const int row = index.row();
-            const int col = index.column();
-
-            auto* picker = findChild<fluent::date_time::DatePicker*>(QStringLiteral("cellDatePicker"));
-            if (!picker) {
-                picker = new fluent::date_time::DatePicker(this);
-                picker->setObjectName(QStringLiteral("cellDatePicker"));
-                picker->hide();
-                connect(picker, &fluent::date_time::DatePicker::selectedDateChanged, this,
-                    [this, picker](const QDate& date) {
-                        if (!date.isValid()) return;
-                        const int cellRow = picker->property("cellRow").toInt();
-                        const int cellCol = picker->property("cellCol").toInt();
-                        auto* cell = m_table->item(cellRow, cellCol);
-                        if (!cell) return;
-                        cell->setText(date.toString(QStringLiteral("yyyy年M月d日")));
-                        m_pendingEdits.insert({ m_currentSheetId, cellRow, cellCol }, cell->text());
-                        doclife::core::ProjectContext::instance()->markDirty();
-                    });
-            }
-
-            picker->setProperty("cellRow", row);
-            picker->setProperty("cellCol", col);
-
-            // 有值就带出当前日期，没有则用今天
             QDate current = QDate::fromString(item->text(), QStringLiteral("yyyy年M月d日"));
             if (!current.isValid()) current = QDate::fromString(item->text(), QStringLiteral("yyyy-MM-dd"));
-            picker->setDate(current.isValid() ? current : QDate::currentDate());
-
-            // 锚点移到单元格位置，弹层就贴着这一格展开
-            const QRect cellRect = m_table->visualRect(index);
-            picker->move(m_table->viewport()->mapToGlobal(cellRect.topLeft()));
-
-            // 双击的第二次点击会被当成“点外部”，延后一拍再展开
-            QTimer::singleShot(0, picker, [picker]() { picker->openPicker(); });
+            emit UISignalManager::instance()->datePickRequested(
+                m_currentSheetId, index.row(), index.column(),
+                current.isValid() ? current : QDate::currentDate());
             return;
         }
 
@@ -1051,6 +1343,9 @@ namespace doclife::ui {
         connect(m_formatBar, &SheetFormatBar::fillColorChanged, this, &TemplateSheetView::onFillColorChanged);
         connect(m_formatBar, &SheetFormatBar::hAlignChanged, this, &TemplateSheetView::onHAlignChanged);
         connect(m_formatBar, &SheetFormatBar::vAlignChanged, this, &TemplateSheetView::onVAlignChanged);
+        connect(m_formatBar, &SheetFormatBar::autoFitToggled, this, &TemplateSheetView::onAutoFitToggled);
+        connect(m_formatBar, &SheetFormatBar::wrapToggled, this, &TemplateSheetView::onWrapToggled);
+        connect(m_formatBar, &SheetFormatBar::lockToggled, this, &TemplateSheetView::onLockToggled);
     }
 
     CellSnapshot TemplateSheetView::snapshotOf(int row, int col) const
@@ -1066,6 +1361,11 @@ namespace doclife::ui {
             snapshot.hasFill = item->background().style() != Qt::NoBrush;
             snapshot.background = item->background().color();
             snapshot.alignment = int(item->textAlignment());
+
+            const QVariant wrapValue = item->data(CellWrapRole);
+            snapshot.wrap = wrapValue.isValid() ? wrapValue.toBool() : true;
+            snapshot.autoFit = item->data(CellAutoFitRole).toBool();
+            snapshot.locked = item->data(CellLockedRole).toBool();
         }
         // QTableView::rowSpan() 对被合并覆盖的单元格也会返回整块跨度，
         // 只有锚点才应该记录跨度，否则回放快照时会重复合并、报重叠。
@@ -1128,7 +1428,11 @@ namespace doclife::ui {
             if (s.hasFill) item->setBackground(s.background);
             else item->setBackground(QBrush());
             item->setTextAlignment(Qt::Alignment(s.alignment));
-            item->setFlags(item->flags() | Qt::ItemIsEditable);
+            item->setData(CellWrapRole, s.wrap);
+            item->setData(CellAutoFitRole, s.autoFit);
+            item->setData(CellLockedRole, s.locked);
+            // 锁定 / 只读角色决定这格能不能编辑，不能一律放开
+            applyCellEditableState(item);
 
             PendingCellFormat format;
             format.fontFamily = s.font.family();
@@ -1142,6 +1446,9 @@ namespace doclife::ui {
             format.vAlign = verticalAlignOf(s.alignment);
             format.rowSpan = s.rowSpan;
             format.colSpan = s.colSpan;
+            format.wrap = s.wrap ? 1 : 0;
+            format.autoFit = s.autoFit ? 1 : 0;
+            format.locked = s.locked ? 1 : 0;
             m_pendingFormats.insert({ m_currentSheetId, s.row, s.col }, format);
         }
 
@@ -1200,6 +1507,7 @@ namespace doclife::ui {
             horizontalAlignOf(snapshot.alignment),
             verticalAlignOf(snapshot.alignment));
         m_formatBar->setMergeChecked(snapshot.rowSpan > 1 || snapshot.colSpan > 1);
+        m_formatBar->syncLayoutState(snapshot.wrap, snapshot.autoFit, snapshot.locked);
     }
 
     void TemplateSheetView::onSelectionChanged()
@@ -1296,7 +1604,9 @@ namespace doclife::ui {
                 const int col = left + cellIndex;
                 if (row < 0 || row >= m_table->rowCount()) continue;
                 if (col < 0 || col >= m_table->columnCount()) continue;
-                if (!m_table->item(row, col)) continue;
+                auto* target = m_table->item(row, col);
+                if (!target) continue;
+                if (isCellLocked(target)) continue;   // 锁定格不接受粘贴
 
                 CellSnapshot current = snapshotOf(row, col);
                 CellSnapshot updated = current;
@@ -1444,6 +1754,28 @@ namespace doclife::ui {
     {
         applyToSelection(QStringLiteral("垂直对齐"), [align](CellSnapshot& snapshot) {
             snapshot.alignment = alignmentFlags(horizontalAlignOf(snapshot.alignment), align);
+            });
+    }
+
+    void TemplateSheetView::onAutoFitToggled(bool on)
+    {
+        applyToSelection(QStringLiteral("自适应单元格大小"), [on](CellSnapshot& snapshot) {
+            snapshot.autoFit = on;
+            });
+    }
+
+    void TemplateSheetView::onWrapToggled(bool on)
+    {
+        applyToSelection(QStringLiteral("折行显示"), [on](CellSnapshot& snapshot) {
+            snapshot.wrap = on;
+            });
+    }
+
+    void TemplateSheetView::onLockToggled(bool on)
+    {
+        applyToSelection(on ? QStringLiteral("锁定单元格") : QStringLiteral("解锁单元格"),
+            [on](CellSnapshot& snapshot) {
+                snapshot.locked = on;
             });
     }
 

@@ -33,6 +33,8 @@ namespace doclife::ui {
                        const QColor& fillColor,
                        int hAlign,
                        int vAlign);
+        // 排版/锁定按钮的按下状态：折行、自适应、锁定
+        void syncLayoutState(bool wrap, bool autoFit, bool locked);
 
     signals:
         void undoRequested();
@@ -51,6 +53,10 @@ namespace doclife::ui {
         void fillColorChanged(const QColor& color);   // 无效颜色 = 无填充
         void hAlignChanged(int align);                // 0 左 / 1 中 / 2 右
         void vAlignChanged(int align);                // 0 上 / 1 中 / 2 下
+
+        void autoFitToggled(bool on);                 // 自适应单元格大小
+        void wrapToggled(bool on);                    // 折行显示
+        void lockToggled(bool on);                    // 锁定/解锁单元格
 
     private:
         QToolButton* makeButton(const QString& glyphName, const QString& tooltip, bool checkable = false);
@@ -74,6 +80,9 @@ namespace doclife::ui {
         QToolButton* m_vMiddle = nullptr;
         QToolButton* m_vBottom = nullptr;
         QToolButton* m_merge = nullptr;
+        QToolButton* m_autoFit = nullptr;
+        QToolButton* m_wrap = nullptr;
+        QToolButton* m_lock = nullptr;
 
         QFontComboBox* m_fontFamily = nullptr;
         QComboBox* m_fontSize = nullptr;
