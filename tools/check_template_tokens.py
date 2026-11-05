@@ -18,7 +18,7 @@ from pathlib import Path
 from collections import Counter
 
 TOKENS = {
-    "projectName", "ownerUnit", "constructionUnit", "designUnit", "supervisionUnit",
+    "projectName", "projectCode", "ownerUnit", "constructionUnit", "designUnit", "supervisionUnit",
     "unitName", "subName", "itemName", "sheetName", "date",
 }
 PATTERN = re.compile(r"#([A-Za-z][A-Za-z0-9]*)")

@@ -12,6 +12,9 @@ namespace doclife::model {
         // 项目名称
         QString projectName;
 
+        // 工程编号（合同段编号、标段号之类，打印在表头的工程标识）
+        QString projectCode;
+
         // 建设单位（业主/甲方）
         QString ownerUnitName;
 
@@ -29,6 +32,7 @@ namespace doclife::model {
             o["id"] = id;
             o["projectnodeId"] = projectnodeId;
             o["projectName"] = projectName;
+            o["projectCode"] = projectCode;
             o["ownerUnitName"] = ownerUnitName;
             o["constructionUnitName"] = constructionUnitName;
             o["designUnitName"] = designUnitName;
@@ -41,6 +45,7 @@ namespace doclife::model {
             p.id = o.value("id").toString();
             p.projectnodeId = o.value("projectnodeId").toString();
             p.projectName = o.value("projectName").toString();
+            p.projectCode = o.value("projectCode").toString();
             p.ownerUnitName = o.value("ownerUnitName").toString();
             p.constructionUnitName = o.value("constructionUnitName").toString();
             p.designUnitName = o.value("designUnitName").toString();

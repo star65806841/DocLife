@@ -22,6 +22,7 @@ signals:
 private slots:
     void slot_updateProjectInfo();
     void slot_updateProjectName(const QString& str);
+    void slot_updateProjectCode(const QString& str);
     void slot_updateConstructionUnitName(const QString& str);
     void slot_updateSupervisionUnitName(const QString& str);
     void slot_updateDesignUnitName(const QString& str);
@@ -35,6 +36,7 @@ private:
     bool editButtonEnabled = true;
 
     QString m_projectName;
+    QString m_projectCode;
     QString m_constructionUnitName;
     QString m_supervisionUnitName;
     QString m_designUnitName;

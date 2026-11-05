@@ -16,6 +16,7 @@ namespace doclife::model {
     {
         return {
             QStringLiteral("projectName"),        // 工程名称
+            QStringLiteral("projectCode"),        // 工程编号
             QStringLiteral("ownerUnit"),          // 建设单位
             QStringLiteral("constructionUnit"),   // 施工单位
             QStringLiteral("designUnit"),         // 设计单位
@@ -33,6 +34,7 @@ namespace doclife::model {
     {
         return {
             QStringLiteral("工程名称"),
+            QStringLiteral("工程编号"),
             QStringLiteral("建设单位"),
             QStringLiteral("施工单位"),
             QStringLiteral("设计单位"),

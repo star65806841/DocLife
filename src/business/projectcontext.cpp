@@ -51,7 +51,9 @@ namespace doclife::core {
         bool ensureSchema(QSqlDatabase& db) {
             QSqlQuery q(db);
             if (!q.exec("CREATE TABLE IF NOT EXISTS project_info ("
-                "id TEXT PRIMARY KEY, projectnode_id TEXT, name TEXT, owner_unit TEXT, construction_unit TEXT, design_unit TEXT, supervision_unit TEXT);")) return false;
+                "id TEXT PRIMARY KEY, projectnode_id TEXT, name TEXT, code TEXT, owner_unit TEXT, construction_unit TEXT, design_unit TEXT, supervision_unit TEXT);")) return false;
+            // 老工程库补列（失败说明列已存在，忽略即可）
+            q.exec("ALTER TABLE project_info ADD COLUMN code TEXT;");
 
             if (!q.exec("CREATE TABLE IF NOT EXISTS tree_nodes ("
                 "id TEXT PRIMARY KEY, parent_id TEXT, type TEXT, name TEXT, sort_order INTEGER, attrs TEXT);")) return false;
@@ -230,6 +232,7 @@ namespace doclife::core {
         values.insert(QStringLiteral("projectName"),
             m_projectInfo.projectName.isEmpty() ? displayName() : m_projectInfo.projectName);
         values.insert(QStringLiteral("ownerUnit"), m_projectInfo.ownerUnitName);
+        values.insert(QStringLiteral("projectCode"), m_projectInfo.projectCode);
         values.insert(QStringLiteral("constructionUnit"), m_projectInfo.constructionUnitName);
         values.insert(QStringLiteral("designUnit"), m_projectInfo.designUnitName);
         values.insert(QStringLiteral("supervisionUnit"), m_projectInfo.supervisionUnitName);
@@ -430,10 +433,11 @@ namespace doclife::core {
             if (!q.exec("DELETE FROM tree_nodes;")) return fail();
             if (!q.exec("DELETE FROM project_info;")) return fail();
 
-            q.prepare("INSERT INTO project_info (id, projectnode_id, name, owner_unit, construction_unit, design_unit, supervision_unit) VALUES (?,?,?,?,?,?,?)");
+            q.prepare("INSERT INTO project_info (id, projectnode_id, name, code, owner_unit, construction_unit, design_unit, supervision_unit) VALUES (?,?,?,?,?,?,?,?)");
             q.addBindValue(m_projectInfo.id);
             q.addBindValue(m_projectInfo.projectnodeId);
             q.addBindValue(m_projectInfo.projectName);
+            q.addBindValue(m_projectInfo.projectCode);
             q.addBindValue(m_projectInfo.ownerUnitName);
             q.addBindValue(m_projectInfo.constructionUnitName);
             q.addBindValue(m_projectInfo.designUnitName);
@@ -477,14 +481,15 @@ namespace doclife::core {
         {
             QSqlQuery q(db);
             m_projectInfo = doclife::model::ProjectInfoModel{};
-            if (q.exec("SELECT id, projectnode_id, name, owner_unit, construction_unit, design_unit, supervision_unit FROM project_info LIMIT 1;") && q.next()) {
+            if (q.exec("SELECT id, projectnode_id, name, code, owner_unit, construction_unit, design_unit, supervision_unit FROM project_info LIMIT 1;") && q.next()) {
                 m_projectInfo.id = q.value(0).toString();
                 m_projectInfo.projectnodeId = q.value(1).toString();
                 m_projectInfo.projectName = q.value(2).toString();
-                m_projectInfo.ownerUnitName = q.value(3).toString();
-                m_projectInfo.constructionUnitName = q.value(4).toString();
-                m_projectInfo.designUnitName = q.value(5).toString();
-                m_projectInfo.supervisionUnitName = q.value(6).toString();
+                m_projectInfo.projectCode = q.value(3).toString();
+                m_projectInfo.ownerUnitName = q.value(4).toString();
+                m_projectInfo.constructionUnitName = q.value(5).toString();
+                m_projectInfo.designUnitName = q.value(6).toString();
+                m_projectInfo.supervisionUnitName = q.value(7).toString();
             }
 
             delete m_root;
@@ -655,6 +660,7 @@ namespace doclife::core {
                         role = model::cellRoleKey(model::CellRole::Date);
                     }
                     else if (text.contains(QStringLiteral("工程名称")) || text.contains(QStringLiteral("项目名称"))
+                        || text.contains(QStringLiteral("工程编号"))
                         || text.contains(QStringLiteral("建设单位")) || text.contains(QStringLiteral("施工单位"))
                         || text.contains(QStringLiteral("设计单位")) || text.contains(QStringLiteral("监理单位"))) {
                         role = model::cellRoleKey(model::CellRole::Project);

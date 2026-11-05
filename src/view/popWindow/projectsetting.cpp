@@ -25,6 +25,7 @@ void ProjectSetting::slot_updateProjectInfo()
     auto info = ctx->projectInfo();          // 拿一份副本
 
     info.projectName = m_projectName.trimmed();
+    info.projectCode = m_projectCode.trimmed();
     info.constructionUnitName = m_constructionUnitName.trimmed();
     info.supervisionUnitName = m_supervisionUnitName.trimmed();
     info.designUnitName = m_designUnitName.trimmed();
@@ -39,6 +40,11 @@ void ProjectSetting::slot_updateProjectInfo()
 void ProjectSetting::slot_updateProjectName(const QString& str)
 {
     m_projectName = str;
+}
+
+void ProjectSetting::slot_updateProjectCode(const QString& str)
+{
+    m_projectCode = str;
 }
 
 void ProjectSetting::slot_updateConstructionUnitName(const QString& str)
@@ -100,6 +106,7 @@ void ProjectSetting::init()
     auto const projectInfo = doclife::core::ProjectContext::instance()->projectInfo();
     // 用已有数据初始化成员，防止用户不改动就把空串写回去
     m_projectName = projectInfo.projectName;
+    m_projectCode = projectInfo.projectCode;
     m_constructionUnitName = projectInfo.constructionUnitName;
     m_supervisionUnitName = projectInfo.supervisionUnitName;
     m_designUnitName = projectInfo.designUnitName;
@@ -107,15 +114,17 @@ void ProjectSetting::init()
     // ---- 内容宿主：插入页面 ----
     fluent::navigation::StackContentHost* host = navView->contentHost();
     auto* projectNamePage = new ProjectInfoPage("工程名称", projectInfo.projectName, this);
+    auto* projectCodePage = new ProjectInfoPage("工程编号", projectInfo.projectCode, this);
     auto* constructionUnitNamePage = new ProjectInfoPage("施工单位", projectInfo.constructionUnitName, this);
     auto* supervisionUnitNamePage = new ProjectInfoPage("监理单位", projectInfo.supervisionUnitName, this);
     auto* designUnitNamePage = new ProjectInfoPage("设计单位", projectInfo.designUnitName, this);
     auto* ownerUnitNamePage = new ProjectInfoPage("建设单位", projectInfo.ownerUnitName, this);
     host->insertPage(0, projectNamePage, fluent::WidgetOwnership::Reparented);
-    host->insertPage(1, constructionUnitNamePage, fluent::WidgetOwnership::Reparented);
-    host->insertPage(2, supervisionUnitNamePage, fluent::WidgetOwnership::Reparented);
-    host->insertPage(3, designUnitNamePage, fluent::WidgetOwnership::Reparented);
-    host->insertPage(4, ownerUnitNamePage, fluent::WidgetOwnership::Reparented);
+    host->insertPage(1, projectCodePage, fluent::WidgetOwnership::Reparented);
+    host->insertPage(2, constructionUnitNamePage, fluent::WidgetOwnership::Reparented);
+    host->insertPage(3, supervisionUnitNamePage, fluent::WidgetOwnership::Reparented);
+    host->insertPage(4, designUnitNamePage, fluent::WidgetOwnership::Reparented);
+    host->insertPage(5, ownerUnitNamePage, fluent::WidgetOwnership::Reparented);
 
     // 切换动画
     host->setTransitionEffect(fluent::navigation::StackContentHost::TransitionEffect::SlideFromBottom);
@@ -124,6 +133,7 @@ void ProjectSetting::init()
     QVector<MainSection::Entry> entries =
     {
       {Typography::Icons::glyph(QStringLiteral("ic_fluent_vote_24_regular")), QStringLiteral("工程项目名称"), true},
+      {Typography::Icons::glyph(QStringLiteral("ic_fluent_number_symbol_24_regular")), QStringLiteral("工程编号"), false},
       {Typography::Icons::glyph(QStringLiteral("ic_fluent_vehicle_tractor_24_regular")), QStringLiteral("施工单位"), false},
       {Typography::Icons::glyph(QStringLiteral("ic_fluent_receipt_cube_24_regular")), QStringLiteral("监理单位"), false},
       {Typography::Icons::glyph(QStringLiteral("ic_fluent_quiz_24_regular")), QStringLiteral("设计单位"), false},
@@ -172,6 +182,7 @@ void ProjectSetting::init()
     layout->addLayout(commandRow);
 
     connect(projectNamePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateProjectName);
+    connect(projectCodePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateProjectCode);
     connect(constructionUnitNamePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateConstructionUnitName);
     connect(supervisionUnitNamePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateSupervisionUnitName);
     connect(designUnitNamePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateDesignUnitName);
