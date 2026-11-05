@@ -150,9 +150,9 @@ namespace doclife::ui {
         // ---- Leaf (表格) ----
         void buildForLeaf(Flyout* flyout, const QString& nodeId, QWidget* p, const ProjectContextMenuBuilder::RenameHandler& onRename)
         {
-            addCommand(flyout, "打开填报", [nodeId] {
-                openSheetNode(nodeId);
-                });
+            // addCommand(flyout, "打开填报", [nodeId] {
+            //     openSheetNode(nodeId);
+            //     });
             addCommand(flyout, "重命名", [nodeId, onRename] {
                 if (onRename) onRename(nodeId);
                 });
