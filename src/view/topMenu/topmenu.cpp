@@ -62,7 +62,7 @@ void TopMenu::init()
     bar->addPrimaryAction(m_templateAction);
     auto* settingsAction = new QAction(QIcon(":/icons/menu/settings.svg"), "设置", this);
     bar->addPrimaryAction(settingsAction);
-    auto* aboutAction = new QAction(QIcon(Typography::Icons::Document), "关于", this);
+    auto* aboutAction = new QAction(QIcon(":/icons/menu/about.svg"), "关于", this);
     bar->addPrimaryAction(aboutAction);
 
     // for (QWidget *w : bar->findChildren<QWidget*>()) {
