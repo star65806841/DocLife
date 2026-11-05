@@ -133,6 +133,7 @@ set(DOCLIFE_BUSINESS
 # 数据模型（纯头文件 + 自定义模型）
 # ---------------------------------------------------------------------------
 set(DOCLIFE_MODEL
+    src/model/cellrole.h
     src/model/projectInfomodel.h
     src/model/ProjectNode.h
     src/model/custommodel/projecttreemodel.h                                 src/model/custommodel/projecttreemodel.cpp

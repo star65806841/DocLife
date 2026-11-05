@@ -19,10 +19,12 @@
 #include <QShortcut>
 #include <QUndoStack>
 #include <QSet>
+#include <QMessageBox>
 #include <climits>
 #include <utils.h>
 #include <uisignalmanager.h>
 #include "sheetformatbar.h"
+#include "model/cellrole.h"
 
 #include <components/menus_toolbars/CommandBar.h>
 #include <business/projectcontext.h>
@@ -173,6 +175,7 @@ namespace doclife::ui {
 
         connect(m_table->selectionModel(), &QItemSelectionModel::selectionChanged,
             this, &TemplateSheetView::onSelectionChanged);
+        connect(m_table, &QTableWidget::doubleClicked, this, &TemplateSheetView::onCellDoubleClicked);
 
         connect(m_table->horizontalHeader(), &QHeaderView::sectionResized, this, &TemplateSheetView::onSectionResized);
         connect(m_table->verticalHeader(), &QHeaderView::sectionResized, this, &TemplateSheetView::onSectionResized);
@@ -586,6 +589,22 @@ namespace doclife::ui {
 
             ensureBlankCellsEditable(rowCount, colCount, dominantFont);
             applyFormValues(db, rowCount, colCount);
+
+            // 单元格角色：模板库可能没有 cell_role 列，读不到就按普通单元格处理
+            QSqlQuery roleQuery(db);
+            roleQuery.prepare(QStringLiteral(
+                "SELECT row, col, cell_role FROM sheet_cells WHERE sheet_id = ? AND cell_role IS NOT NULL"));
+            roleQuery.addBindValue(sheetId);
+            if (roleQuery.exec()) {
+                while (roleQuery.next()) {
+                    const int row = roleQuery.value(0).toInt();
+                    const int col = roleQuery.value(1).toInt();
+                    if (row < 0 || row >= rowCount || col < 0 || col >= colCount) continue;
+                    if (auto* item = m_table->item(row, col)) {
+                        applyCellRole(item, roleQuery.value(2).toString());
+                    }
+                }
+            }
         }
 
         // ★ 关键修复：去掉了 resizeSections(QHeaderView::Fixed)，防止覆盖用户数据
@@ -606,6 +625,68 @@ namespace doclife::ui {
                 m_table->setItem(r, c, item);
             }
         }
+    }
+
+    void TemplateSheetView::applyCellRole(QTableWidgetItem* item, const QString& roleKey)
+    {
+        if (!item) return;
+
+        const auto role = doclife::model::cellRoleFromKey(roleKey);
+        if (role == doclife::model::CellRole::Unknown) return;
+
+        item->setData(Qt::UserRole + 20, roleKey);
+
+        QColor tint;
+        switch (role) {
+        case doclife::model::CellRole::Title:
+        case doclife::model::CellRole::ReadOnly: tint = QColor(0xF2, 0xF2, 0xF2); break;
+        case doclife::model::CellRole::Project:  tint = QColor(0xFF, 0xF2, 0xCC); break;
+        case doclife::model::CellRole::Summary:  tint = QColor(0xDD, 0xEB, 0xF7); break;
+        default: break;
+        }
+        if (tint.isValid()) item->setBackground(tint);
+
+        if (!doclife::model::cellRoleEditable(role)) {
+            item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+        }
+    }
+
+    void TemplateSheetView::onCellDoubleClicked(const QModelIndex& index)
+    {
+        if (!m_isProjectMode || !index.isValid()) return;
+
+        auto* item = m_table->item(index.row(), index.column());
+        if (!item) return;
+
+        const QString roleKey = item->data(Qt::UserRole + 20).toString();
+        const auto role = doclife::model::cellRoleFromKey(roleKey);
+        if (doclife::model::cellRoleEditable(role)) return;   // 正常可编辑，交给默认编辑
+
+        const auto answer = QMessageBox::question(this, QStringLiteral("只读单元格"),
+            QStringLiteral("该单元格是只读的（灰色/黄色/蓝色底纹）。\n是否解锁并编辑？"),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (answer != QMessageBox::Yes) return;
+
+        item->setData(Qt::UserRole + 20,
+            doclife::model::cellRoleKey(doclife::model::CellRole::Input));
+        item->setFlags(item->flags() | Qt::ItemIsEditable);
+        item->setBackground(QBrush());
+
+        // 只改本工程里的这份表格副本，不动模板
+        auto* ctx = doclife::core::ProjectContext::instance();
+        QSqlDatabase db = ctx->getProjectDb();
+        if (db.isOpen()) {
+            QSqlQuery q(db);
+            q.prepare(QStringLiteral(
+                "UPDATE sheet_cells SET cell_role = 'input' WHERE sheet_id = ? AND row = ? AND col = ?"));
+            q.addBindValue(m_currentSheetId);
+            q.addBindValue(index.row());
+            q.addBindValue(index.column());
+            q.exec();
+        }
+        ctx->markDirty();
+
+        m_table->edit(index);
     }
 
     void TemplateSheetView::applyFormValues(QSqlDatabase& db, int rowCount, int colCount)

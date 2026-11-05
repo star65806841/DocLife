@@ -124,6 +124,8 @@ namespace doclife::ui {
         void onResetTriggered();
         void onHorizontalHeaderClicked(int logicalIndex);
         void onVerticalHeaderClicked(int logicalIndex);
+        // 只读单元格双击 → 确认后解锁编辑
+        void onCellDoubleClicked(const QModelIndex& index);
 
         // 编辑区命令
         void onSelectionChanged();
@@ -155,6 +157,8 @@ namespace doclife::ui {
         void ensureBlankCellsEditable(int rowCount, int colCount, const QFont& defaultFont);
         // 填报模式：叠加用户已经填写过的内容
         void applyFormValues(QSqlDatabase& db, int rowCount, int colCount);
+        // 按角色设置只读/底色（灰色只读、黄色工程信息、蓝色汇总）
+        void applyCellRole(QTableWidgetItem* item, const QString& roleKey);
 
         // ---- 编辑区 ----
         void setupFormatBar();

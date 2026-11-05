@@ -16,6 +16,7 @@
 
 #include "utils.h"
 #include "model/custommodel/NodeTypeRegistry.h"
+#include "model/cellrole.h"
 
 namespace doclife::core {
 
@@ -56,13 +57,16 @@ namespace doclife::core {
             if (!q.exec("CREATE TABLE IF NOT EXISTS project_sheets ("
                 "id INTEGER PRIMARY KEY AUTOINCREMENT, template_title TEXT, row_count INTEGER, col_count INTEGER);")) return false;
 
-            // 完整的 20 列单元格表
+            // 完整的 20 列单元格表（cell_role 见 CellRole）
             if (!q.exec("CREATE TABLE IF NOT EXISTS sheet_cells ("
                 "sheet_id INTEGER, row INTEGER, col INTEGER, row_span INTEGER, col_span INTEGER, value TEXT, "
                 "font_family TEXT, font_size REAL, font_bold INTEGER, font_italic INTEGER, font_underline INTEGER, "
                 "font_color TEXT, bg_color TEXT, h_align INTEGER, v_align INTEGER, "
                 "border_top INTEGER, border_bottom INTEGER, border_left INTEGER, border_right INTEGER, wrap_text INTEGER, "
+                "cell_role TEXT, "
                 "PRIMARY KEY(sheet_id, row, col));")) return false;
+            // 老工程库补列（失败说明列已存在，忽略即可）
+            q.exec("ALTER TABLE sheet_cells ADD COLUMN cell_role TEXT;");
 
             if (!q.exec("CREATE TABLE IF NOT EXISTS form_values ("
                 "sheet_id INTEGER, row INTEGER, col INTEGER, value TEXT, "
@@ -599,12 +603,56 @@ namespace doclife::core {
 
             if (projectSheetId >= 0 && !cellRows.isEmpty()) {
                 QSqlQuery iq(projectDb);
-                iq.prepare("INSERT INTO sheet_cells (sheet_id, row, col, row_span, col_span, value, font_family, font_size, font_bold, font_italic, font_underline, font_color, bg_color, h_align, v_align, border_top, border_bottom, border_left, border_right, wrap_text) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-                bool ok = true;
+                iq.prepare("INSERT INTO sheet_cells (sheet_id, row, col, row_span, col_span, value, font_family, font_size, font_bold, font_italic, font_underline, font_color, bg_color, h_align, v_align, border_top, border_bottom, border_left, border_right, wrap_text, cell_role) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+
+                // 按内容先判角色：空=填写，工程信息标签=工程信息，含评定/结论=汇总，其余固定文字=只读
+                QVector<QString> roles;
+                roles.reserve(cellRows.size());
                 for (const auto& r : cellRows) {
+                    const QString text = r.value(4).toString().trimmed();
+                    QString role;
+                    if (text.isEmpty()) {
+                        role = model::cellRoleKey(model::CellRole::Input);
+                    }
+                    else if (text.contains(QStringLiteral("工程名称")) || text.contains(QStringLiteral("项目名称"))
+                        || text.contains(QStringLiteral("建设单位")) || text.contains(QStringLiteral("施工单位"))
+                        || text.contains(QStringLiteral("设计单位")) || text.contains(QStringLiteral("监理单位"))) {
+                        role = model::cellRoleKey(model::CellRole::Project);
+                    }
+                    else if (text.contains(QStringLiteral("评定")) || text.contains(QStringLiteral("结论"))
+                        || text.contains(QStringLiteral("合格率"))) {
+                        role = model::cellRoleKey(model::CellRole::Summary);
+                    }
+                    else {
+                        role = model::cellRoleKey(model::CellRole::ReadOnly);
+                    }
+                    roles.append(role);
+                }
+
+                // 工程信息的“值单元格”在标签右侧，一并标成 project
+                QHash<quint64, int> indexOfCell;
+                for (int i = 0; i < cellRows.size(); ++i) {
+                    const quint64 key = (quint64(cellRows[i].value(0).toInt()) << 32)
+                        | quint32(cellRows[i].value(1).toInt());
+                    indexOfCell.insert(key, i);
+                }
+                for (int i = 0; i < cellRows.size(); ++i) {
+                    if (roles[i] != model::cellRoleKey(model::CellRole::Project)) continue;
+                    const int row = cellRows[i].value(0).toInt();
+                    const int col = cellRows[i].value(1).toInt();
+                    auto it = indexOfCell.constFind((quint64(row) << 32) | quint32(col + 1));
+                    if (it != indexOfCell.constEnd()) {
+                        roles[it.value()] = model::cellRoleKey(model::CellRole::Project);
+                    }
+                }
+
+                bool ok = true;
+                for (int i = 0; i < cellRows.size(); ++i) {
+                    const auto& r = cellRows[i];
                     iq.bindValue(0, projectSheetId);
-                    for (int i = 0; i < 19; ++i) iq.bindValue(i + 1, r.value(i));
+                    for (int c = 0; c < 19; ++c) iq.bindValue(c + 1, r.value(c));
+                    iq.bindValue(20, roles[i]);
                     if (!iq.exec()) { ok = false; break; }
                 }
                 if (!ok) { projectDb.rollback(); continue; }
