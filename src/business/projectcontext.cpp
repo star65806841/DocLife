@@ -633,16 +633,15 @@ namespace doclife::core {
                 iq.prepare("INSERT INTO sheet_cells (sheet_id, row, col, row_span, col_span, value, font_family, font_size, font_bold, font_italic, font_underline, font_color, bg_color, h_align, v_align, border_top, border_bottom, border_left, border_right, wrap_text, cell_role) "
                     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 
-                // 按内容先判角色：空=填写，工程信息标签=工程信息，含评定/结论=汇总，其余固定文字=只读
+                // 只做两类确定性标记：工程信息、汇总。
+                // 其余单元格一律按「填写」处理——不再按“有内容就只读”自动锁定，
+                // 只读区域等模板标记方案确定后再由模板驱动。
                 QVector<QString> roles;
                 roles.reserve(cellRows.size());
                 for (const auto& r : cellRows) {
                     const QString text = r.value(4).toString().trimmed();
                     QString role;
-                    if (text.isEmpty()) {
-                        role = model::cellRoleKey(model::CellRole::Input);
-                    }
-                    else if (text.contains(QStringLiteral("工程名称")) || text.contains(QStringLiteral("项目名称"))
+                    if (text.contains(QStringLiteral("工程名称")) || text.contains(QStringLiteral("项目名称"))
                         || text.contains(QStringLiteral("建设单位")) || text.contains(QStringLiteral("施工单位"))
                         || text.contains(QStringLiteral("设计单位")) || text.contains(QStringLiteral("监理单位"))) {
                         role = model::cellRoleKey(model::CellRole::Project);
@@ -656,7 +655,7 @@ namespace doclife::core {
                         role = model::cellRoleKey(model::CellRole::Summary);
                     }
                     else {
-                        role = model::cellRoleKey(model::CellRole::ReadOnly);
+                        role = model::cellRoleKey(model::CellRole::Input);
                     }
                     roles.append(role);
                 }
