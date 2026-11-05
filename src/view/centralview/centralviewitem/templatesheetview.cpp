@@ -19,9 +19,14 @@
 #include <QShortcut>
 #include <QUndoStack>
 #include <QSet>
+#include <QTimer>
+#include <QPointer>
 #include <popWindow/dialog/dialogbase.h>
 #include <popWindow/settingsdialog.h>
+#include <popWindow/toast/apptoast.h>
 #include <components/date_time/DatePicker.h>
+#include <components/dialogs_flyouts/ContentDialog.h>
+#include <components/textfields/Label.h>
 #include <climits>
 #include <utils.h>
 #include <uisignalmanager.h>
@@ -524,6 +529,11 @@ namespace doclife::ui {
                     const int rowSpan = qMax(1, q.value(2).toInt());
                     const int colSpan = qMax(1, q.value(3).toInt());
                     auto* item = new QTableWidgetItem(q.value(4).toString());
+                    // 占位符原文（sheet_cells.value）常驻数据库：它就是"这格该填什么"的信息，
+                    // 用户手填、解锁都不会删掉它，点"刷新信息"就按它 + 当前工程信息重算回填。
+                    if (m_isProjectMode && doclife::model::containsFieldToken(q.value(4).toString())) {
+                        item->setData(Qt::UserRole + 21, q.value(4).toString());
+                    }
                     // item->setData(Qt::CursorRole, Utils::createSvgCursor(":/icons/cursor/cross-society.svg", 16));
                     // item->setData(Qt::CursorRole, Qt::CrossCursor);
 
@@ -589,9 +599,16 @@ namespace doclife::ui {
                 for (int col = 0; col < colCount; ++col) {
                     auto* item = m_table->item(row, col);
                     if (!item) continue;
-                    const QString raw = item->text();
-                    if (!doclife::model::containsFieldToken(raw)) continue;
-                    item->setData(Qt::UserRole + 21, raw);   // 记住原始模板文本，供“刷新信息”重算
+                    // 占位符原文就是这格的字段绑定（数据源永远是 sheet_cells.value）：
+                    // 有绑定的格子，即使 form_values 里存过手填/旧值，打开时也按绑定重算，
+                    // 保证「改完工程信息 → 刷新/重开」显示的是当前项目信息。
+                    QString raw = item->data(Qt::UserRole + 21).toString();
+                    if (raw.isEmpty()) {
+                        const QString shown = item->text();
+                        if (!doclife::model::containsFieldToken(shown)) continue;
+                        raw = shown;
+                        item->setData(Qt::UserRole + 21, raw);
+                    }
                     item->setText(doclife::model::resolveFieldTokens(raw, fieldValues));
                 }
             }
@@ -642,6 +659,7 @@ namespace doclife::ui {
 
         const bool guard = m_isApplyingSettings;
         m_isApplyingSettings = true;
+        int refreshed = 0;
         for (int row = 0; row < m_table->rowCount(); ++row) {
             for (int col = 0; col < m_table->columnCount(); ++col) {
                 auto* item = m_table->item(row, col);
@@ -652,11 +670,20 @@ namespace doclife::ui {
                     raw = item->text();
                     if (!doclife::model::containsFieldToken(raw)) continue;
                 }
-                item->setText(doclife::model::resolveFieldTokens(raw, values));
+                const QString resolved = doclife::model::resolveFieldTokens(raw, values);
+                if (resolved == item->text()) continue;
+                item->setText(resolved);
+                ++refreshed;
+                // 把重算结果同步进待保存的填报文本，保存后重开/打印口径一致
+                m_pendingEdits.insert({ m_currentSheetId, row, col }, resolved);
             }
         }
         m_isApplyingSettings = guard;
         m_table->viewport()->update();
+        if (refreshed > 0) {
+            doclife::core::ProjectContext::instance()->markDirty();
+        }
+        AppToast::showSuccess(this, QStringLiteral("已按当前工程信息刷新 %1 个单元格").arg(refreshed));
     }
 
     void TemplateSheetView::applyCellRole(QTableWidgetItem* item, const QString& roleKey)
@@ -697,30 +724,64 @@ namespace doclife::ui {
         const QString roleKey = item->data(Qt::UserRole + 20).toString();
         const auto role = doclife::model::cellRoleFromKey(roleKey);
 
-        // 时间区域：双击弹日期选择器，选中后按 yyyy-MM-dd 写入
+        // 时间区域：双击弹「模态弹窗 + 日期选择器」，确定后按 yyyy-MM-dd 写入。
+        // 不要把 DatePicker 做成隐藏控件直接弹 flyout：DatePicker 的日历层是
+        // light-dismiss（点外部即关），双击表格的第二次点击会被当成“点外部”，
+        // 而且隐藏锚点没有有效位置，弹层刚出现就被关掉（现象：一闪而过）。
+        // 放进带遮罩的模态弹窗后，选择器可见、外部点击由弹窗接管，日历层不再秒关。
         if (role == doclife::model::CellRole::Date) {
-            auto* picker = new fluent::date_time::DatePicker(this);
-            picker->setAttribute(Qt::WA_DeleteOnClose);
+            const int row = index.row();
+            const int col = index.column();
+
+            auto* dlg = new fluent::dialogs_flyouts::ContentDialog(this);
+            dlg->setTitle(QStringLiteral("选择日期"));
+            dlg->setPrimaryButtonText(QStringLiteral("确定"));
+            dlg->setCloseButtonText(QStringLiteral("取消"));
+            dlg->setModal(true);
+            dlg->setDim(true);
+            dlg->setAnimationEnabled(true);
+
+            auto* body = new QWidget(dlg);
+            auto* bodyLayout = new QVBoxLayout(body);
+            bodyLayout->setContentsMargins(10, 6, 10, 6);
+            bodyLayout->setSpacing(8);
+
+            auto* tip = new fluent::textfields::Label(
+                QStringLiteral("该单元格为时间区域，选择日期后点「确定」按 yyyy-MM-dd 写入。"), body);
+            tip->setWordWrap(true);
+            bodyLayout->addWidget(tip);
+
+            auto* picker = new fluent::date_time::DatePicker(body);
             picker->setPlaceholderText(fluent::date_time::DatePicker::DateField::Month, QStringLiteral("month"));
             picker->setPlaceholderText(fluent::date_time::DatePicker::DateField::Day, QStringLiteral("day"));
             picker->setPlaceholderText(fluent::date_time::DatePicker::DateField::Year, QStringLiteral("year"));
-            picker->setConfirmButtonAccessibleName(QStringLiteral("确定日期"));
-            picker->setCancelButtonAccessibleName(QStringLiteral("取消日期"));
 
             const QDate current = QDate::fromString(item->text(), QStringLiteral("yyyy-MM-dd"));
             picker->setDate(current.isValid() ? current : QDate::currentDate());
+            bodyLayout->addWidget(picker, 0, Qt::AlignLeft);
+            bodyLayout->addStretch(1);
 
-            connect(picker, &fluent::date_time::DatePicker::selectedDateChanged, this,
-                [this, row = index.row(), col = index.column()](const QDate& date) {
-                    if (!date.isValid()) return;
+            if (auto* oldContent = dlg->content()) oldContent->deleteLater();
+            dlg->setContent(body);
+
+            QPointer<fluent::date_time::DatePicker> pickerGuard(picker);
+            connect(dlg, &QDialog::finished, this,
+                [this, pickerGuard, row, col](int result) {
+                    if (result != QDialog::Accepted || !pickerGuard) return;
                     auto* cell = m_table->item(row, col);
                     if (!cell) return;
+                    const QDate date = pickerGuard->date();
+                    if (!date.isValid()) return;
                     cell->setText(date.toString(QStringLiteral("yyyy-MM-dd")));
                     m_pendingEdits.insert({ m_currentSheetId, row, col }, cell->text());
                     doclife::core::ProjectContext::instance()->markDirty();
                 });
 
-            picker->openPicker();
+            dlg->setAttribute(Qt::WA_DeleteOnClose);
+            dlg->open();
+
+            // 弹窗出场动画落位后再自动展开日历，省去多点一次
+            QTimer::singleShot(150, picker, [picker]() { picker->openPicker(); });
             return;
         }
 
@@ -738,8 +799,9 @@ namespace doclife::ui {
                     doclife::model::cellRoleKey(doclife::model::CellRole::Input));
                 cell->setFlags(cell->flags() | Qt::ItemIsEditable);
                 cell->setBackground(QBrush());
-                // 解锁后不再参与“刷新信息”的自动替换，避免覆盖用户输入
-                cell->setData(Qt::UserRole + 21, QVariant());
+                // 注意：不清除 UserRole+21 的占位符绑定。
+                // 占位符原文是「这格该填什么」的字段级信息，随 sheet_cells.value 常驻数据库；
+                // 用户解锁手填只是临时覆盖显示，点「刷新信息」仍按当前工程信息重算回填。
 
                 // 只改本工程里的这份表格副本，不动模板
                 auto* ctx = doclife::core::ProjectContext::instance();
