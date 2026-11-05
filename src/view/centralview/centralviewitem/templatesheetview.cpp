@@ -530,7 +530,9 @@ namespace doclife::ui {
                     qreal fontSize = q.value(6).toDouble();
                     if (fontSize <= 0.0) fontSize = 10.5;
                     const QString fontFamily = q.value(5).toString();
-                    QFont font(fontFamily, qRound(fontSize + 0.5));
+                    // 用 setPointSizeF 保留 10.5 这类半磅字号；四舍五入会把 9 变成 10
+                    QFont font(fontFamily);
+                    font.setPointSizeF(fontSize);
                     font.setBold(q.value(7).toInt() != 0);
                     font.setItalic(q.value(8).toInt() != 0);
                     font.setUnderline(q.value(9).toInt() != 0);

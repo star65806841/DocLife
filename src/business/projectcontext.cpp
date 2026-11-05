@@ -633,15 +633,28 @@ namespace doclife::core {
                 iq.prepare("INSERT INTO sheet_cells (sheet_id, row, col, row_span, col_span, value, font_family, font_size, font_bold, font_italic, font_underline, font_color, bg_color, h_align, v_align, border_top, border_bottom, border_left, border_right, wrap_text, cell_role) "
                     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 
-                // 只做两类确定性标记：工程信息、汇总。
-                // 其余单元格一律按「填写」处理——不再按“有内容就只读”自动锁定，
-                // 只读区域等模板标记方案确定后再由模板驱动。
+                // 颜色即区域：模板里用填充色标记的区域，在这里翻译成 cell_role。
+                // 颜色保留在 bg_color 上，编辑时直接显示为区域底色。
                 QVector<QString> roles;
                 roles.reserve(cellRows.size());
                 for (const auto& r : cellRows) {
                     const QString text = r.value(4).toString().trimmed();
+                    const QString bg = r.value(11).toString().trimmed().toUpper();
                     QString role;
-                    if (text.contains(QStringLiteral("工程名称")) || text.contains(QStringLiteral("项目名称"))
+
+                    if (bg == QStringLiteral("#D9D9D9")) {
+                        role = model::cellRoleKey(model::CellRole::ReadOnly);
+                    }
+                    else if (bg == QStringLiteral("#FFF2CC")) {
+                        role = model::cellRoleKey(model::CellRole::Project);
+                    }
+                    else if (bg == QStringLiteral("#DDEBF7")) {
+                        role = model::cellRoleKey(model::CellRole::Summary);
+                    }
+                    else if (bg == QStringLiteral("#E2EFDA")) {
+                        role = model::cellRoleKey(model::CellRole::Date);
+                    }
+                    else if (text.contains(QStringLiteral("工程名称")) || text.contains(QStringLiteral("项目名称"))
                         || text.contains(QStringLiteral("建设单位")) || text.contains(QStringLiteral("施工单位"))
                         || text.contains(QStringLiteral("设计单位")) || text.contains(QStringLiteral("监理单位"))) {
                         role = model::cellRoleKey(model::CellRole::Project);
@@ -649,10 +662,6 @@ namespace doclife::core {
                     else if (model::containsFieldToken(text)) {
                         // #projectName / #unitName 这类占位符：由工程/节点信息填充
                         role = model::cellRoleKey(model::CellRole::Project);
-                    }
-                    else if (text.contains(QStringLiteral("评定")) || text.contains(QStringLiteral("结论"))
-                        || text.contains(QStringLiteral("合格率"))) {
-                        role = model::cellRoleKey(model::CellRole::Summary);
                     }
                     else {
                         role = model::cellRoleKey(model::CellRole::Input);
