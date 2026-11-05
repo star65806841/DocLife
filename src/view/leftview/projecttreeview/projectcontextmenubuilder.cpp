@@ -5,7 +5,6 @@
 #include <QWidget>
 #include <QDebug>
 #include <functional>
-#include <QMessageBox>
 #include <uisignalmanager.h>
 
 #include <FluentQt/MenusToolbars.h>
@@ -13,6 +12,7 @@
 
 // ★ 引入统一的弹窗
 #include "view/popWindow/addsheetdialog.h"
+#include "view/popWindow/dialog/dialogbase.h"
 
 namespace doclife::ui {
 
@@ -63,22 +63,15 @@ namespace doclife::ui {
 
             // 有子节点时提示影响范围，其余情况只做普通确认
             const bool hasChildren = !node->children.isEmpty();
+            const QString content = hasChildren
+                ? QStringLiteral("该目录下包含其他子目录或表格资料！\n删除后所有子级资料将被一并移除，且不可恢复。\n\n确定要删除吗？")
+                : QStringLiteral("确定要删除“%1”吗？").arg(node->data.name);
 
-            QMessageBox box(parentWidget);
-            box.setWindowTitle("删除确认");
-            if (hasChildren) {
-                box.setText("该目录下包含其他子目录或表格资料！\n删除后所有子级资料将被一并移除，且不可恢复。\n\n确定要删除吗？");
-                box.setIcon(QMessageBox::Warning);
-            }
-            else {
-                box.setText(QStringLiteral("确定要删除“%1”吗？").arg(node->data.name));
-                box.setIcon(QMessageBox::Question);
-            }
-            box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-            box.setDefaultButton(QMessageBox::No);
-            if (box.exec() != QMessageBox::Yes) return;
-
-            ctx->removeNode(nodeId);
+            DialogBase::show(parentWidget,
+                QStringLiteral("删除确认"),
+                content,
+                [ctx, nodeId]() { ctx->removeNode(nodeId); },
+                nullptr);
         }
 
         // ---- Root (项目节点) ----
