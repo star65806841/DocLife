@@ -64,7 +64,7 @@ namespace doclife::ui {
             // 有子节点时提示影响范围，其余情况只做普通确认
             const bool hasChildren = !node->children.isEmpty();
             const QString content = hasChildren
-                ? QStringLiteral("该目录下包含其他子目录或表格资料！\n删除后所有子级资料将被一并移除，且不可恢复。\n\n确定要删除吗？")
+                ? QStringLiteral("删除当前目录与所有子级资料，且不可恢复！")
                 : QStringLiteral("确定要删除“%1”吗？").arg(node->data.name);
 
             DialogBase::show(parentWidget,
