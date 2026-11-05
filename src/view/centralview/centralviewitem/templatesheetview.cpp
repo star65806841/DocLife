@@ -30,6 +30,7 @@
 #include <climits>
 #include <utils.h>
 #include <uisignalmanager.h>
+
 #include "sheetformatbar.h"
 #include "model/cellrole.h"
 #include "model/fieldtokens.h"
@@ -724,64 +725,43 @@ namespace doclife::ui {
         const QString roleKey = item->data(Qt::UserRole + 20).toString();
         const auto role = doclife::model::cellRoleFromKey(roleKey);
 
-        // 时间区域：双击弹「模态弹窗 + 日期选择器」，确定后按 yyyy-MM-dd 写入。
-        // 不要把 DatePicker 做成隐藏控件直接弹 flyout：DatePicker 的日历层是
-        // light-dismiss（点外部即关），双击表格的第二次点击会被当成“点外部”，
-        // 而且隐藏锚点没有有效位置，弹层刚出现就被关掉（现象：一闪而过）。
-        // 放进带遮罩的模态弹窗后，选择器可见、外部点击由弹窗接管，日历层不再秒关。
+        // 时间区域：双击在单元格位置展开日期选择器（无弹窗），确定后按 yyyy年M月d日 写入。
         if (role == doclife::model::CellRole::Date) {
             const int row = index.row();
             const int col = index.column();
 
-            auto* dlg = new fluent::dialogs_flyouts::ContentDialog(this);
-            dlg->setTitle(QStringLiteral("选择日期"));
-            dlg->setPrimaryButtonText(QStringLiteral("确定"));
-            dlg->setCloseButtonText(QStringLiteral("取消"));
-            dlg->setModal(true);
-            dlg->setDim(true);
-            dlg->setAnimationEnabled(true);
+            auto* picker = findChild<fluent::date_time::DatePicker*>(QStringLiteral("cellDatePicker"));
+            if (!picker) {
+                picker = new fluent::date_time::DatePicker(this);
+                picker->setObjectName(QStringLiteral("cellDatePicker"));
+                picker->hide();
+                connect(picker, &fluent::date_time::DatePicker::selectedDateChanged, this,
+                    [this, picker](const QDate& date) {
+                        if (!date.isValid()) return;
+                        const int cellRow = picker->property("cellRow").toInt();
+                        const int cellCol = picker->property("cellCol").toInt();
+                        auto* cell = m_table->item(cellRow, cellCol);
+                        if (!cell) return;
+                        cell->setText(date.toString(QStringLiteral("yyyy年M月d日")));
+                        m_pendingEdits.insert({ m_currentSheetId, cellRow, cellCol }, cell->text());
+                        doclife::core::ProjectContext::instance()->markDirty();
+                    });
+            }
 
-            auto* body = new QWidget(dlg);
-            auto* bodyLayout = new QVBoxLayout(body);
-            bodyLayout->setContentsMargins(10, 6, 10, 6);
-            bodyLayout->setSpacing(8);
+            picker->setProperty("cellRow", row);
+            picker->setProperty("cellCol", col);
 
-            auto* tip = new fluent::textfields::Label(
-                QStringLiteral("该单元格为时间区域，选择日期后点「确定」按 yyyy-MM-dd 写入。"), body);
-            tip->setWordWrap(true);
-            bodyLayout->addWidget(tip);
-
-            auto* picker = new fluent::date_time::DatePicker(body);
-            picker->setPlaceholderText(fluent::date_time::DatePicker::DateField::Month, QStringLiteral("month"));
-            picker->setPlaceholderText(fluent::date_time::DatePicker::DateField::Day, QStringLiteral("day"));
-            picker->setPlaceholderText(fluent::date_time::DatePicker::DateField::Year, QStringLiteral("year"));
-
-            const QDate current = QDate::fromString(item->text(), QStringLiteral("yyyy-MM-dd"));
+            // 有值就带出当前日期，没有则用今天
+            QDate current = QDate::fromString(item->text(), QStringLiteral("yyyy年M月d日"));
+            if (!current.isValid()) current = QDate::fromString(item->text(), QStringLiteral("yyyy-MM-dd"));
             picker->setDate(current.isValid() ? current : QDate::currentDate());
-            bodyLayout->addWidget(picker, 0, Qt::AlignLeft);
-            bodyLayout->addStretch(1);
 
-            if (auto* oldContent = dlg->content()) oldContent->deleteLater();
-            dlg->setContent(body);
+            // 锚点移到单元格位置，弹层就贴着这一格展开
+            const QRect cellRect = m_table->visualRect(index);
+            picker->move(m_table->viewport()->mapToGlobal(cellRect.topLeft()));
 
-            QPointer<fluent::date_time::DatePicker> pickerGuard(picker);
-            connect(dlg, &QDialog::finished, this,
-                [this, pickerGuard, row, col](int result) {
-                    if (result != QDialog::Accepted || !pickerGuard) return;
-                    auto* cell = m_table->item(row, col);
-                    if (!cell) return;
-                    const QDate date = pickerGuard->date();
-                    if (!date.isValid()) return;
-                    cell->setText(date.toString(QStringLiteral("yyyy-MM-dd")));
-                    m_pendingEdits.insert({ m_currentSheetId, row, col }, cell->text());
-                    doclife::core::ProjectContext::instance()->markDirty();
-                });
-
-            dlg->setAttribute(Qt::WA_DeleteOnClose);
-            dlg->open();
-
-            // 弹窗出场动画落位后再自动展开日历，省去多点一次
-            QTimer::singleShot(150, picker, [picker]() { picker->openPicker(); });
+            // 双击的第二次点击会被当成“点外部”，延后一拍再展开
+            QTimer::singleShot(0, picker, [picker]() { picker->openPicker(); });
             return;
         }
 
