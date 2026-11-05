@@ -45,7 +45,7 @@ namespace doclife::ui {
         // 打开编辑器时默认全选。默认选区色和整行的选中色几乎一样，看上去像没选中，
         // 这里显式给一个更明显的蓝色：点一下可以取消全选，Ctrl+A 可以重新全选。
         const QColor textColor = option.palette.color(QPalette::Text);
-        const QColor baseColor = option.palette.color(QPalette::Base);
+        const QColor baseColor = option.palette.color(QPalette::Button);
 
         lineEdit->setFrame(false);
         lineEdit->setStyleSheet(QStringLiteral(
@@ -56,7 +56,7 @@ namespace doclife::ui {
             "  background: %1;"
             "  color: %2;"
             "  selection-background-color: #9CCBEB;"
-            "  selection-color: #10233A;"
+            "  selection-color: #FFFFE0;"
             "}").arg(baseColor.name(), textColor.name()));
 
         return editor;
