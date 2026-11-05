@@ -26,6 +26,8 @@ Q_SIGNALS:
     void popProjectsetting();
     // 应用设置
     void popSettings();
+    // 关于
+    void popAbout();
     // 编辑区设置发生变化（选中背景开关/颜色）
     void editorSettingsChanged();
     // 新建项目

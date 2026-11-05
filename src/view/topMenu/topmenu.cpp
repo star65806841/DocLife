@@ -60,10 +60,10 @@ void TopMenu::init()
     bar->addPrimaryAction(separator);//|
     bar->addPrimaryAction(syncAction);
     bar->addPrimaryAction(m_templateAction);
-    auto* settingsAction = new QAction(QIcon(Typography::Icons::Document), "设置", this);
+    auto* settingsAction = new QAction(QIcon(":/icons/menu/settings.svg"), "设置", this);
     bar->addPrimaryAction(settingsAction);
-    bar->addPrimaryAction(new QAction(
-        QIcon(Typography::Icons::Document), "Help", this));
+    auto* aboutAction = new QAction(QIcon(Typography::Icons::Document), "关于", this);
+    bar->addPrimaryAction(aboutAction);
 
     // for (QWidget *w : bar->findChildren<QWidget*>()) {
     //     qDebug() << w->metaObject()->className() << w->objectName();
@@ -81,6 +81,7 @@ void TopMenu::init()
     connect(actionSaveProject,&QAction::triggered,UISignalManager::instance(),&UISignalManager::saveProject);
     connect(infoAction,&QAction::triggered,UISignalManager::instance(),&UISignalManager::popProjectsetting);
     connect(settingsAction,&QAction::triggered,UISignalManager::instance(),&UISignalManager::popSettings);
+    connect(aboutAction,&QAction::triggered,UISignalManager::instance(),&UISignalManager::popAbout);
 
 }
 

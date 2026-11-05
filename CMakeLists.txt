@@ -98,6 +98,7 @@ set(DOCLIFE_VIEW_POPUP
     src/view/popWindow/projectnew.h                                          src/view/popWindow/projectnew.cpp
     src/view/popWindow/projectsetting.h                                      src/view/popWindow/projectsetting.cpp
     src/view/popWindow/settingsdialog.h                                      src/view/popWindow/settingsdialog.cpp
+    src/view/popWindow/aboutdialog.h                                         src/view/popWindow/aboutdialog.cpp
     src/view/popWindow/projectinfo.h                                         src/view/popWindow/projectinfo.cpp
     src/view/popWindow/infoItem/projectitem.h                                src/view/popWindow/infoItem/projectitem.cpp
     src/view/popWindow/infoItem/projectinfopage.h                            src/view/popWindow/infoItem/projectinfopage.cpp

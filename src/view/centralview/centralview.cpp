@@ -12,6 +12,7 @@
 #include <popWindow/projectnew.h>
 #include <popWindow/projectsetting.h>
 #include <popWindow/settingsdialog.h>
+#include <popWindow/aboutdialog.h>
 #include <popWindow/dialog/PopupBase.h>
 #include <popWindow/dialog/dialogbase.h>
 #include <popWindow/dialog/popcontent.h>
@@ -233,6 +234,11 @@ void CentralView::initConnect()
     // 点击设置按钮
     connect(UISignalManager::instance(), &UISignalManager::popSettings, this, [this]() {
         auto* dialog = new SettingsDialog(this);
+        dialog->open();
+        });
+    // 点击关于
+    connect(UISignalManager::instance(), &UISignalManager::popAbout, this, [this]() {
+        auto* dialog = new AboutDialog(this);
         dialog->open();
         });
     // 点击新建
