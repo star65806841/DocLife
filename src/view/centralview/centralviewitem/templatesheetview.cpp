@@ -21,6 +21,7 @@
 #include <QSet>
 #include <popWindow/dialog/dialogbase.h>
 #include <popWindow/settingsdialog.h>
+#include <components/date_time/DatePicker.h>
 #include <climits>
 #include <utils.h>
 #include <uisignalmanager.h>
@@ -643,8 +644,12 @@ namespace doclife::ui {
             for (int col = 0; col < m_table->columnCount(); ++col) {
                 auto* item = m_table->item(row, col);
                 if (!item) continue;
-                const QString raw = item->data(Qt::UserRole + 21).toString();
-                if (raw.isEmpty()) continue;
+                QString raw = item->data(Qt::UserRole + 21).toString();
+                if (raw.isEmpty()) {
+                    // 兼容：没有记录原始文本时，直接对当前文本再解析一次
+                    raw = item->text();
+                    if (!doclife::model::containsFieldToken(raw)) continue;
+                }
                 item->setText(doclife::model::resolveFieldTokens(raw, values));
             }
         }
@@ -667,6 +672,7 @@ namespace doclife::ui {
         case doclife::model::CellRole::ReadOnly: tint = QColor(0xF2, 0xF2, 0xF2); break;
         case doclife::model::CellRole::Project:  tint = QColor(0xFF, 0xF2, 0xCC); break;
         case doclife::model::CellRole::Summary:  tint = QColor(0xDD, 0xEB, 0xF7); break;
+        case doclife::model::CellRole::Date:     tint = QColor(0xE2, 0xEF, 0xDA); break;
         default: break;
         }
         if (tint.isValid() && item->background().style() == Qt::NoBrush) {
@@ -688,6 +694,34 @@ namespace doclife::ui {
 
         const QString roleKey = item->data(Qt::UserRole + 20).toString();
         const auto role = doclife::model::cellRoleFromKey(roleKey);
+
+        // 时间区域：双击弹日期选择器，选中后按 yyyy-MM-dd 写入
+        if (role == doclife::model::CellRole::Date) {
+            auto* picker = new fluent::date_time::DatePicker(this);
+            picker->setAttribute(Qt::WA_DeleteOnClose);
+            picker->setPlaceholderText(fluent::date_time::DatePicker::DateField::Month, QStringLiteral("month"));
+            picker->setPlaceholderText(fluent::date_time::DatePicker::DateField::Day, QStringLiteral("day"));
+            picker->setPlaceholderText(fluent::date_time::DatePicker::DateField::Year, QStringLiteral("year"));
+            picker->setConfirmButtonAccessibleName(QStringLiteral("确定日期"));
+            picker->setCancelButtonAccessibleName(QStringLiteral("取消日期"));
+
+            const QDate current = QDate::fromString(item->text(), QStringLiteral("yyyy-MM-dd"));
+            picker->setDate(current.isValid() ? current : QDate::currentDate());
+
+            connect(picker, &fluent::date_time::DatePicker::selectedDateChanged, this,
+                [this, row = index.row(), col = index.column()](const QDate& date) {
+                    if (!date.isValid()) return;
+                    auto* cell = m_table->item(row, col);
+                    if (!cell) return;
+                    cell->setText(date.toString(QStringLiteral("yyyy-MM-dd")));
+                    m_pendingEdits.insert({ m_currentSheetId, row, col }, cell->text());
+                    doclife::core::ProjectContext::instance()->markDirty();
+                });
+
+            picker->openPicker();
+            return;
+        }
+
         if (doclife::model::cellRoleEditable(role)) return;   // 正常可编辑，交给默认编辑
 
         // 用统一弹窗确认，风格与「保存确认」等保持一致

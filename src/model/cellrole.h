@@ -15,6 +15,7 @@ namespace doclife::model {
         Project,    // 工程信息：只读，由工程信息自动填充
         Input,      // 用户填写：可编辑
         Summary,    // 汇总/评价：只读，由计算写入
+        Date,       // 时间区域：双击弹日期选择器
     };
 
     inline QString cellRoleKey(CellRole role)
@@ -25,6 +26,7 @@ namespace doclife::model {
         case CellRole::Project:  return QStringLiteral("project");
         case CellRole::Input:    return QStringLiteral("input");
         case CellRole::Summary:  return QStringLiteral("summary");
+        case CellRole::Date:     return QStringLiteral("date");
         default:                 return QString();
         }
     }
@@ -36,6 +38,7 @@ namespace doclife::model {
         if (key == QLatin1String("project")) return CellRole::Project;
         if (key == QLatin1String("input")) return CellRole::Input;
         if (key == QLatin1String("summary")) return CellRole::Summary;
+        if (key == QLatin1String("date")) return CellRole::Date;
         return CellRole::Unknown;
     }
 
