@@ -4,6 +4,7 @@
 #include <QDebug>
 #include <QUuid>
 #include <QStandardPaths>
+#include <QDate>
 #include <QCoreApplication>
 #include <QSqlDatabase>
 #include <QSqlQuery>
@@ -17,6 +18,7 @@
 #include "utils.h"
 #include "model/custommodel/NodeTypeRegistry.h"
 #include "model/cellrole.h"
+#include "model/fieldtokens.h"
 
 namespace doclife::core {
 
@@ -220,6 +222,31 @@ namespace doclife::core {
             return false;
         }
         return true;
+    }
+
+    QHash<QString, QString> ProjectContext::fieldValues(const QString& nodeId) const
+    {
+        QHash<QString, QString> values;
+        values.insert(QStringLiteral("projectName"),
+            m_projectInfo.projectName.isEmpty() ? displayName() : m_projectInfo.projectName);
+        values.insert(QStringLiteral("ownerUnit"), m_projectInfo.ownerUnitName);
+        values.insert(QStringLiteral("constructionUnit"), m_projectInfo.constructionUnitName);
+        values.insert(QStringLiteral("designUnit"), m_projectInfo.designUnitName);
+        values.insert(QStringLiteral("supervisionUnit"), m_projectInfo.supervisionUnitName);
+        values.insert(QStringLiteral("date"), QDate::currentDate().toString(QStringLiteral("yyyy-MM-dd")));
+
+        // 从当前节点往上找最近的一层，填单位/分部/分项/表格名
+        for (const auto* node = findNodeById(nodeId); node; node = node->parent) {
+            if (node->data.type == QLatin1String("unit") && !values.contains(QStringLiteral("unitName")))
+                values.insert(QStringLiteral("unitName"), node->data.name);
+            else if (node->data.type == QLatin1String("sub") && !values.contains(QStringLiteral("subName")))
+                values.insert(QStringLiteral("subName"), node->data.name);
+            else if (node->data.type == QLatin1String("item") && !values.contains(QStringLiteral("itemName")))
+                values.insert(QStringLiteral("itemName"), node->data.name);
+            else if (node->data.type == QLatin1String("sheet") && !values.contains(QStringLiteral("sheetName")))
+                values.insert(QStringLiteral("sheetName"), node->data.name);
+        }
+        return values;
     }
 
     void ProjectContext::closeDbConnection() {
@@ -618,6 +645,10 @@ namespace doclife::core {
                     else if (text.contains(QStringLiteral("工程名称")) || text.contains(QStringLiteral("项目名称"))
                         || text.contains(QStringLiteral("建设单位")) || text.contains(QStringLiteral("施工单位"))
                         || text.contains(QStringLiteral("设计单位")) || text.contains(QStringLiteral("监理单位"))) {
+                        role = model::cellRoleKey(model::CellRole::Project);
+                    }
+                    else if (model::containsFieldToken(text)) {
+                        // #projectName / #unitName 这类占位符：由工程/节点信息填充
                         role = model::cellRoleKey(model::CellRole::Project);
                     }
                     else if (text.contains(QStringLiteral("评定")) || text.contains(QStringLiteral("结论"))

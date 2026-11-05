@@ -159,6 +159,8 @@ namespace doclife::ui {
         void applyFormValues(QSqlDatabase& db, int rowCount, int colCount);
         // 按角色设置只读/底色（灰色只读、黄色工程信息、蓝色汇总）
         void applyCellRole(QTableWidgetItem* item, const QString& roleKey);
+        // 用当前工程/节点信息刷新表格里的 #字段 占位符
+        void refreshFieldValues();
 
         // ---- 编辑区 ----
         void setupFormatBar();
@@ -179,6 +181,7 @@ namespace doclife::ui {
 
         QAction* m_titleAction = nullptr;
         QAction* m_resetAction = nullptr;
+        QAction* m_refreshAction = nullptr;
 
         QTableWidget* m_table = nullptr;
 

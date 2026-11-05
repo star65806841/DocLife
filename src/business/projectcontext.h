@@ -5,6 +5,7 @@
 #include <QVariant>
 #include <QJsonObject>
 #include <QList>
+#include <QHash>
 #include <QSqlDatabase>
 
 #include "projectNode.h"
@@ -63,6 +64,8 @@ namespace doclife::core {
         void markDirty();
         // 获取当前项目数据库的连接（用于外部读写表格数据）
         QSqlDatabase getProjectDb();
+        // 某个表格节点可用的字段值（工程信息 + 最近的单位/分部/分项名称）
+        QHash<QString, QString> fieldValues(const QString& nodeId) const;
         // ---- 增量操作 (内存级别) ----
         bool addChild(const QString& parentId, const QString& childType, QString* newId = nullptr);
         bool addSheetsToNode(const QString& parentId, const QList<SheetNodeData>& sheets);

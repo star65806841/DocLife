@@ -19,12 +19,13 @@
 #include <QShortcut>
 #include <QUndoStack>
 #include <QSet>
-#include <QMessageBox>
+#include <popWindow/dialog/dialogbase.h>
 #include <climits>
 #include <utils.h>
 #include <uisignalmanager.h>
 #include "sheetformatbar.h"
 #include "model/cellrole.h"
+#include "model/fieldtokens.h"
 
 #include <components/menus_toolbars/CommandBar.h>
 #include <business/projectcontext.h>
@@ -99,6 +100,11 @@ namespace doclife::ui {
         m_topBar->addPrimaryAction(m_titleAction);
         m_topBar->addPrimaryAction(m_resetAction);
 
+        m_refreshAction = new QAction("刷新信息", m_topBar);
+        m_refreshAction->setIcon(QIcon(":/icons/edit/resetSheet.svg"));
+        m_topBar->addPrimaryAction(m_refreshAction);
+        connect(m_refreshAction, &QAction::triggered, this, &TemplateSheetView::refreshFieldValues);
+
         m_table = new QTableWidget(this);
         m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
         m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -144,8 +150,7 @@ namespace doclife::ui {
                 border: none;
             }
             QTableWidget::item:selected {
-                background-color: #E5F1FB;
-                color: #000000;
+                background-color: rgba(0, 120, 215, 16%);
             }
             QHeaderView::section {
                 background-color: #F8F8F8;
@@ -411,6 +416,7 @@ namespace doclife::ui {
             m_table->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::SelectedClicked | QAbstractItemView::EditKeyPressed);
             m_resetAction->setVisible(true);
             if (m_formatBar) m_formatBar->setVisible(true);
+            if (m_refreshAction) m_refreshAction->setVisible(true);
 
             for (int c = 0; c < m_table->columnCount(); ++c) {
                 m_table->setHorizontalHeaderItem(c, new QTableWidgetItem(columnName(c)));
@@ -427,6 +433,7 @@ namespace doclife::ui {
             m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
             m_resetAction->setVisible(false);
             if (m_formatBar) m_formatBar->setVisible(false);
+            if (m_refreshAction) m_refreshAction->setVisible(false);
         }
         m_isApplyingSettings = false;
     }
@@ -590,6 +597,20 @@ namespace doclife::ui {
             ensureBlankCellsEditable(rowCount, colCount, dominantFont);
             applyFormValues(db, rowCount, colCount);
 
+            // 字段占位符：#projectName / #unitName 等，用当前工程与节点信息替换显示
+            const QHash<QString, QString> fieldValues =
+                doclife::core::ProjectContext::instance()->fieldValues(m_currentNodeId);
+            for (int row = 0; row < rowCount; ++row) {
+                for (int col = 0; col < colCount; ++col) {
+                    auto* item = m_table->item(row, col);
+                    if (!item) continue;
+                    const QString raw = item->text();
+                    if (!doclife::model::containsFieldToken(raw)) continue;
+                    item->setData(Qt::UserRole + 21, raw);   // 记住原始模板文本，供“刷新信息”重算
+                    item->setText(doclife::model::resolveFieldTokens(raw, fieldValues));
+                }
+            }
+
             // 单元格角色：模板库可能没有 cell_role 列，读不到就按普通单元格处理
             QSqlQuery roleQuery(db);
             roleQuery.prepare(QStringLiteral(
@@ -627,6 +648,28 @@ namespace doclife::ui {
         }
     }
 
+    void TemplateSheetView::refreshFieldValues()
+    {
+        if (!m_isProjectMode) return;
+
+        const QHash<QString, QString> values =
+            doclife::core::ProjectContext::instance()->fieldValues(m_currentNodeId);
+
+        const bool guard = m_isApplyingSettings;
+        m_isApplyingSettings = true;
+        for (int row = 0; row < m_table->rowCount(); ++row) {
+            for (int col = 0; col < m_table->columnCount(); ++col) {
+                auto* item = m_table->item(row, col);
+                if (!item) continue;
+                const QString raw = item->data(Qt::UserRole + 21).toString();
+                if (raw.isEmpty()) continue;
+                item->setText(doclife::model::resolveFieldTokens(raw, values));
+            }
+        }
+        m_isApplyingSettings = guard;
+        m_table->viewport()->update();
+    }
+
     void TemplateSheetView::applyCellRole(QTableWidgetItem* item, const QString& roleKey)
     {
         if (!item) return;
@@ -644,7 +687,10 @@ namespace doclife::ui {
         case doclife::model::CellRole::Summary:  tint = QColor(0xDD, 0xEB, 0xF7); break;
         default: break;
         }
-        if (tint.isValid()) item->setBackground(tint);
+        if (tint.isValid() && item->background().style() == Qt::NoBrush) {
+            // 用户已手动填充过的格子保留自己的颜色，不被角色色覆盖
+            item->setBackground(tint);
+        }
 
         if (!doclife::model::cellRoleEditable(role)) {
             item->setFlags(item->flags() & ~Qt::ItemIsEditable);
@@ -662,31 +708,38 @@ namespace doclife::ui {
         const auto role = doclife::model::cellRoleFromKey(roleKey);
         if (doclife::model::cellRoleEditable(role)) return;   // 正常可编辑，交给默认编辑
 
-        const auto answer = QMessageBox::question(this, QStringLiteral("只读单元格"),
-            QStringLiteral("该单元格是只读的（灰色/黄色/蓝色底纹）。\n是否解锁并编辑？"),
-            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
-        if (answer != QMessageBox::Yes) return;
+        // 用统一弹窗确认，风格与「保存确认」等保持一致
+        DialogBase::show(this,
+            QStringLiteral("只读单元格"),
+            QStringLiteral("该单元格是只读的（灰色/黄色/蓝色底纹）。\n解锁后可以编辑，是否继续？"),
+            [this, row = index.row(), col = index.column()]() {
+                auto* cell = m_table->item(row, col);
+                if (!cell) return;
 
-        item->setData(Qt::UserRole + 20,
-            doclife::model::cellRoleKey(doclife::model::CellRole::Input));
-        item->setFlags(item->flags() | Qt::ItemIsEditable);
-        item->setBackground(QBrush());
+                cell->setData(Qt::UserRole + 20,
+                    doclife::model::cellRoleKey(doclife::model::CellRole::Input));
+                cell->setFlags(cell->flags() | Qt::ItemIsEditable);
+                cell->setBackground(QBrush());
+                // 解锁后不再参与“刷新信息”的自动替换，避免覆盖用户输入
+                cell->setData(Qt::UserRole + 21, QVariant());
 
-        // 只改本工程里的这份表格副本，不动模板
-        auto* ctx = doclife::core::ProjectContext::instance();
-        QSqlDatabase db = ctx->getProjectDb();
-        if (db.isOpen()) {
-            QSqlQuery q(db);
-            q.prepare(QStringLiteral(
-                "UPDATE sheet_cells SET cell_role = 'input' WHERE sheet_id = ? AND row = ? AND col = ?"));
-            q.addBindValue(m_currentSheetId);
-            q.addBindValue(index.row());
-            q.addBindValue(index.column());
-            q.exec();
-        }
-        ctx->markDirty();
+                // 只改本工程里的这份表格副本，不动模板
+                auto* ctx = doclife::core::ProjectContext::instance();
+                QSqlDatabase db = ctx->getProjectDb();
+                if (db.isOpen()) {
+                    QSqlQuery q(db);
+                    q.prepare(QStringLiteral(
+                        "UPDATE sheet_cells SET cell_role = 'input' WHERE sheet_id = ? AND row = ? AND col = ?"));
+                    q.addBindValue(m_currentSheetId);
+                    q.addBindValue(row);
+                    q.addBindValue(col);
+                    q.exec();
+                }
+                ctx->markDirty();
 
-        m_table->edit(index);
+                m_table->edit(m_table->model()->index(row, col));
+            },
+            nullptr);
     }
 
     void TemplateSheetView::applyFormValues(QSqlDatabase& db, int rowCount, int colCount)

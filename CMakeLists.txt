@@ -134,6 +134,7 @@ set(DOCLIFE_BUSINESS
 # ---------------------------------------------------------------------------
 set(DOCLIFE_MODEL
     src/model/cellrole.h
+    src/model/fieldtokens.h
     src/model/projectInfomodel.h
     src/model/ProjectNode.h
     src/model/custommodel/projecttreemodel.h                                 src/model/custommodel/projecttreemodel.cpp
