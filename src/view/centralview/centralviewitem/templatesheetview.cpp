@@ -24,6 +24,11 @@
 #include <QTimer>
 #include <QPointer>
 #include <QSignalBlocker>
+#include <QFile>
+#include <QDir>
+#include <QDateTime>
+#include <QTextStream>
+#include <QElapsedTimer>
 #include <popWindow/dialog/dialogbase.h>
 #include <popWindow/settingsdialog.h>
 #include <popWindow/toast/apptoast.h>
@@ -55,6 +60,17 @@ namespace doclife::ui {
     };
 
     namespace {
+        // 性能/行为日志：GUI 程序看不到 qDebug，写到固定文件方便排查
+        void perfLog(const QString& line)
+        {
+            static const QString path = QDir::tempPath() + QStringLiteral("/doclife-perf.log");
+            QFile f(path);
+            if (!f.open(QIODevice::Append | QIODevice::Text)) return;
+            QTextStream ts(&f);
+            ts << QDateTime::currentDateTime().toString(QStringLiteral("HH:mm:ss.zzz"))
+               << QStringLiteral("  ") << line << QLatin1Char('\n');
+        }
+
         // 约定的只读底色：与模板标记色/文档一致（RGB 217,217,217）。
         // 手动锁定的格子也用它，所以「只读」和「锁定」看起来是同一个灰。
         QColor readOnlyTint() { return QColor(0xD9, 0xD9, 0xD9); }
@@ -126,12 +142,17 @@ namespace doclife::ui {
             // 先绕开样式表的 item:selected：带着选中态绘制时，Qt 会忽略单元格自身的填充色，
             // 填色在选中期间完全看不见。去掉标志让背景正常绘制，选中层再由下面手动叠加。
             QStyleOptionViewItem opt = option;
-            const bool selected = (opt.state & QStyle::State_Selected) != 0;
-            opt.state &= ~QStyle::State_Selected;
 
             // 自己走一遍 initStyleOption，改成需要的排版参数后再交给样式绘制，
             // 这样折行/省略/自适应/锁定底色都能逐格生效。
             initStyleOption(&opt, index);
+
+            // 摘掉选中态必须在 initStyleOption 之后：它会从选区模型把 State_Selected 重新写回来，
+            // 先清后写等于没清，样式表的 item:selected 仍会接管背景，单元格填充色照样看不见。
+            // 选中高亮改由下面叠加半透明层绘制。
+            const bool selected = (opt.state & QStyle::State_Selected) != 0;
+            opt.state &= ~QStyle::State_Selected;
+            opt.state &= ~QStyle::State_HasFocus;
 
             const QVariant wrapValue = index.data(CellWrapRole);
             const bool wrapAllowed = wrapValue.isValid() ? wrapValue.toBool() : true;
@@ -491,6 +512,19 @@ namespace doclife::ui {
             return allSheets || key.sheetId == m_currentSheetId;
             };
 
+        // 没有任何要写的就别开事务：桌面/同步盘上 commit 的 fsync 很贵，空事务也会付这个代价
+        int matched = 0;
+        for (auto it = m_pendingEdits.cbegin(); it != m_pendingEdits.cend(); ++it) {
+            if (wanted(it.key())) ++matched;
+        }
+        for (auto it = m_pendingFormats.cbegin(); it != m_pendingFormats.cend(); ++it) {
+            if (wanted(it.key())) ++matched;
+        }
+        if (matched == 0) return;
+
+        QElapsedTimer timer;
+        timer.start();
+
         auto* ctx = doclife::core::ProjectContext::instance();
         QSqlDatabase db = ctx->getProjectDb();
         if (!db.isOpen()) {
@@ -577,6 +611,8 @@ namespace doclife::ui {
         if (!ok) return;
 
         qDebug() << "★ 填报内容已保存，文本" << writtenTexts << "格，格式" << writtenFormats << "格";
+        perfLog(QStringLiteral("flush all=%1 文本=%2 格式=%3 耗时=%4ms")
+            .arg(allSheets ? 1 : 0).arg(writtenTexts).arg(writtenFormats).arg(timer.elapsed()));
 
         if (allSheets) {
             m_pendingEdits.clear();
@@ -605,9 +641,14 @@ namespace doclife::ui {
 
     void TemplateSheetView::loadProjectSheet(const QString& nodeId, const QString& dbPath, int sheetId, const QString& title)
     {
+        QElapsedTimer timer;
+        timer.start();
+
         // 切表前先把上一张表的填报内容落库：否则锁定、打勾、折行这些状态
         // 只存在内存里，切走再回来就丢了。
         flushCurrentSheet();
+        const qint64 flushMs = timer.elapsed();
+
         if (m_undoStack) m_undoStack->clear();
         m_currentNodeId = nodeId;
         m_currentDbPath = dbPath;
@@ -616,9 +657,16 @@ namespace doclife::ui {
         m_titleAction->setText(title);
 
         setupTemplate(dbPath, sheetId);
+        const qint64 setupMs = timer.elapsed() - flushMs;
+
         setMode(true);
         applyUserSettings();
         syncCheckBoxesAction();
+
+        perfLog(QStringLiteral("切表 sheet=%1 \"%2\" 总=%3ms flush=%4ms setup=%5ms 其它=%6ms 行=%7 列=%8")
+            .arg(sheetId).arg(title).arg(timer.elapsed()).arg(flushMs).arg(setupMs)
+            .arg(timer.elapsed() - flushMs - setupMs)
+            .arg(m_table->rowCount()).arg(m_table->columnCount()));
     }
 
     void TemplateSheetView::setMode(bool isProject)
@@ -1068,7 +1116,11 @@ namespace doclife::ui {
 
             // 差量加在合并块的最后一行：前面的行不动，版面变化最小
             const int last = qMin(ar + rs - 1, m_table->rowCount() - 1);
-            m_table->setRowHeight(last, m_table->rowHeight(last) + (needed - current));
+            const int before = m_table->rowHeight(last);
+            m_table->setRowHeight(last, before + (needed - current));
+            perfLog(QStringLiteral("行高自适应 row=%1(块 %2,%3 %4x%5) %6 → %7px")
+                .arg(last).arg(ar).arg(ac).arg(rs).arg(cs)
+                .arg(before).arg(before + (needed - current)));
         }
     }
 
@@ -1272,6 +1324,11 @@ namespace doclife::ui {
 
         // 改完这一格顺手把工具栏状态对齐（否则按钮可能还停在上一个格子的状态）
         updateFormatBarFromSelection();
+
+        perfLog(QStringLiteral("单元格改动 row=%1 col=%2 字数=%3 折行=%4 行高=%5px")
+            .arg(row).arg(col).arg(item->text().size())
+            .arg(item->data(CellWrapRole).toBool() ? 1 : 0)
+            .arg(m_table->rowHeight(row)));
 
         doclife::core::ProjectContext::instance()->markDirty();
     }
@@ -1893,17 +1950,30 @@ namespace doclife::ui {
 
     void TemplateSheetView::onWrapToggled(bool on)
     {
+        int selectedCells = 0;
+        const auto ranges = m_table->selectedRanges();
+        for (const auto& range : ranges) {
+            selectedCells += range.rowCount() * range.columnCount();
+        }
+
         applyToSelection(QStringLiteral("折行显示"), [on](CellSnapshot& snapshot) {
             snapshot.wrap = on;
             });
 
         // 打开折行后把行高长到能放下，否则固定行高会把换出来的行裁掉，看着像没换行
-        if (!on) return;
-        for (const auto& range : m_table->selectedRanges()) {
-            for (int row = range.topRow(); row <= range.bottomRow(); ++row) {
-                autoGrowRow(row);
+        int grownRows = 0;
+        if (on) {
+            for (const auto& range : m_table->selectedRanges()) {
+                for (int row = range.topRow(); row <= range.bottomRow(); ++row) {
+                    const int before = m_table->rowHeight(row);
+                    autoGrowRow(row);
+                    if (m_table->rowHeight(row) != before) ++grownRows;
+                }
             }
         }
+
+        perfLog(QStringLiteral("折行=%1 选区=%2格 行高变化=%3行")
+            .arg(on ? 1 : 0).arg(selectedCells).arg(grownRows));
     }
 
     void TemplateSheetView::onLockToggled(bool on)
