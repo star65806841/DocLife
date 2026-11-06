@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QFile>
 #include <singleinstanceguard.h>
+#include <logging.h>
 #include <FluentQt/FluentQt.h>
 
 #include "view/fluentqt/MyFluentWindow.h"
@@ -19,6 +20,8 @@ namespace fluentqtApplication {
         QCoreApplication::setApplicationName(QStringLiteral("DocLife"));
 
         // 从这里往下才允许访问 QStandardPaths / 用户主题
+        doclife::logging::init(QStringLiteral("DocLife"));
+
         fluent::initializeResources();
 
         const QString themePath = fluent::UserTheme::filePath();
@@ -37,6 +40,8 @@ namespace fluentqtApplication {
 
         doclife::ui::MyFluentWindow window;
         window.showAndActivate();
-        return application.exec();
+        const int code = application.exec();
+        doclife::logging::shutdown();
+        return code;
     }
 }

@@ -38,6 +38,7 @@
 #include <climits>
 #include <utils.h>
 #include <uisignalmanager.h>
+#include <logging.h>
 
 #include "sheetformatbar.h"
 #include "model/cellrole.h"
@@ -60,15 +61,10 @@ namespace doclife::ui {
     };
 
     namespace {
-        // 性能/行为日志：GUI 程序看不到 qDebug，写到固定文件方便排查
+        // 性能/行为日志：统一走 logging.h（glog 落文件，用户可通过「导出诊断日志」回传）
         void perfLog(const QString& line)
         {
-            static const QString path = QDir::tempPath() + QStringLiteral("/doclife-perf.log");
-            QFile f(path);
-            if (!f.open(QIODevice::Append | QIODevice::Text)) return;
-            QTextStream ts(&f);
-            ts << QDateTime::currentDateTime().toString(QStringLiteral("HH:mm:ss.zzz"))
-               << QStringLiteral("  ") << line << QLatin1Char('\n');
+            DOC_INFO(QStringLiteral("perf  ") + line);
         }
 
         // 约定的只读底色：与模板标记色/文档一致（RGB 217,217,217）。

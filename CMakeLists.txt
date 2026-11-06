@@ -36,10 +36,20 @@ add_subdirectory(
     ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/quazip
     ${CMAKE_CURRENT_BINARY_DIR}/quazip_build
 )
-# add_subdirectory(
-#     ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/glog
-#     ${CMAKE_CURRENT_BINARY_DIR}/glog_build
-# )
+# ---------------------------------------------------------------------------
+# 日志：glog（3rdparty 里是源码，随工程一起编译）
+# 注意：上游在 MinGW 下缺 <mutex> 编不过；换 MinGW 构建时用 -DDOCLIFE_ENABLE_GLOG=OFF
+# ---------------------------------------------------------------------------
+option(DOCLIFE_ENABLE_GLOG "启用 glog 写文件日志" ON)
+if (DOCLIFE_ENABLE_GLOG)
+    set(WITH_GFLAGS OFF CACHE BOOL "" FORCE)
+    set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    add_subdirectory(
+        ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/glog
+        ${CMAKE_CURRENT_BINARY_DIR}/glog_build
+        EXCLUDE_FROM_ALL
+    )
+endif()
 
 # ===========================================================================
 # 源文件清单（按模块分组）
@@ -117,6 +127,7 @@ set(DOCLIFE_VIEW_POPUP
 # 基础设施（工具函数、UI 信号总线、单实例守卫）
 # ---------------------------------------------------------------------------
 set(DOCLIFE_HELPER
+    src/helper/logging.h                                                         src/helper/logging.cpp
     src/helper/uisignalmanager.h                                             src/helper/uisignalmanager.cpp
     src/helper/utils.h                                                       src/helper/utils.cpp
     src/helper/singleinstanceguard.h                                         src/helper/singleinstanceguard.cpp
@@ -200,6 +211,11 @@ target_link_libraries(DocLife
         FluentQt::FluentQt
         QuaZip::QuaZip
 )
+
+if (DOCLIFE_ENABLE_GLOG)
+    target_link_libraries(DocLife PRIVATE glog::glog)
+    target_compile_definitions(DocLife PRIVATE DOCLIFE_HAS_GLOG=1)
+endif()
 
 # ===========================================================================
 # 构建期：种子数据复制（示例模板 zip）

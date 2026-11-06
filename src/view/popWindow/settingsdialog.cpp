@@ -12,6 +12,8 @@
 #include <components/basicinput/ToggleButton.h>
 
 #include <uisignalmanager.h>
+#include <logging.h>
+#include <popWindow/toast/apptoast.h>
 
 namespace doclife::ui {
 
@@ -167,6 +169,31 @@ namespace doclife::ui {
         hint->setStyleSheet(QStringLiteral("color: #777; font-size: 12px;"));
         hint->setWordWrap(true);
         layout->addWidget(hint);
+
+        // ---- 诊断：把日志打包成一个文件，用户发回来即可定位问题 ----
+        auto* diagRow = new QHBoxLayout;
+        auto* diagLabel = new QLabel(QStringLiteral("诊断日志"), page);
+        auto* diagButton = new fluent::basicinput::Button(QStringLiteral("导出到桌面"), page);
+        diagRow->addWidget(diagLabel);
+        diagRow->addStretch(1);
+        diagRow->addWidget(diagButton);
+        layout->addLayout(diagRow);
+
+        auto* diagHint = new QLabel(
+            QStringLiteral("导出后是一个文本文件，包含程序版本、系统信息和最近的运行日志，"
+                           "可以直接发给技术支持。\n日志目录：%1").arg(doclife::logging::logDirectory()), page);
+        diagHint->setStyleSheet(QStringLiteral("color: #777; font-size: 12px;"));
+        diagHint->setWordWrap(true);
+        layout->addWidget(diagHint);
+
+        connect(diagButton, &fluent::basicinput::Button::clicked, this, [this]() {
+            const QString path = doclife::logging::exportDiagnostics();
+            if (path.isEmpty()) {
+                AppToast::showSuccess(this, QStringLiteral("导出失败：桌面目录不可写"));
+                return;
+            }
+            AppToast::showSuccess(this, QStringLiteral("已导出：%1").arg(path));
+            });
 
         layout->addStretch(1);
         return page;
