@@ -7,12 +7,14 @@
 #include <components/dialogs_flyouts/Dialog.h>
 
 class QLabel;
-class QListWidget;
-class QStackedWidget;
 
 namespace fluent::basicinput {
     class ToggleButton;
     class ColorPicker;
+}
+namespace fluent::navigation {
+    class NavigationView;
+    class StackContentHost;
 }
 
 namespace doclife::ui {
@@ -30,8 +32,9 @@ namespace doclife::ui {
     QString editorTableStyleSheet(const EditorSettings& settings = loadEditorSettings());
 
     /**
-     * 设置弹窗：左侧导航 + 右侧页面。
-     * 目前只有一项「编辑区域设置」：选中背景开关 + 自定义背景色。
+     * 设置弹窗：左侧导航 + 右侧页面，UI 结构与「工程信息」弹窗保持一致
+     * （NavigationView + StackContentHost + MainSection）。
+     * 页面：编辑区域设置（选中背景开关 + 自定义背景色）、诊断日志（一键导出）。
      */
     class SettingsDialog : public fluent::dialogs_flyouts::Dialog
     {
@@ -41,11 +44,9 @@ namespace doclife::ui {
 
     private:
         QWidget* buildEditorPage();
+        QWidget* buildDiagnosticsPage();
         void applySettings();
         void updateColorEnabled();
-
-        QListWidget* m_nav = nullptr;
-        QStackedWidget* m_pages = nullptr;
 
         fluent::basicinput::ToggleButton* m_selectionToggle = nullptr;
         fluent::basicinput::ColorPicker* m_colorPicker = nullptr;

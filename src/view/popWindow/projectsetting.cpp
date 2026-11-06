@@ -114,17 +114,17 @@ void ProjectSetting::init()
     // ---- 内容宿主：插入页面 ----
     fluent::navigation::StackContentHost* host = navView->contentHost();
     auto* projectNamePage = new ProjectInfoPage("工程名称", projectInfo.projectName, this);
-    auto* projectCodePage = new ProjectInfoPage("工程编号", projectInfo.projectCode, this);
+    // auto* projectCodePage = new ProjectInfoPage("工程编号", projectInfo.projectCode, this);
     auto* constructionUnitNamePage = new ProjectInfoPage("施工单位", projectInfo.constructionUnitName, this);
     auto* supervisionUnitNamePage = new ProjectInfoPage("监理单位", projectInfo.supervisionUnitName, this);
     auto* designUnitNamePage = new ProjectInfoPage("设计单位", projectInfo.designUnitName, this);
     auto* ownerUnitNamePage = new ProjectInfoPage("建设单位", projectInfo.ownerUnitName, this);
     host->insertPage(0, projectNamePage, fluent::WidgetOwnership::Reparented);
-    host->insertPage(1, projectCodePage, fluent::WidgetOwnership::Reparented);
-    host->insertPage(2, constructionUnitNamePage, fluent::WidgetOwnership::Reparented);
-    host->insertPage(3, supervisionUnitNamePage, fluent::WidgetOwnership::Reparented);
-    host->insertPage(4, designUnitNamePage, fluent::WidgetOwnership::Reparented);
-    host->insertPage(5, ownerUnitNamePage, fluent::WidgetOwnership::Reparented);
+    // host->insertPage(1, projectCodePage, fluent::WidgetOwnership::Reparented);
+    host->insertPage(1, constructionUnitNamePage, fluent::WidgetOwnership::Reparented);
+    host->insertPage(2, supervisionUnitNamePage, fluent::WidgetOwnership::Reparented);
+    host->insertPage(3, designUnitNamePage, fluent::WidgetOwnership::Reparented);
+    host->insertPage(4, ownerUnitNamePage, fluent::WidgetOwnership::Reparented);
 
     // 切换动画
     host->setTransitionEffect(fluent::navigation::StackContentHost::TransitionEffect::SlideFromBottom);
@@ -133,7 +133,7 @@ void ProjectSetting::init()
     QVector<MainSection::Entry> entries =
     {
       {Typography::Icons::glyph(QStringLiteral("ic_fluent_vote_24_regular")), QStringLiteral("工程项目名称"), true},
-      {Typography::Icons::glyph(QStringLiteral("ic_fluent_number_symbol_24_regular")), QStringLiteral("工程编号"), false},
+      // {Typography::Icons::glyph(QStringLiteral("ic_fluent_number_symbol_24_regular")), QStringLiteral("工程编号"), false},
       {Typography::Icons::glyph(QStringLiteral("ic_fluent_vehicle_tractor_24_regular")), QStringLiteral("施工单位"), false},
       {Typography::Icons::glyph(QStringLiteral("ic_fluent_receipt_cube_24_regular")), QStringLiteral("监理单位"), false},
       {Typography::Icons::glyph(QStringLiteral("ic_fluent_quiz_24_regular")), QStringLiteral("设计单位"), false},
@@ -182,7 +182,7 @@ void ProjectSetting::init()
     layout->addLayout(commandRow);
 
     connect(projectNamePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateProjectName);
-    connect(projectCodePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateProjectCode);
+    //connect(projectCodePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateProjectCode);
     connect(constructionUnitNamePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateConstructionUnitName);
     connect(supervisionUnitNamePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateSupervisionUnitName);
     connect(designUnitNamePage, &ProjectInfoPage::sign_text, this, &ProjectSetting::slot_updateDesignUnitName);

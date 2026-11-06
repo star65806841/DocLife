@@ -311,7 +311,7 @@ namespace doclife::ui {
         m_checkBoxesAction->setIcon(QIcon(":/icons/menu/check.svg"));
         m_checkBoxesAction->setCheckable(true);
         m_checkBoxesAction->setToolTip(
-            QStringLiteral("把整张表的方格都打上勾（“不合格”前面的方格不打勾），再次点击取消"));
+            QStringLiteral("批量勾选/取消勾选"));
         m_topBar->addPrimaryAction(m_checkBoxesAction);
         connect(m_checkBoxesAction, &QAction::toggled, this, &TemplateSheetView::onCheckAllBoxesToggled);
 
@@ -728,6 +728,9 @@ namespace doclife::ui {
 
     void TemplateSheetView::setupTemplate(const QString& dbPath, int sheetId)
     {
+        QElapsedTimer perfTimer;
+        perfTimer.start();
+
         // 整个构建过程都屏蔽 itemChanged，否则模板内容会被当成用户输入缓存起来
         const bool guardBefore = m_isApplyingSettings;
         m_isApplyingSettings = true;
@@ -956,6 +959,7 @@ namespace doclife::ui {
         // ★ 关键修复：去掉了 resizeSections(QHeaderView::Fixed)，防止覆盖用户数据
         m_table->setUpdatesEnabled(true);
         finish();
+        qDebug() << "setupTemplate 耗时:" << perfTimer.elapsed() << "ms";
     }
 
     void TemplateSheetView::ensureBlankCellsEditable(int rowCount, int colCount, const QFont& defaultFont)

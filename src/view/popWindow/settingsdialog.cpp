@@ -2,17 +2,19 @@
 
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QListWidget>
 #include <QSettings>
-#include <QStackedWidget>
 #include <QVBoxLayout>
 
 #include <components/basicinput/Button.h>
 #include <components/basicinput/ColorPicker.h>
 #include <components/basicinput/ToggleButton.h>
+#include <components/navigation/NavigationView.h>
+#include <components/navigation/StackContentHost.h>
+#include <components/textfields/Label.h>
 
 #include <uisignalmanager.h>
 #include <logging.h>
+#include <popWindow/infoItem/projectitem.h>
 #include <popWindow/toast/apptoast.h>
 
 namespace doclife::ui {
@@ -75,53 +77,69 @@ namespace doclife::ui {
     SettingsDialog::SettingsDialog(QWidget* parent)
         : fluent::dialogs_flyouts::Dialog(parent)
     {
-        this->setMinimumSize(620, 460);
+        // 尺寸与观感对齐「工程信息」弹窗
+        this->setMinimumSize(650, 500);
         this->setSmokeEnabled(true);
         this->setAnimationEnabled(true);
-        this->setModal(true);
-        this->setDim(true);
 
         auto* layout = new QVBoxLayout(this);
-        layout->setContentsMargins(24, 20, 24, 20);
-        layout->setSpacing(14);
+        layout->setContentsMargins(55, 25, 45, 25);
+        layout->setSpacing(18);
 
-        auto* title = new QLabel(QStringLiteral("设置"), this);
-        title->setStyleSheet(QStringLiteral("font-size: 16px; font-weight: bold; color: #333;"));
-        layout->addWidget(title);
+        auto* titleLabel = new fluent::textfields::Label(QStringLiteral("设置:"));
+        titleLabel->setFluentTypography(Typography::FontRole::Subtitle);
 
-        auto* body = new QHBoxLayout;
-        body->setSpacing(12);
+        auto* navView = new fluent::navigation::NavigationView();
+        navView->setMinimumWidth(220);
+        navView->setMaximumWidth(620);
+        navView->setFixedHeight(320);
+        navView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        navView->setAnimationEnabled(true);
+        navView->setDisplayMode(fluent::navigation::NavigationView::DisplayMode::Left);
+        navView->setExpandedPaneWidth(180);
 
-        m_nav = new QListWidget(this);
-        m_nav->setFixedWidth(160);
-        m_nav->setStyleSheet(QStringLiteral(R"(
-            QListWidget { border: 1px solid #E0E0E0; border-radius: 4px; background: #FAFAFA; }
-            QListWidget::item { padding: 10px 12px; }
-            QListWidget::item:selected { background: #E5F1FB; color: #0078D4; }
-        )"));
-        m_nav->addItem(QStringLiteral("编辑区域设置"));
-        m_nav->setCurrentRow(0);
-        body->addWidget(m_nav);
+        // ---- 内容宿主：编辑区域设置 / 诊断日志 ----
+        fluent::navigation::StackContentHost* host = navView->contentHost();
+        host->insertPage(0, buildEditorPage(), fluent::WidgetOwnership::Reparented);
+        host->insertPage(1, buildDiagnosticsPage(), fluent::WidgetOwnership::Reparented);
+        host->setTransitionEffect(fluent::navigation::StackContentHost::TransitionEffect::SlideFromBottom);
 
-        m_pages = new QStackedWidget(this);
-        m_pages->addWidget(buildEditorPage());
-        body->addWidget(m_pages, 1);
+        // ---- 导航项列表作为 main chrome 接入 ----
+        QVector<MainSection::Entry> entries =
+        {
+            {Typography::Icons::glyph(QStringLiteral("ic_fluent_paint_bucket_24_regular")),   QStringLiteral("编辑区域设置"), true},
+            {Typography::Icons::glyph(QStringLiteral("ic_fluent_arrow_download_24_regular")), QStringLiteral("诊断日志"),       false},
+        };
 
-        layout->addLayout(body, 1);
+        auto* mainSection = new MainSection(entries, navView);
+        navView->setMainChromeWidget(mainSection, fluent::WidgetOwnership::Borrowed);
 
-        auto* commandRow = new QHBoxLayout;
-        commandRow->addStretch(1);
+        host->setCurrentIndex(0, 0, false);
 
-        auto* cancelButton = new fluent::basicinput::Button(QStringLiteral("取 消"), this);
-        cancelButton->setMinimumWidth(100);
-        cancelButton->setFluentStyle(fluent::basicinput::Button::Standard);
+        mainSection->onActivated = [host](int pageIndex) {
+            const int direction = pageIndex >= host->currentIndex() ? 1 : -1;
+            host->setCurrentIndex(pageIndex, direction, true);
+        };
 
-        auto* okButton = new fluent::basicinput::Button(QStringLiteral("确 认"), this);
-        okButton->setMinimumWidth(100);
+        // 底部命令按钮（与「工程信息」同样的顺序与样式）
+        auto* okButton = new fluent::basicinput::Button(QStringLiteral("确 认"));
+        okButton->setMinimumWidth(120);
         okButton->setFluentStyle(fluent::basicinput::Button::Accent);
 
+        auto* cancelButton = new fluent::basicinput::Button(QStringLiteral("取 消"));
+        cancelButton->setMinimumWidth(120);
+        cancelButton->setFluentStyle(fluent::basicinput::Button::Standard);
+
+        auto* commandRow = new QHBoxLayout;
+        commandRow->setContentsMargins(0, 0, 0, 0);
+        commandRow->setSpacing(8);
+        commandRow->addStretch(1);
         commandRow->addWidget(okButton);
         commandRow->addWidget(cancelButton);
+
+        layout->addWidget(titleLabel);
+        layout->addWidget(navView);
+        layout->addStretch(1);
         layout->addLayout(commandRow);
 
         connect(cancelButton, &fluent::basicinput::Button::clicked, this, &QDialog::close);
@@ -170,9 +188,24 @@ namespace doclife::ui {
         hint->setWordWrap(true);
         layout->addWidget(hint);
 
-        // ---- 诊断：把日志打包成一个文件，用户发回来即可定位问题 ----
+        layout->addStretch(1);
+        return page;
+    }
+
+    QWidget* SettingsDialog::buildDiagnosticsPage()
+    {
+        auto* page = new QWidget(this);
+        auto* layout = new QVBoxLayout(page);
+        layout->setContentsMargins(16, 8, 8, 8);
+        layout->setSpacing(16);
+
+        auto* heading = new QLabel(QStringLiteral("诊断日志"), page);
+        heading->setStyleSheet(QStringLiteral("font-size: 14px; font-weight: 600; color: #333;"));
+        layout->addWidget(heading);
+
+        // 把日志打包成一个文件，用户发回来即可远程定位问题
         auto* diagRow = new QHBoxLayout;
-        auto* diagLabel = new QLabel(QStringLiteral("诊断日志"), page);
+        auto* diagLabel = new QLabel(QStringLiteral("导出日志"), page);
         auto* diagButton = new fluent::basicinput::Button(QStringLiteral("导出到桌面"), page);
         diagRow->addWidget(diagLabel);
         diagRow->addStretch(1);
@@ -189,7 +222,7 @@ namespace doclife::ui {
         connect(diagButton, &fluent::basicinput::Button::clicked, this, [this]() {
             const QString path = doclife::logging::exportDiagnostics();
             if (path.isEmpty()) {
-                AppToast::showSuccess(this, QStringLiteral("导出失败：桌面目录不可写"));
+                AppToast::showWarning(this, QStringLiteral("导出失败：桌面目录不可写"));
                 return;
             }
             AppToast::showSuccess(this, QStringLiteral("已导出：%1").arg(path));
