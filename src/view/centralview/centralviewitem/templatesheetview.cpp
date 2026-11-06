@@ -107,7 +107,7 @@ namespace doclife::ui {
                 const QRectF needed = fm.boundingRect(QRectF(0, 0, avail.width(), 0), flags, text);
                 return needed.width() <= avail.width() + 0.5
                     && needed.height() <= avail.height() + 0.5;
-            };
+                };
 
             if (fits(original)) return font;
 
@@ -256,10 +256,10 @@ namespace doclife::ui {
     {
     public:
         SheetTextCommand(TemplateSheetView* view,
-                         QVector<QPair<int, int>> cells,
-                         QStringList before,
-                         QStringList after,
-                         const QString& label)
+            QVector<QPair<int, int>> cells,
+            QStringList before,
+            QStringList after,
+            const QString& label)
             : m_view(view)
             , m_cells(std::move(cells))
             , m_before(std::move(before))
@@ -334,9 +334,9 @@ namespace doclife::ui {
         m_table->verticalHeader()->setDefaultAlignment(Qt::AlignCenter);
 
         // ★ 2.必须设置在 viewport 上才生效
-        m_table->horizontalHeader()->viewport()->setCursor(doclife::core::Utils::createSvgCursor(":/icons/cursor/arrow-down.svg",16));
-        m_table->verticalHeader()->viewport()->setCursor(doclife::core::Utils::createSvgCursor(":/icons/cursor/arrow-right.svg",16));
-        m_table->viewport()->setCursor(doclife::core::Utils::createSvgCursor(":/icons/cursor/cross-society.svg",16));
+        m_table->horizontalHeader()->viewport()->setCursor(doclife::core::Utils::createSvgCursor(":/icons/cursor/arrow-down.svg", 16));
+        m_table->verticalHeader()->viewport()->setCursor(doclife::core::Utils::createSvgCursor(":/icons/cursor/arrow-right.svg", 16));
+        m_table->viewport()->setCursor(doclife::core::Utils::createSvgCursor(":/icons/cursor/cross-society.svg", 16));
 
         auto* delegate = new CellBorderDelegate(m_table);
         delegate->onTextEdited = [this](int row, int col, const QString& before, const QString& after) {
@@ -346,7 +346,7 @@ namespace doclife::ui {
             beforeSnapshots[0].text = before;
             afterSnapshots[0].text = after;
             pushEdit(beforeSnapshots, afterSnapshots, QStringLiteral("输入内容"));
-        };
+            };
         m_table->setItemDelegate(delegate);
 
         m_table->setStyleSheet(editorTableStyleSheet());
@@ -357,7 +357,7 @@ namespace doclife::ui {
             delegate->selectionEnabled = settings.selectionEnabled;
             delegate->selectionColor = settings.selectionColor;
             m_table->viewport()->update();
-        };
+            };
         syncSelectionToDelegate();
         connect(UISignalManager::instance(), &UISignalManager::editorSettingsChanged, this,
             [this, syncSelectionToDelegate] {
@@ -482,7 +482,7 @@ namespace doclife::ui {
         }
     }
 
-    QString TemplateSheetView::columnName(int col) const    {
+    QString TemplateSheetView::columnName(int col) const {
         QString name;
         while (col >= 0) {
             name.prepend(QChar('A' + col % 26));
@@ -657,8 +657,18 @@ namespace doclife::ui {
         m_currentSheetId = sheetId;
         m_isProjectMode = false;
         m_titleAction->setText(title);
-        setupTemplate(dbPath, sheetId);
+
+        // 1. 同步建骨架
+        setupSkeleton(dbPath, sheetId);
         setMode(false);
+
+        // 2. 异步填内容
+        QPointer<TemplateSheetView> safeThis(this);
+        QTimer::singleShot(0, this, [safeThis, dbPath, sheetId]() {
+            if (!safeThis) return;
+            if (safeThis->m_currentSheetId != sheetId) return;
+            safeThis->fillContent(dbPath, sheetId);
+            });
     }
 
     void TemplateSheetView::loadProjectSheet(const QString& nodeId, const QString& dbPath, int sheetId, const QString& title)
@@ -666,8 +676,6 @@ namespace doclife::ui {
         QElapsedTimer timer;
         timer.start();
 
-        // 切表前先把上一张表的填报内容落库：否则锁定、打勾、折行这些状态
-        // 只存在内存里，切走再回来就丢了。
         flushCurrentSheet();
         const qint64 flushMs = timer.elapsed();
 
@@ -678,17 +686,27 @@ namespace doclife::ui {
         m_isProjectMode = true;
         m_titleAction->setText(title);
 
-        setupTemplate(dbPath, sheetId);
-        const qint64 setupMs = timer.elapsed() - flushMs;
+        // 1. 同步建骨架（行列数、表头、默认宽高）
+        setupSkeleton(dbPath, sheetId);
+        const qint64 skeletonMs = timer.elapsed() - flushMs;
 
+        // 2. 同步应用自定义宽高（很快，几十项 toObject 而已）
         setMode(true);
         applyUserSettings();
-        syncCheckBoxesAction();
 
-        perfLog(QStringLiteral("切表 sheet=%1 \"%2\" 总=%3ms flush=%4ms setup=%5ms 其它=%6ms 行=%7 列=%8")
-            .arg(sheetId).arg(title).arg(timer.elapsed()).arg(flushMs).arg(setupMs)
-            .arg(timer.elapsed() - flushMs - setupMs)
-            .arg(m_table->rowCount()).arg(m_table->columnCount()));
+        // 3. 用户此时已经能看到空表格了 → 记录日志
+        perfLog(QStringLiteral("切表骨架 sheet=%1 \"%2\" 总=%3ms flush=%4ms 骨架=%5ms")
+            .arg(sheetId).arg(title).arg(timer.elapsed()).arg(flushMs).arg(skeletonMs));
+
+        // 4. 异步填内容（字体、颜色、合并、form_values、占位符、role 等）
+        QPointer<TemplateSheetView> safeThis(this);
+        QTimer::singleShot(0, this, [safeThis, nodeId, dbPath, sheetId]() {
+            if (!safeThis) return;
+            if (safeThis->m_currentNodeId != nodeId) return;
+            if (safeThis->m_currentSheetId != sheetId) return;
+            safeThis->fillContent(dbPath, sheetId);
+            safeThis->syncCheckBoxesAction();  // 全表扫描，也挪到异步
+            });
     }
 
     void TemplateSheetView::setMode(bool isProject)
@@ -724,242 +742,6 @@ namespace doclife::ui {
             if (m_checkBoxesAction) m_checkBoxesAction->setVisible(false);
         }
         m_isApplyingSettings = false;
-    }
-
-    void TemplateSheetView::setupTemplate(const QString& dbPath, int sheetId)
-    {
-        QElapsedTimer perfTimer;
-        perfTimer.start();
-
-        // 整个构建过程都屏蔽 itemChanged，否则模板内容会被当成用户输入缓存起来
-        const bool guardBefore = m_isApplyingSettings;
-        m_isApplyingSettings = true;
-        auto restoreGuard = [this, guardBefore]() { m_isApplyingSettings = guardBefore; };
-
-        m_table->clear();
-        m_table->setRowCount(0);
-        m_table->setColumnCount(0);
-        m_table->clearSpans();
-        m_defaultColWidths.clear();
-        m_defaultRowHeights.clear();
-        m_spanAnchors.clear();
-
-        QSqlDatabase db;
-        bool ownsConnection = false;
-
-        if (m_isProjectMode) {
-            // 填报模式复用工程上下文里的长连接：同一个文件不重复打开，另存后也自动跟随
-            db = doclife::core::ProjectContext::instance()->getProjectDb();
-            if (!db.isOpen()) { restoreGuard(); return; }
-        }
-        else {
-            if (!QFile::exists(dbPath)) { restoreGuard(); return; }
-
-            const QString connName = QStringLiteral("sheetview_main");
-            db = QSqlDatabase::contains(connName) ? QSqlDatabase::database(connName)
-                : QSqlDatabase::addDatabase("QSQLITE", connName);
-            if (db.isOpen()) db.close();
-            db.setDatabaseName(dbPath);
-            if (!db.open()) { restoreGuard(); return; }
-            ownsConnection = true;
-        }
-
-        // 统一收尾：预览模式关掉自己的连接，填报模式保留长连接
-        auto finish = [&]() {
-            if (ownsConnection && db.isValid()) db.close();
-            restoreGuard();
-            };
-
-        int rowCount = 0, colCount = 0;
-        {
-            QSqlQuery q(db);
-            const QString tableName = m_isProjectMode ? QStringLiteral("project_sheets")
-                : QStringLiteral("template_sheets");
-            q.prepare(QStringLiteral("SELECT row_count, col_count FROM %1 WHERE id = ?").arg(tableName));
-            q.addBindValue(sheetId);
-            if (q.exec() && q.next()) {
-                rowCount = q.value(0).toInt();
-                colCount = q.value(1).toInt();
-            }
-        }
-
-        if (rowCount <= 0 || colCount <= 0) { finish(); return; }
-
-        m_table->setUpdatesEnabled(false);
-        m_table->setRowCount(rowCount);
-        m_table->setColumnCount(colCount);
-
-        // 1. 恢复默认宽高
-        {
-            QSqlQuery q(db);
-            q.prepare("SELECT col, width FROM sheet_col_widths WHERE sheet_id = ? ORDER BY col");
-            q.addBindValue(sheetId);
-            if (q.exec()) {
-                while (q.next()) {
-                    int c = q.value(0).toInt();
-                    int px = charsToPx(q.value(1).toDouble());
-                    if (c >= 0 && c < colCount) m_table->setColumnWidth(c, px);
-                }
-            }
-            for (int c = 0; c < colCount; ++c) m_defaultColWidths.append(m_table->columnWidth(c));
-        }
-        {
-            QSqlQuery q(db);
-            q.prepare("SELECT row, height FROM sheet_row_heights WHERE sheet_id = ?");
-            q.addBindValue(sheetId);
-            if (q.exec()) {
-                while (q.next()) {
-                    int r = q.value(0).toInt();
-                    int px = ptToPx(q.value(1).toDouble());
-                    if (r >= 0 && r < rowCount) m_table->setRowHeight(r, px);
-                }
-            }
-            for (int r = 0; r < rowCount; ++r) m_defaultRowHeights.append(m_table->rowHeight(r));
-        }
-
-        // 2. 渲染单元格
-        QHash<QString, int> fontVotes;   // "字体|字号" -> 出现次数，用来推断空白格的默认字体
-        {
-            QSqlQuery q(db);
-            q.prepare("SELECT row, col, row_span, col_span, value, font_family, font_size, font_bold, font_italic, font_underline, font_color, bg_color, h_align, v_align, border_top, border_bottom, border_left, border_right, wrap_text FROM sheet_cells WHERE sheet_id = ?");
-            q.addBindValue(sheetId);
-            if (q.exec()) {
-                while (q.next()) {
-                    const int r = q.value(0).toInt();
-                    const int c = q.value(1).toInt();
-                    if (r < 0 || r >= rowCount || c < 0 || c >= colCount) continue;
-
-                    const int rowSpan = qMax(1, q.value(2).toInt());
-                    const int colSpan = qMax(1, q.value(3).toInt());
-                    auto* item = new QTableWidgetItem(q.value(4).toString());
-                    // 占位符原文（sheet_cells.value）常驻数据库：它就是"这格该填什么"的信息，
-                    // 用户手填、解锁都不会删掉它，点"刷新信息"就按它 + 当前工程信息重算回填。
-                    if (m_isProjectMode && doclife::model::containsFieldToken(q.value(4).toString())) {
-                        item->setData(Qt::UserRole + 21, q.value(4).toString());
-                    }
-                    // item->setData(Qt::CursorRole, Utils::createSvgCursor(":/icons/cursor/cross-society.svg", 16));
-                    // item->setData(Qt::CursorRole, Qt::CrossCursor);
-
-                    qreal fontSize = q.value(6).toDouble();
-                    if (fontSize <= 0.0) fontSize = 10.5;
-                    const QString fontFamily = q.value(5).toString();
-                    // 用 setPointSizeF 保留 10.5 这类半磅字号；四舍五入会把 9 变成 10
-                    QFont font(fontFamily);
-                    font.setPointSizeF(fontSize);
-                    font.setBold(q.value(7).toInt() != 0);
-                    font.setItalic(q.value(8).toInt() != 0);
-                    font.setUnderline(q.value(9).toInt() != 0);
-                    item->setFont(font);
-                    if (!fontFamily.isEmpty()) {
-                        fontVotes[fontFamily + QLatin1Char('|') + QString::number(qRound(fontSize))]++;
-                    }
-
-                    QColor fg(q.value(10).toString()); if (fg.isValid()) item->setForeground(fg);
-                    QColor bg(q.value(11).toString()); if (bg.isValid() && bg != QColor("#FFFFFF")) item->setBackground(bg);
-
-                    const int h = q.value(12).toInt(), v = q.value(13).toInt();
-                    Qt::Alignment align;
-                    if (h == 1) align |= Qt::AlignHCenter; else if (h == 2) align |= Qt::AlignRight; else align |= Qt::AlignLeft;
-                    if (v == 0) align |= Qt::AlignTop; else if (v == 2) align |= Qt::AlignBottom; else align |= Qt::AlignVCenter;
-                    item->setTextAlignment(align);
-
-                    item->setData(Qt::UserRole + 10, q.value(14).toInt());
-                    item->setData(Qt::UserRole + 11, q.value(15).toInt());
-                    item->setData(Qt::UserRole + 12, q.value(16).toInt());
-                    item->setData(Qt::UserRole + 13, q.value(17).toInt());
-
-                    const QVariant wrapValue = q.value(18);
-                    item->setData(CellWrapRole, wrapValue.isNull() ? true : (wrapValue.toInt() != 0));
-
-                    if (m_isProjectMode) item->setFlags(item->flags() | Qt::ItemIsEditable);
-                    m_table->setItem(r, c, item);
-
-                    if (rowSpan > 1 || colSpan > 1) {
-                        m_table->setSpan(r, c, qMin(rowCount - r, rowSpan), qMin(colCount - c, colSpan));
-                        m_spanAnchors.insert(cellKey(r, c));
-                    }
-                }
-            }
-        }
-
-        // 3. 填报模式：补齐空白单元格并叠加已填写的内容
-        if (m_isProjectMode) {
-            QString dominantKey;
-            int bestVotes = 0;
-            for (auto it = fontVotes.cbegin(); it != fontVotes.cend(); ++it) {
-                if (it.value() > bestVotes) { bestVotes = it.value(); dominantKey = it.key(); }
-            }
-            QFont dominantFont(QStringLiteral("宋体"), 11);
-            const QStringList parts = dominantKey.split(QLatin1Char('|'));
-            if (parts.size() == 2 && !parts.at(0).isEmpty()) {
-                dominantFont = QFont(parts.at(0), parts.at(1).toInt());
-            }
-
-            ensureBlankCellsEditable(rowCount, colCount, dominantFont);
-            applyFormValues(db, rowCount, colCount);
-
-            // 排版与锁定标记（老工程库没有这些列时读不到，按默认值处理）
-            {
-                QSqlQuery layoutQuery(db);
-                layoutQuery.prepare(QStringLiteral(
-                    "SELECT row, col, locked, auto_fit FROM sheet_cells WHERE sheet_id = ?"));
-                layoutQuery.addBindValue(sheetId);
-                if (layoutQuery.exec()) {
-                    while (layoutQuery.next()) {
-                        auto* item = m_table->item(layoutQuery.value(0).toInt(), layoutQuery.value(1).toInt());
-                        if (!item) continue;
-                        item->setData(CellLockedRole, layoutQuery.value(2).toInt() != 0);
-                        item->setData(CellAutoFitRole, layoutQuery.value(3).toInt() != 0);
-                    }
-                }
-            }
-
-            // 字段占位符：#projectName / #unitName 等，用当前工程与节点信息替换显示
-            const QHash<QString, QString> fieldValues =
-                doclife::core::ProjectContext::instance()->fieldValues(m_currentNodeId);
-            for (int row = 0; row < rowCount; ++row) {
-                for (int col = 0; col < colCount; ++col) {
-                    auto* item = m_table->item(row, col);
-                    if (!item) continue;
-                    // 锁定的格子不吃自动赋值：保留它自己已有的内容
-                    if (isCellLocked(item)) continue;
-                    // 已经有保存内容的格子也不自动同步：切页/重开保持原样，等用户点「同步工程信息」
-                    if (item->data(CellSaveRole).toBool()) continue;
-                    // 占位符原文就是这格的字段绑定（数据源永远是 sheet_cells.value）：
-                    // 有绑定的格子，即使 form_values 里存过手填/旧值，打开时也按绑定重算，
-                    // 保证「改完工程信息 → 刷新/重开」显示的是当前项目信息。
-                    QString raw = item->data(Qt::UserRole + 21).toString();
-                    if (raw.isEmpty()) {
-                        const QString shown = item->text();
-                        if (!doclife::model::containsFieldToken(shown)) continue;
-                        raw = shown;
-                        item->setData(Qt::UserRole + 21, raw);
-                    }
-                    item->setText(doclife::model::resolveFieldTokens(raw, fieldValues));
-                }
-            }
-
-            // 单元格角色：模板库可能没有 cell_role 列，读不到就按普通单元格处理
-            QSqlQuery roleQuery(db);
-            roleQuery.prepare(QStringLiteral(
-                "SELECT row, col, cell_role FROM sheet_cells WHERE sheet_id = ? AND cell_role IS NOT NULL"));
-            roleQuery.addBindValue(sheetId);
-            if (roleQuery.exec()) {
-                while (roleQuery.next()) {
-                    const int row = roleQuery.value(0).toInt();
-                    const int col = roleQuery.value(1).toInt();
-                    if (row < 0 || row >= rowCount || col < 0 || col >= colCount) continue;
-                    if (auto* item = m_table->item(row, col)) {
-                        applyCellRole(item, roleQuery.value(2).toString());
-                    }
-                }
-            }
-        }
-
-        // ★ 关键修复：去掉了 resizeSections(QHeaderView::Fixed)，防止覆盖用户数据
-        m_table->setUpdatesEnabled(true);
-        finish();
-        qDebug() << "setupTemplate 耗时:" << perfTimer.elapsed() << "ms";
     }
 
     void TemplateSheetView::ensureBlankCellsEditable(int rowCount, int colCount, const QFont& defaultFont)
@@ -1501,9 +1283,9 @@ namespace doclife::ui {
     {
     public:
         SheetEditCommand(TemplateSheetView* view,
-                         QVector<CellSnapshot> before,
-                         QVector<CellSnapshot> after,
-                         const QString& label)
+            QVector<CellSnapshot> before,
+            QVector<CellSnapshot> after,
+            const QString& label)
             : m_view(view)
             , m_before(std::move(before))
             , m_after(std::move(after))
@@ -1670,8 +1452,8 @@ namespace doclife::ui {
     }
 
     void TemplateSheetView::pushEdit(const QVector<CellSnapshot>& before,
-                                     const QVector<CellSnapshot>& after,
-                                     const QString& label)
+        const QVector<CellSnapshot>& after,
+        const QString& label)
     {
         if (!m_undoStack || before.isEmpty()) return;
         if (before == after) return;
@@ -1679,7 +1461,7 @@ namespace doclife::ui {
     }
 
     void TemplateSheetView::applyToSelection(const QString& label,
-                                             const std::function<void(CellSnapshot&)>& mutate)
+        const std::function<void(CellSnapshot&)>& mutate)
     {
         if (!m_isProjectMode) return;
         const auto ranges = m_table->selectedRanges();
@@ -2007,5 +1789,351 @@ namespace doclife::ui {
                 snapshot.locked = on;
             });
     }
+    void TemplateSheetView::setupSkeleton(const QString& dbPath, int sheetId)
+    {
+        QSqlDatabase db;
+        bool ownsConnection = false;
+        if (m_isProjectMode) {
+            db = doclife::core::ProjectContext::instance()->getProjectDb();
+            if (!db.isOpen()) return;
+        }
+        else {
+            if (!QFile::exists(dbPath)) return;
+            const QString connName = QStringLiteral("sheetview_main");
+            db = QSqlDatabase::contains(connName) ? QSqlDatabase::database(connName)
+                : QSqlDatabase::addDatabase("QSQLITE", connName);
+            if (db.isOpen()) db.close();
+            db.setDatabaseName(dbPath);
+            if (!db.open()) return;
+            ownsConnection = true;
+        }
+        auto finish = [&]() { if (ownsConnection && db.isValid()) db.close(); };
 
+        // 读行列数
+        int rowCount = 0, colCount = 0;
+        {
+            QSqlQuery q(db);
+            const QString tableName = m_isProjectMode ? "project_sheets" : "template_sheets";
+            q.prepare(QStringLiteral("SELECT row_count, col_count FROM %1 WHERE id = ?").arg(tableName));
+            q.addBindValue(sheetId);
+            if (q.exec() && q.next()) {
+                rowCount = q.value(0).toInt();
+                colCount = q.value(1).toInt();
+            }
+        }
+        if (rowCount <= 0 || colCount <= 0) { finish(); return; }
+
+        // 冻结控件
+        QSignalBlocker blocker(m_table);
+        m_table->setUpdatesEnabled(false);
+        m_table->blockSignals(true);
+        const bool oldWordWrap = m_table->wordWrap();
+        m_table->setWordWrap(false);
+
+        // 清旧合并
+        for (quint64 key : m_spanAnchors) {
+            m_table->setSpan(int(key >> 32), int(key & 0xffffffffULL), 1, 1);
+        }
+        m_spanAnchors.clear();
+
+        // 调整行列数
+        if (m_table->rowCount() != rowCount) m_table->setRowCount(rowCount);
+        if (m_table->columnCount() != colCount) m_table->setColumnCount(colCount);
+
+        // 清理"脏格"（上次有内容、这次要用的格子）
+        clearDirtyCells(rowCount, colCount);
+
+        // 默认列宽
+        m_defaultColWidths.clear();
+        m_defaultColWidths.reserve(colCount);
+        {
+            QSqlQuery q(db);
+            q.prepare("SELECT col, width FROM sheet_col_widths WHERE sheet_id = ? ORDER BY col");
+            q.addBindValue(sheetId);
+            if (q.exec()) {
+                while (q.next()) {
+                    const int c = q.value(0).toInt();
+                    if (c >= 0 && c < colCount)
+                        m_table->setColumnWidth(c, charsToPx(q.value(1).toDouble()));
+                }
+            }
+            for (int c = 0; c < colCount; ++c) m_defaultColWidths.append(m_table->columnWidth(c));
+        }
+
+        // 默认行高
+        m_defaultRowHeights.clear();
+        m_defaultRowHeights.reserve(rowCount);
+        {
+            QSqlQuery q(db);
+            q.prepare("SELECT row, height FROM sheet_row_heights WHERE sheet_id = ?");
+            q.addBindValue(sheetId);
+            if (q.exec()) {
+                while (q.next()) {
+                    const int r = q.value(0).toInt();
+                    if (r >= 0 && r < rowCount)
+                        m_table->setRowHeight(r, ptToPx(q.value(1).toDouble()));
+                }
+            }
+            for (int r = 0; r < rowCount; ++r) m_defaultRowHeights.append(m_table->rowHeight(r));
+        }
+
+        // 恢复
+        m_table->setWordWrap(oldWordWrap);
+        m_table->blockSignals(false);
+        m_table->setUpdatesEnabled(true);
+
+        finish();
+    }
+    void TemplateSheetView::fillContent(const QString& dbPath, int sheetId)
+    {
+        QElapsedTimer timer;
+        timer.start();
+
+        QSqlDatabase db;
+        bool ownsConnection = false;
+        if (m_isProjectMode) {
+            db = doclife::core::ProjectContext::instance()->getProjectDb();
+            if (!db.isOpen()) return;
+        }
+        else {
+            if (!QFile::exists(dbPath)) return;
+            const QString connName = QStringLiteral("sheetview_main");
+            db = QSqlDatabase::contains(connName) ? QSqlDatabase::database(connName)
+                : QSqlDatabase::addDatabase("QSQLITE", connName);
+            if (db.isOpen()) db.close();
+            db.setDatabaseName(dbPath);
+            if (!db.open()) return;
+            ownsConnection = true;
+        }
+        auto finish = [&]() { if (ownsConnection && db.isValid()) db.close(); };
+
+        const int rowCount = m_table->rowCount();
+        const int colCount = m_table->columnCount();
+        if (rowCount <= 0 || colCount <= 0) { finish(); return; }
+
+        // 冻结
+        QSignalBlocker blocker(m_table);
+        m_table->setUpdatesEnabled(false);
+        m_table->blockSignals(true);
+
+        const bool oldWordWrap = m_table->wordWrap();
+        m_table->setWordWrap(false);
+
+        const auto oldHMode = m_table->horizontalHeader()->sectionResizeMode(0);
+        const auto oldVMode = m_table->verticalHeader()->sectionResizeMode(0);
+        m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+        m_table->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+
+        // 字体/颜色缓存
+        static QHash<QString, QFont> s_fontCache;
+        static QHash<QString, QColor> s_colorCache;
+        auto getFont = [](const QString& family, qreal size, bool bold, bool italic, bool underline) -> QFont {
+            const QString key = family + QLatin1Char('|') + QString::number(int(size * 10))
+                + QLatin1Char('|') + (bold ? "1" : "0") + (italic ? "1" : "0") + (underline ? "1" : "0");
+            auto it = s_fontCache.find(key);
+            if (it != s_fontCache.end()) return it.value();
+            QFont f(family);
+            f.setPointSizeF(size);
+            f.setBold(bold);
+            f.setItalic(italic);
+            f.setUnderline(underline);
+            if (s_fontCache.size() > 200) s_fontCache.clear();
+            s_fontCache.insert(key, f);
+            return f;
+            };
+        auto getColor = [](const QString& name) -> QColor {
+            if (name.isEmpty()) return QColor();
+            auto it = s_colorCache.find(name);
+            if (it != s_colorCache.end()) return it.value();
+            QColor c(name);
+            if (s_colorCache.size() > 100) s_colorCache.clear();
+            s_colorCache.insert(name, c);
+            return c;
+            };
+
+        // 加载内容，合并延后
+        struct PendingSpan { int r; int c; int rs; int cs; };
+        QList<PendingSpan> pendingSpans;
+        {
+            QSqlQuery q(db);
+            q.prepare("SELECT row, col, row_span, col_span, value, font_family, font_size, "
+                "font_bold, font_italic, font_underline, font_color, bg_color, "
+                "h_align, v_align, border_top, border_bottom, border_left, border_right, wrap_text "
+                "FROM sheet_cells WHERE sheet_id = ?");
+            q.addBindValue(sheetId);
+            if (q.exec()) {
+                while (q.next()) {
+                    const int r = q.value(0).toInt();
+                    const int c = q.value(1).toInt();
+                    if (r < 0 || r >= rowCount || c < 0 || c >= colCount) continue;
+
+                    auto* item = m_table->item(r, c);
+                    if (!item) { item = new QTableWidgetItem; m_table->setItem(r, c, item); }
+                    m_dirtyCells.insert(cellKey(r, c));
+
+                    const int rowSpan = qMax(1, q.value(2).toInt());
+                    const int colSpan = qMax(1, q.value(3).toInt());
+                    if (rowSpan > 1 || colSpan > 1) {
+                        pendingSpans.append({ r, c, rowSpan, colSpan });
+                        m_spanAnchors.insert(cellKey(r, c));
+                    }
+
+                    const QString text = q.value(4).toString();
+                    if (!text.isEmpty()) item->setText(text);
+                    if (m_isProjectMode && doclife::model::containsFieldToken(text))
+                        item->setData(Qt::UserRole + 21, text);
+
+                    qreal fontSize = q.value(6).toDouble();
+                    if (fontSize <= 0.0) fontSize = 10.5;
+                    item->setFont(getFont(q.value(5).toString(), fontSize,
+                        q.value(7).toInt() != 0, q.value(8).toInt() != 0, q.value(9).toInt() != 0));
+
+                    QColor fg = getColor(q.value(10).toString());
+                    if (fg.isValid()) item->setForeground(fg);
+                    QColor bg = getColor(q.value(11).toString());
+                    if (bg.isValid() && bg != QColor("#FFFFFF")) item->setBackground(bg);
+
+                    const int h = q.value(12).toInt(), v = q.value(13).toInt();
+                    Qt::Alignment align;
+                    if (h == 1) align |= Qt::AlignHCenter; else if (h == 2) align |= Qt::AlignRight; else align |= Qt::AlignLeft;
+                    if (v == 0) align |= Qt::AlignTop; else if (v == 2) align |= Qt::AlignBottom; else align |= Qt::AlignVCenter;
+                    item->setTextAlignment(align);
+
+                    const int t = q.value(14).toInt(), b = q.value(15).toInt();
+                    const int l = q.value(16).toInt(), ri = q.value(17).toInt();
+                    if (t) item->setData(Qt::UserRole + 10, t);
+                    if (b) item->setData(Qt::UserRole + 11, b);
+                    if (l) item->setData(Qt::UserRole + 12, l);
+                    if (ri) item->setData(Qt::UserRole + 13, ri);
+
+                    const QVariant wrapValue = q.value(18);
+                    item->setData(CellWrapRole, wrapValue.isNull() ? true : (wrapValue.toInt() != 0));
+                }
+            }
+        }
+
+        // 统一设置合并
+        for (const auto& span : pendingSpans) {
+            const int safeRs = qMin(rowCount - span.r, span.rs);
+            const int safeCs = qMin(colCount - span.c, span.cs);
+            // 裁剪后如果退化成 1×1，就直接跳过，避免刷警告
+            if (safeRs > 1 || safeCs > 1) {
+                m_table->setSpan(span.r, span.c, safeRs, safeCs);
+            }
+        }
+
+        // 填报模式扩展
+        if (m_isProjectMode) {
+            // form_values
+            {
+                QSqlQuery q(db);
+                q.prepare("SELECT row, col, value FROM form_values WHERE sheet_id = ?");
+                q.addBindValue(sheetId);
+                if (q.exec()) {
+                    while (q.next()) {
+                        const int r = q.value(0).toInt();
+                        const int c = q.value(1).toInt();
+                        if (r < 0 || r >= rowCount || c < 0 || c >= colCount) continue;
+                        auto* item = m_table->item(r, c);
+                        if (!item) { item = new QTableWidgetItem; m_table->setItem(r, c, item); }
+                        const QString v = q.value(2).toString();
+                        if (!v.isEmpty()) item->setText(v);
+                        item->setData(CellSaveRole, true);
+                    }
+                }
+            }
+
+            // locked / auto_fit
+            {
+                QSqlQuery q(db);
+                q.prepare("SELECT row, col, locked, auto_fit FROM sheet_cells "
+                    "WHERE sheet_id = ? AND (locked = 1 OR auto_fit = 1)");
+                q.addBindValue(sheetId);
+                if (q.exec()) {
+                    while (q.next()) {
+                        auto* item = m_table->item(q.value(0).toInt(), q.value(1).toInt());
+                        if (!item) continue;
+                        if (q.value(2).toInt() != 0) item->setData(CellLockedRole, true);
+                        if (q.value(3).toInt() != 0) item->setData(CellAutoFitRole, true);
+                    }
+                }
+            }
+
+            // 占位符
+            const QHash<QString, QString> fieldValues =
+                doclife::core::ProjectContext::instance()->fieldValues(m_currentNodeId);
+            for (int row = 0; row < rowCount; ++row) {
+                for (int col = 0; col < colCount; ++col) {
+                    auto* item = m_table->item(row, col);
+                    if (!item) continue;
+                    if (isCellLocked(item) || item->data(CellSaveRole).toBool()) continue;
+                    QString raw = item->data(Qt::UserRole + 21).toString();
+                    if (raw.isEmpty()) {
+                        const QString shown = item->text();
+                        if (shown.isEmpty() || !doclife::model::containsFieldToken(shown)) continue;
+                        raw = shown;
+                        item->setData(Qt::UserRole + 21, raw);
+                    }
+                    item->setText(doclife::model::resolveFieldTokens(raw, fieldValues));
+                }
+            }
+
+            // cell_role
+            {
+                QSqlQuery q(db);
+                q.prepare("SELECT row, col, cell_role FROM sheet_cells "
+                    "WHERE sheet_id = ? AND cell_role IS NOT NULL AND cell_role != ''");
+                q.addBindValue(sheetId);
+                if (q.exec()) {
+                    while (q.next()) {
+                        const int row = q.value(0).toInt();
+                        const int col = q.value(1).toInt();
+                        if (row < 0 || row >= rowCount || col < 0 || col >= colCount) continue;
+                        if (auto* item = m_table->item(row, col))
+                            applyCellRole(item, q.value(2).toString());
+                    }
+                }
+            }
+        }
+
+        // 恢复
+        m_table->horizontalHeader()->setSectionResizeMode(oldHMode);
+        m_table->verticalHeader()->setSectionResizeMode(oldVMode);
+        m_table->setWordWrap(oldWordWrap);
+        m_table->blockSignals(false);
+        m_table->setUpdatesEnabled(true);
+
+        finish();
+
+        qDebug() << "fillContent 耗时:" << timer.elapsed() << "ms";
+    }
+
+    void TemplateSheetView::setupTemplate(const QString& dbPath, int sheetId)
+    {
+        setupSkeleton(dbPath, sheetId);
+        fillContent(dbPath, sheetId);
+    }
+
+    void TemplateSheetView::clearDirtyCells(int rowCount, int colCount)
+    {
+        for (quint64 key : m_dirtyCells) {
+            const int r = int(key >> 32);
+            const int c = int(key & 0xffffffffULL);
+            if (r < 0 || r >= rowCount || c < 0 || c >= colCount) continue;
+            auto* item = m_table->item(r, c);
+            if (!item) continue;
+            if (!item->text().isEmpty()) item->setText(QString());
+            if (item->data(CellLockedRole).toBool()) item->setData(CellLockedRole, false);
+            if (item->data(CellAutoFitRole).toBool()) item->setData(CellAutoFitRole, false);
+            if (item->data(CellSaveRole).toBool()) item->setData(CellSaveRole, false);
+            if (!item->data(CellWrapRole).toBool()) item->setData(CellWrapRole, true);
+            item->setData(Qt::UserRole + 10, 0);
+            item->setData(Qt::UserRole + 11, 0);
+            item->setData(Qt::UserRole + 12, 0);
+            item->setData(Qt::UserRole + 13, 0);
+            if (!item->data(Qt::UserRole + 21).toString().isEmpty())
+                item->setData(Qt::UserRole + 21, QVariant());
+        }
+        m_dirtyCells.clear();
+    }
 } // namespace doclife::ui

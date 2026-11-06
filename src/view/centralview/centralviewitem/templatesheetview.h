@@ -190,6 +190,9 @@ namespace doclife::ui {
         // 把待写入内容落库：allSheets=false 时只写当前这张表（切表用）
         void flushPending(bool allSheets);
         void flushCurrentSheet();
+        void setupSkeleton(const QString& dbPath, int sheetId);
+        void fillContent(const QString& dbPath, int sheetId);
+        void clearDirtyCells(int rowCount, int colCount);
         CellSnapshot snapshotOf(int row, int col) const;
         QVector<CellSnapshot> snapshotRanges(const QList<QTableWidgetSelectionRange>& ranges) const;
         void applySnapshots(const QVector<CellSnapshot>& snapshots);
@@ -235,6 +238,9 @@ namespace doclife::ui {
         QHash<PendingCellKey, PendingCellFormat> m_pendingFormats;
         // 当前表里所有合并块的左上角（QTableView 无法可靠区分锚点与被覆盖的单元格）
         QSet<quint64> m_spanAnchors;
+        // 上次有数据的cell
+        QSet<quint64> m_dirtyCells;
+
     };
 
 } // namespace doclife::ui
