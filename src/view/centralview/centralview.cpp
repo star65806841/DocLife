@@ -14,6 +14,7 @@
 
 #include <QVBoxLayout>
 #include <QPointer>
+#include <QResizeEvent>
 
 #include <popWindow/addsheetdialog.h>
 #include <popWindow/projectnew.h>
@@ -220,11 +221,37 @@ void CentralView::onRequestAddSheet(const QString &parentNodeId)
 
 void CentralView::onDrawerFileSetting()
 {
-    // Backstage（文件抽屉）：整块内容区被覆盖，取代原来空白的右侧 Drawer
-    if (!m_backstage) {
-        m_backstage = new BackstageView(this);
+    // 文件抽屉：整宽覆盖内容区，无遮罩，只能点「← 文件」关闭
+    if (!m_fileDrawer) {
+        m_fileDrawer = new fluent::collections::DrawerView(this);
+        m_fileDrawer->setEdge(fluent::collections::DrawerView::DrawerEdge::Right);
+        m_fileDrawer->setModal(true);                 // 挡住抽屉外的交互
+        m_fileDrawer->setDim(false);                  // 不加遮罩
+        m_fileDrawer->setClosePolicy(fluent::collections::DrawerView::NoAutoClose);
+        m_fileDrawer->setInteractive(false);          // 不允许拖动/滑动关闭
+        m_fileDrawer->setOuterCornerRadius(0);
+        m_fileDrawer->setAnimationEnabled(true);
+
+        m_backstage = new BackstageView(m_fileDrawer);
+        m_fileDrawer->setContentWidget(m_backstage, fluent::WidgetOwnership::Owned);
+
+        connect(m_backstage, &BackstageView::requestClose, this, [this]() {
+            if (m_fileDrawer) m_fileDrawer->close();
+            });
     }
-    m_backstage->toggle();
+
+    m_fileDrawer->setDrawerLength(width());   // 完全覆盖
+    m_fileDrawer->open();
+}
+
+void CentralView::resizeEvent(QResizeEvent* event)
+{
+    QWidget::resizeEvent(event);
+
+    // 抽屉开着时窗口被拉大/缩小，抽屉要跟着铺满
+    if (m_fileDrawer && m_fileDrawer->isOpen()) {
+        m_fileDrawer->setDrawerLength(width());
+    }
 }
 void CentralView::showProjectNew()
 {

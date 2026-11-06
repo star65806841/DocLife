@@ -8,6 +8,8 @@ namespace doclife::core
 {
     class ProjectContext;
 }
+namespace fluent::collections { class DrawerView; }
+
 namespace doclife::ui {
     class MainContentView;
     class ProjectView;
@@ -44,12 +46,16 @@ namespace doclife::ui {
         // 时间区域双击：统一由主界面弹日历窗，确认后发回执信号
         void onDatePickRequested(int sheetId, int row, int col, const QDate& current);
     private:
+        // 抽屉全宽覆盖：窗口尺寸变化时同步抽屉长度
+        void resizeEvent(QResizeEvent* event) override;
+
         //project context data
         doclife::core::ProjectContext* m_projectObject = nullptr;
 
         MainContentView* m_mainContent = nullptr;
         ProjectView* m_leftView = nullptr;
         TemplateView* m_templateView = nullptr;
+        fluent::collections::DrawerView* m_fileDrawer = nullptr;
         BackstageView* m_backstage = nullptr;
 
     private:

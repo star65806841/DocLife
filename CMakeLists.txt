@@ -82,7 +82,6 @@ set(DOCLIFE_VIEW_CENTRAL
 # ---------------------------------------------------------------------------
 set(DOCLIFE_VIEW_BACKSTAGE
     src/view/backstage/backstageview.h                                       src/view/backstage/backstageview.cpp
-    src/view/backstage/backstagenavbutton.h                                  src/view/backstage/backstagenavbutton.cpp
     src/view/backstage/backstagepages.h                                      src/view/backstage/backstagepages.cpp
 )
 

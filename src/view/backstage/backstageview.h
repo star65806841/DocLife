@@ -2,20 +2,15 @@
 
 #include <QWidget>
 
-#include <functional>
-
-class QVBoxLayout;
-class QStackedWidget;
-class QScrollArea;
+namespace fluent::navigation { class StackContentHost; }
 
 namespace doclife::ui {
 
-    class BackstageNavButton;
     class BackstagePageBase;
 
     /**
-     * Office 风格 Backstage（文件抽屉）：覆盖在内容区之上，
-     * 左侧自绘导航 + 右侧页面栈，完全脱离 Fluent 全局样式。
+     * 文件抽屉的内容面板：顶部「← 文件」+ 仿工程信息设置页的左侧导航。
+     * 自身不负责显示/隐藏，由 DrawerView 承载。
      */
     class BackstageView : public QWidget
     {
@@ -23,33 +18,16 @@ namespace doclife::ui {
     public:
         explicit BackstageView(QWidget* parent = nullptr);
 
-        void toggle();
-        void openBackstage();
-        void closeBackstage();
-        bool isOpen() const { return isVisible(); }
-
-    protected:
-        bool eventFilter(QObject* watched, QEvent* event) override;
-        void keyPressEvent(QKeyEvent* event) override;
-        void showEvent(QShowEvent* event) override;
+    signals:
+        // 用户点了「← 文件」：由宿主关闭抽屉
+        void requestClose();
 
     private:
         void buildUi();
-        void addPageItem(const QString& glyph, const QString& text,
-                         BackstagePageBase* page, bool checked = false);
-        void addActionItem(const QString& glyph, const QString& text,
-                           const std::function<void()>& action);
-        void addSeparatorItem();
-        void select(int navIndex);
-        void moveFocus(int delta);
+        void showPage(int index);
 
-        QVBoxLayout*      m_leftLayout = nullptr;
-        QScrollArea*      m_leftScroll = nullptr;
-        QStackedWidget*   m_stack = nullptr;
-
-        QList<BackstageNavButton*> m_navButtons;
-        QList<int>                 m_navToPage;   // -1 = 动作项
-        int m_current = -1;
+        fluent::navigation::StackContentHost* m_host = nullptr;
+        QList<BackstagePageBase*> m_pages;
     };
 
 } // namespace doclife::ui

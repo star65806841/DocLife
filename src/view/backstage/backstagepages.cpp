@@ -1,12 +1,10 @@
 ﻿#include "backstagepages.h"
 
-#include <QDateTime>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
 #include <QSettings>
-#include <QToolButton>
 #include <QVBoxLayout>
 
 namespace doclife::ui {
@@ -42,19 +40,10 @@ namespace doclife::ui {
     } // namespace backstage
 
     namespace {
-        using doclife::ui::backstage::recentFiles;
-
         QLabel* makeTitle(const QString& text, QWidget* parent)
         {
             auto* label = new QLabel(text, parent);
-            label->setStyleSheet(QStringLiteral("font-size: 28px; font-weight: 600; color: #202020;"));
-            return label;
-        }
-
-        QLabel* makeSectionTitle(const QString& text, QWidget* parent)
-        {
-            auto* label = new QLabel(text, parent);
-            label->setStyleSheet(QStringLiteral("font-size: 15px; font-weight: 600; color: #202020;"));
+            label->setStyleSheet(QStringLiteral("font-size: 22px; font-weight: 600; color: #202020;"));
             return label;
         }
 
@@ -71,33 +60,33 @@ namespace doclife::ui {
         {
             auto* card = new QPushButton(title + QLatin1Char('\n') + subtitle, parent);
             card->setCursor(Qt::PointingHandCursor);
-            card->setMinimumSize(220, 120);
+            card->setMinimumSize(200, 104);
             card->setStyleSheet(QStringLiteral(
                 "QPushButton {"
                 "  background: #FAFAFA; border: 1px solid #E0E0E0; border-radius: 8px;"
-                "  padding: 18px; text-align: left; font-size: 14px; color: #202020;"
+                "  padding: 16px; text-align: left; font-size: 14px; color: #202020;"
                 "}"
                 "QPushButton:hover { background: #F0F5FF; border-color: #0078D4; }"
                 "QPushButton:pressed { background: #E4EEFB; }"));
             return card;
         }
 
-        // 最近文件一行：文件名 + 目录/时间，整行可点
+        // 历史记录一行：文件名 + 目录/时间，整行可点
         QPushButton* makeRecentRow(const QFileInfo& info, QWidget* parent)
         {
             auto* row = new QPushButton(parent);
             row->setCursor(Qt::PointingHandCursor);
-            row->setMinimumHeight(52);
+            row->setMinimumHeight(50);
             row->setStyleSheet(QStringLiteral(
                 "QPushButton {"
                 "  background: transparent; border: none; border-radius: 6px;"
-                "  text-align: left; padding: 8px 12px;"
+                "  text-align: left; padding: 6px 10px;"
                 "}"
                 "QPushButton:hover { background: rgba(0,0,0,0.05); }"));
 
             auto* layout = new QHBoxLayout(row);
-            layout->setContentsMargins(12, 6, 12, 6);
-            layout->setSpacing(12);
+            layout->setContentsMargins(10, 4, 10, 4);
+            layout->setSpacing(10);
 
             auto* text = new QVBoxLayout;
             text->setSpacing(2);
@@ -129,63 +118,27 @@ namespace doclife::ui {
         : BackstagePageBase(parent)
     {
         auto* root = new QVBoxLayout(this);
-        root->setContentsMargins(32, 32, 32, 32);
-        root->setSpacing(20);
+        root->setContentsMargins(16, 8, 16, 16);
+        root->setSpacing(16);
 
         root->addWidget(makeTitle(QStringLiteral("新建"), this));
+        root->addWidget(makeHint(QStringLiteral("从一个空工程开始，或者直接打开已有的工程文件。"), this));
 
         auto* cardRow = new QHBoxLayout;
-        cardRow->setSpacing(16);
+        cardRow->setSpacing(14);
 
         auto* blankCard = makeCard(QStringLiteral("空白工程"),
-            QStringLiteral("从空白开始建立自己的树"), this);
+            QStringLiteral("建立自己的单位/分部/分项树"), this);
         auto* openCard = makeCard(QStringLiteral("打开工程"),
             QStringLiteral("打开已有的 .dlf 工程文件"), this);
         cardRow->addWidget(blankCard);
         cardRow->addWidget(openCard);
         cardRow->addStretch();
         root->addLayout(cardRow);
-
-        root->addSpacing(8);
-        root->addWidget(makeSectionTitle(QStringLiteral("最近打开"), this));
-
-        auto* recentHost = new QWidget(this);
-        m_recentLayout = new QVBoxLayout(recentHost);
-        m_recentLayout->setContentsMargins(0, 0, 0, 0);
-        m_recentLayout->setSpacing(4);
-        root->addWidget(recentHost);
         root->addStretch(1);
 
         connect(blankCard, &QPushButton::clicked, this, &BackstageNewPage::requestBlank);
         connect(openCard, &QPushButton::clicked, this, &BackstageNewPage::requestOpen);
-
-        rebuildRecent();
-    }
-
-    void BackstageNewPage::onShown()
-    {
-        rebuildRecent();
-    }
-
-    void BackstageNewPage::rebuildRecent()
-    {
-        clearLayout(m_recentLayout);
-
-        const QStringList files = recentFiles();
-        if (files.isEmpty()) {
-            m_recentLayout->addWidget(makeHint(QStringLiteral("还没有打开过工程。"), this));
-            return;
-        }
-
-        for (const QString& path : files) {
-            const QFileInfo info(path);
-            if (!info.exists()) continue;
-            auto* row = makeRecentRow(info, this);
-            connect(row, &QPushButton::clicked, this, [this, path]() {
-                emit requestOpenPath(path);
-                });
-            m_recentLayout->addWidget(row);
-        }
     }
 
     // ---------------------------------------------------------------- 打开
@@ -194,8 +147,8 @@ namespace doclife::ui {
         : BackstagePageBase(parent)
     {
         auto* root = new QVBoxLayout(this);
-        root->setContentsMargins(32, 32, 32, 32);
-        root->setSpacing(16);
+        root->setContentsMargins(16, 8, 16, 16);
+        root->setSpacing(12);
 
         root->addWidget(makeTitle(QStringLiteral("打开"), this));
 
@@ -209,13 +162,13 @@ namespace doclife::ui {
             "QPushButton:hover { background: #0067C0; }"));
         root->addWidget(browse);
 
-        root->addSpacing(8);
-        root->addWidget(makeSectionTitle(QStringLiteral("历史记录"), this));
+        root->addSpacing(4);
+        root->addWidget(makeHint(QStringLiteral("历史记录（点击直接打开）："), this));
 
         auto* host = new QWidget(this);
         m_listLayout = new QVBoxLayout(host);
         m_listLayout->setContentsMargins(0, 0, 0, 0);
-        m_listLayout->setSpacing(4);
+        m_listLayout->setSpacing(2);
         root->addWidget(host);
         root->addStretch(1);
 
@@ -232,11 +185,12 @@ namespace doclife::ui {
     {
         clearLayout(m_listLayout);
 
-        const QStringList files = recentFiles();
+        const QStringList files = backstage::recentFiles();
         int shown = 0;
         for (const QString& path : files) {
             const QFileInfo info(path);
             if (!info.exists()) continue;
+
             auto* row = makeRecentRow(info, this);
             connect(row, &QPushButton::clicked, this, [this, path]() {
                 emit requestOpenPath(path);
@@ -246,7 +200,8 @@ namespace doclife::ui {
         }
 
         if (shown == 0) {
-            m_listLayout->addWidget(makeHint(QStringLiteral("暂无历史记录，点上面的「浏览…」选择工程文件。"), this));
+            m_listLayout->addWidget(makeHint(
+                QStringLiteral("还没有历史记录。点上面的「浏览…」打开一个工程，之后就会出现在这里。"), this));
         }
     }
 
@@ -256,17 +211,15 @@ namespace doclife::ui {
         : BackstagePageBase(parent)
     {
         auto* root = new QVBoxLayout(this);
-        root->setContentsMargins(32, 32, 32, 32);
-        root->setSpacing(16);
+        root->setContentsMargins(16, 8, 16, 16);
+        root->setSpacing(12);
 
         root->addWidget(makeTitle(QStringLiteral("设置"), this));
-        root->addWidget(makeHint(QStringLiteral("这些入口复用现有的弹窗，后续可以把内容直接内嵌到这里。"), this));
-        root->addSpacing(8);
 
         auto makeEntry = [this, root](const QString& title, const QString& hint, auto signal) {
             auto* button = new QPushButton(title, this);
             button->setCursor(Qt::PointingHandCursor);
-            button->setMinimumHeight(44);
+            button->setMinimumHeight(42);
             button->setStyleSheet(QStringLiteral(
                 "QPushButton { background: #FAFAFA; border: 1px solid #E0E0E0; border-radius: 6px;"
                 "  text-align: left; padding: 0 14px; font-size: 14px; color: #202020; }"
@@ -277,27 +230,12 @@ namespace doclife::ui {
             };
 
         makeEntry(QStringLiteral("界面与编辑偏好"),
-            QStringLiteral("选中背景、日志导出等"), &BackstageSettingsPage::requestSettings);
+            QStringLiteral("选中背景色、诊断日志导出"), &BackstageSettingsPage::requestSettings);
         makeEntry(QStringLiteral("工程信息"),
-            QStringLiteral("工程名称、编号、各参建单位"), &BackstageSettingsPage::requestProjectInfo);
+            QStringLiteral("工程名称、工程编号、各参建单位"), &BackstageSettingsPage::requestProjectInfo);
         makeEntry(QStringLiteral("关于 DocLife"),
             QStringLiteral("版本与第三方组件许可"), &BackstageSettingsPage::requestAbout);
 
-        root->addStretch(1);
-    }
-
-    // ---------------------------------------------------------------- 占位
-
-    BackstagePlaceholderPage::BackstagePlaceholderPage(const QString& title,
-                                                       const QString& hint,
-                                                       QWidget* parent)
-        : BackstagePageBase(parent)
-    {
-        auto* root = new QVBoxLayout(this);
-        root->setContentsMargins(32, 32, 32, 32);
-        root->setSpacing(12);
-        root->addWidget(makeTitle(title, this));
-        root->addWidget(makeHint(hint, this));
         root->addStretch(1);
     }
 
