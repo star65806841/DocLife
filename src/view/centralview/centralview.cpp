@@ -3,6 +3,8 @@
 #include "maincontentview.h"
 
 #include <topMenu/topmenu.h>
+#include <backstage/backstageview.h>
+#include <backstage/backstagepages.h>
 
 #include <components/collections/DrawerView.h>
 #include <components/collections/SplitView.h>
@@ -218,11 +220,11 @@ void CentralView::onRequestAddSheet(const QString &parentNodeId)
 
 void CentralView::onDrawerFileSetting()
 {
-    auto* drawer = new fluent::collections::DrawerView(this);
-    drawer->setEdge(fluent::collections::DrawerView::DrawerEdge::Right);
-    drawer->setDrawerLength(260);
-    drawer->setContentWidget(new QWidget(), fluent::WidgetOwnership::Owned);
-    drawer->open();
+    // Backstage（文件抽屉）：整块内容区被覆盖，取代原来空白的右侧 Drawer
+    if (!m_backstage) {
+        m_backstage = new BackstageView(this);
+    }
+    m_backstage->toggle();
 }
 void CentralView::showProjectNew()
 {
@@ -273,6 +275,12 @@ void CentralView::initConnect()
     connect(UISignalManager::instance(), &UISignalManager::requestAddSheet, this, &CentralView::onRequestAddSheet);
     // 时间区域双击：主界面统一弹日历窗
     connect(UISignalManager::instance(), &UISignalManager::datePickRequested, this, &CentralView::onDatePickRequested);
+
+    // 记录最近打开的工程，供 Backstage「打开」页使用
+    connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectOpened,
+        this, [](const QString& path) { doclife::ui::backstage::addRecentFile(path); });
+    connect(doclife::core::ProjectContext::instance(), &doclife::core::ProjectContext::projectSaved,
+        this, [](const QString& path) { doclife::ui::backstage::addRecentFile(path); });
 
 }
 

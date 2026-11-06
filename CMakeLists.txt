@@ -78,6 +78,15 @@ set(DOCLIFE_VIEW_CENTRAL
 )
 
 # ---------------------------------------------------------------------------
+# Backstage（文件抽屉）
+# ---------------------------------------------------------------------------
+set(DOCLIFE_VIEW_BACKSTAGE
+    src/view/backstage/backstageview.h                                       src/view/backstage/backstageview.cpp
+    src/view/backstage/backstagenavbutton.h                                  src/view/backstage/backstagenavbutton.cpp
+    src/view/backstage/backstagepages.h                                      src/view/backstage/backstagepages.cpp
+)
+
+# ---------------------------------------------------------------------------
 # 顶部菜单栏
 # ---------------------------------------------------------------------------
 set(DOCLIFE_VIEW_MENU
@@ -178,6 +187,7 @@ qt_add_executable(DocLife
     WIN32 MACOSX_BUNDLE
     ${DOCLIFE_APP}
     ${DOCLIFE_VIEW_CENTRAL}
+    ${DOCLIFE_VIEW_BACKSTAGE}
     ${DOCLIFE_VIEW_MENU}
     ${DOCLIFE_VIEW_LEFT}
     ${DOCLIFE_VIEW_POPUP}

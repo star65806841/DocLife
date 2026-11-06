@@ -12,6 +12,7 @@ namespace doclife::ui {
     class MainContentView;
     class ProjectView;
     class TemplateView;
+    class BackstageView;
 
     class CentralView : public QWidget
     {
@@ -49,6 +50,7 @@ namespace doclife::ui {
         MainContentView* m_mainContent = nullptr;
         ProjectView* m_leftView = nullptr;
         TemplateView* m_templateView = nullptr;
+        BackstageView* m_backstage = nullptr;
 
     private:
 
