@@ -84,3 +84,7 @@ CMakeLists.txt.user*
 /build*/
 /out*/
 /.qtcreator/
+
+# 会话临时验证目录与 Office 锁定文件
+.dsh-scratch/
+~$*
