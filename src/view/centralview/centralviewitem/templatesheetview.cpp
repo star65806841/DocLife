@@ -77,6 +77,19 @@ namespace doclife::ui {
         // 表名/标题用更浅的一层，免得整张表头和只读说明混成一片
         QColor titleTint() { return QColor(0xF2, 0xF2, 0xF2); }
 
+        // 角色底色：用户「无填充」时回落到这一层，与模板标记色一致
+        QColor cellRoleTint(const QString& roleKey)
+        {
+            switch (doclife::model::cellRoleFromKey(roleKey)) {
+            case doclife::model::CellRole::Title:    return titleTint();
+            case doclife::model::CellRole::ReadOnly: return readOnlyTint();
+            case doclife::model::CellRole::Project:  return QColor(0xFF, 0xF2, 0xCC);
+            case doclife::model::CellRole::Summary:  return QColor(0xDD, 0xEB, 0xF7);
+            case doclife::model::CellRole::Date:     return QColor(0xE2, 0xEF, 0xDA);
+            default:                                 return QColor();
+            }
+        }
+
         // 「自适应单元格大小」：只缩小、不放大，二分找能放下的最大字号
         QFont shrinkFontToFit(const QFont& font, const QString& text, const QRect& rect, bool wrap)
         {
@@ -1160,15 +1173,7 @@ namespace doclife::ui {
 
         item->setData(CellRoleKeyRole, roleKey);
 
-        QColor tint;
-        switch (role) {
-        case doclife::model::CellRole::Title:    tint = titleTint(); break;
-        case doclife::model::CellRole::ReadOnly: tint = readOnlyTint(); break;
-        case doclife::model::CellRole::Project:  tint = QColor(0xFF, 0xF2, 0xCC); break;
-        case doclife::model::CellRole::Summary:  tint = QColor(0xDD, 0xEB, 0xF7); break;
-        case doclife::model::CellRole::Date:     tint = QColor(0xE2, 0xEF, 0xDA); break;
-        default: break;
-        }
+        const QColor tint = cellRoleTint(roleKey);
         if (tint.isValid() && item->background().style() == Qt::NoBrush) {
             // 用户已手动填充过的格子保留自己的颜色，不被角色色覆盖
             item->setBackground(tint);
@@ -1617,8 +1622,14 @@ namespace doclife::ui {
 
             item->setFont(s.font);
             item->setForeground(s.foreground);
-            if (s.hasFill) item->setBackground(s.background);
-            else item->setBackground(QBrush());
+            if (s.hasFill) {
+                item->setBackground(s.background);
+            }
+            else {
+                // 无填充 = 回落到角色底色（文档里的约定）：
+                // 取消填充不该把工程信息黄底、时间区域绿底这些一起抹掉
+                item->setBackground(QBrush(cellRoleTint(item->data(CellRoleKeyRole).toString())));
+            }
             item->setTextAlignment(Qt::Alignment(s.alignment));
             item->setData(CellWrapRole, s.wrap);
             item->setData(CellAutoFitRole, s.autoFit);

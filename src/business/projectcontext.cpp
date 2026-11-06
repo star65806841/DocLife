@@ -74,6 +74,12 @@ namespace doclife::core {
             q.exec("ALTER TABLE sheet_cells ADD COLUMN auto_fit INTEGER DEFAULT 0;");
             q.exec("ALTER TABLE sheet_cells ADD COLUMN locked INTEGER DEFAULT 0;");
 
+            // 数据修复：时间区域（模板标记色 #E2EFDA）的格子如果角色丢了（早期导入或解锁时
+            // 被改成 input），按底色把 date 补回来并写库。这样之后改填充色也不会影响双击弹日期。
+            // 只认 #E2EFDA：它不在工具栏调色板里，正常不会被用户手动填成这个色。
+            q.exec("UPDATE sheet_cells SET cell_role = 'date' "
+                "WHERE upper(bg_color) = '#E2EFDA' AND (cell_role IS NULL OR cell_role = 'input');");
+
             if (!q.exec("CREATE TABLE IF NOT EXISTS form_values ("
                 "sheet_id INTEGER, row INTEGER, col INTEGER, value TEXT, "
                 "PRIMARY KEY (sheet_id, row, col));")) return false;
