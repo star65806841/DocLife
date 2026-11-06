@@ -181,9 +181,22 @@ namespace doclife::ui {
             }
 
             QStyle* style = opt.widget ? opt.widget->style() : QApplication::style();
+
             // 不折行时样式不会自己裁剪，这里夹一下：超出单元格的部分是硬切，不是溢出到隔壁
             painter->save();
             painter->setClipRect(opt.rect);
+
+            // 背景自己铺：表格带 QTableWidget::item 样式规则时，绘制由 QStyleSheetStyle 接管，
+            // 它不会把 Qt::BackgroundRole 画出来，于是填充色、角色底色（黄/蓝/灰）、锁定灰全部丢失。
+            // 在样式绘制之前先填一层，选中高亮仍在最后叠加，所以选中色照旧。
+            QBrush backgroundBrush = index.data(Qt::BackgroundRole).value<QBrush>();
+            if (index.data(CellLockedRole).toBool()) {
+                backgroundBrush = QBrush(readOnlyTint());   // 锁定 = 约定的只读底色
+            }
+            if (backgroundBrush.style() != Qt::NoBrush) {
+                painter->fillRect(opt.rect, backgroundBrush);
+            }
+
             style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, opt.widget);
             painter->restore();
 
