@@ -224,7 +224,7 @@ void CentralView::onDrawerFileSetting()
     // 文件抽屉：整宽覆盖内容区，无遮罩，只能点「← 文件」关闭
     if (!m_fileDrawer) {
         m_fileDrawer = new fluent::collections::DrawerView(this);
-        m_fileDrawer->setEdge(fluent::collections::DrawerView::DrawerEdge::Right);
+        m_fileDrawer->setEdge(fluent::collections::DrawerView::DrawerEdge::Left);
         m_fileDrawer->setModal(true);                 // 挡住抽屉外的交互
         m_fileDrawer->setDim(false);                  // 不加遮罩
         m_fileDrawer->setClosePolicy(fluent::collections::DrawerView::NoAutoClose);

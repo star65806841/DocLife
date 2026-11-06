@@ -32,7 +32,7 @@ void TopMenu::init()
     bar->setLabelPosition(fluent::menus_toolbars::CommandBar::LabelPosition::Right);
     bar->setBackgroundVisible(false);
 
-    auto* actionFile = new QAction(QIcon(":/icons/menu/AddFile.svg"), "文件测试", bar);
+    auto* actionFile = new QAction(QIcon(":/icons/menu/AddFile.svg"), "文件", bar);
     auto* actionAddBlank = new QAction(QIcon(":/icons/menu/AddFile.svg"), "新建空白", bar);
     auto* actionOpenProject = new QAction(QIcon(":/icons/menu/file_open.svg"), "打开", bar);
     auto* actionSaveProject = new QAction(QIcon(":/icons/menu/file_save.svg"), "保存", bar);

@@ -1404,13 +1404,16 @@ namespace doclife::ui {
 
             item->setFont(s.font);
             item->setForeground(s.foreground);
-            if (s.hasFill) {
+            if (s.hasFill && s.background.isValid()) {
                 item->setBackground(s.background);
-            }
-            else {
+            } else {
                 // 无填充 = 回落到角色底色（文档里的约定）：
-                // 取消填充不该把工程信息黄底、时间区域绿底这些一起抹掉
-                item->setBackground(QBrush(cellRoleTint(item->data(CellRoleKeyRole).toString())));
+                // 取消填充不该把工程信息黄底、时间区域绿底这些一起抹掉。
+                // 注意：tint 无效时必须用 QBrush()（NoBrush）清掉背景。
+                // QBrush(QColor()) 会得到 SolidPattern + 无效色的画刷，Qt 按黑色绘制，
+                // 于是编辑完成（applySnapshots 被调用）后单元格就变黑了。
+                const QColor tint = cellRoleTint(item->data(CellRoleKeyRole).toString());
+                item->setBackground(tint.isValid() ? QBrush(tint) : QBrush());
             }
             item->setTextAlignment(Qt::Alignment(s.alignment));
             item->setData(CellWrapRole, s.wrap);
